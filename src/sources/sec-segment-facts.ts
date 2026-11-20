@@ -1,5 +1,7 @@
 // Dimensional ASC 280 segment facts and extension capex lines read from a 10-K/10-Q inline XBRL primary document.
 
+import { decodeHtmlEntities } from "./sec-filing-text";
+
 export const SEGMENT_FACT_PREFIX = "segment|";
 export const SEGMENT_UNIT_KEY = "segmentUnit";
 export const GEOGRAPHY_FACT_PREFIX = "geography|";
@@ -41,9 +43,26 @@ interface SegmentContext {
   readonly end: string;
 }
 
+// Pairs are read left to right with each quoted value consumed whole; any other token makes the whole tag unreadable.
 function attribute(attrs: string, name: string): string | undefined {
-  return new RegExp(`\\b${name}="([^"]*)"`, "u").exec(attrs)?.[1];
+  const pair = /\s*([^\s=/>"']+)\s*=\s*(?:"([^"]*)"|'([^']*)')/uy;
+  let found: string | undefined = undefined;
+  let end = 0;
+  for (let match = pair.exec(attrs); match !== null; match = pair.exec(attrs)) {
+    found ??= match[1] === name ? (match[2] ?? match[3]) : undefined;
+    end = pair.lastIndex;
+  }
+  return /^\s*\/?\s*$/u.test(attrs.slice(end)) ? found : undefined;
 }
+
+// An opening tag's attributes, where a quoted value may hold `>`.
+const TAG_ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
+const NON_FRACTION = new RegExp(
+  `<ix:nonFraction\\b${TAG_ATTRS}\\/>|<ix:nonFraction\\b(${TAG_ATTRS})>([\\s\\S]*?)<\\/ix:nonFraction>`,
+  "gu",
+);
+
+const SEGMENT = /<xbrli:segment[\s>]/u;
 
 // `totalMember` keeps dimensionless contexts under that name, as the consolidated denominator.
 function segmentContexts(
@@ -73,7 +92,7 @@ function segmentContexts(
         foreign = true;
       }
     }
-    if (totalMember !== undefined && !body!.includes("<xbrli:segment>")) {
+    if (totalMember !== undefined && !SEGMENT.test(body!)) {
       contexts.set(id!, { member: totalMember, start, end });
     } else if (
       member !== undefined &&
@@ -180,9 +199,7 @@ function dimensionalFactMetrics(
     { value: number; rank: number; unit: string; concept: string } | "conflict"
   >();
   // Self-closing (nil) facts match the first alternative, so they never borrow the next fact's text.
-  for (const [, attrs, content] of html.matchAll(
-    /<ix:nonFraction\b[^>]*\/>|<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu,
-  )) {
+  for (const [, attrs, content] of html.matchAll(NON_FRACTION)) {
     if (attrs === undefined || content === undefined || /xsi:nil="true"/u.test(attrs)) {
       continue;
     }
@@ -309,9 +326,7 @@ export function secDiscontinuedInvestingFactMetrics(
     }
   }
   const metrics: Record<string, number> = {};
-  for (const [, attrs, content] of html.matchAll(
-    /<ix:nonFraction\b[^>]*\/>|<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu,
-  )) {
+  for (const [, attrs, content] of html.matchAll(NON_FRACTION)) {
     const concept = attrs === undefined ? undefined : attribute(attrs, "name");
     const context = contexts.get(attribute(attrs ?? "", "contextRef") ?? "");
     const value = concept === undefined ? undefined : factValue(attrs!, content!);
@@ -342,9 +357,7 @@ export function secExtensionCapexFactMetrics(
   const contexts = segmentContexts(html, periodEnd, "", GEOGRAPHY_TOTAL_MEMBER);
   const unitMeasures = units(html);
   const metrics: Record<string, number | string> = { [EXTENSION_CAPEX_CHECKED_KEY]: "true" };
-  for (const [, attrs, content] of html.matchAll(
-    /<ix:nonFraction\b[^>]*\/>|<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu,
-  )) {
+  for (const [, attrs, content] of html.matchAll(NON_FRACTION)) {
     const concept = attrs === undefined ? undefined : attribute(attrs, "name");
     const context = contexts.get(attribute(attrs ?? "", "contextRef") ?? "");
     const value = concept === undefined ? undefined : factValue(attrs!, content!);
@@ -385,7 +398,9 @@ export function secDepreciationSiblingMetrics(
   const metrics: Record<string, number> = {};
   for (const [table] of html.matchAll(/<table\b[\s\S]*?<\/table>/gu)) {
     const facts = [
-      ...table.matchAll(/<ix:nonFraction\b([^>]*?)\/?>(?:([\s\S]*?)<\/ix:nonFraction>)?/gu),
+      ...table.matchAll(
+        new RegExp(`<ix:nonFraction\\b(${TAG_ATTRS})>(?:([\\s\\S]*?)<\\/ix:nonFraction>)?`, "gu"),
+      ),
     ].flatMap(([, attrs = ""]) => {
       const concept = attribute(attrs, "name");
       const context = contexts.get(attribute(attrs, "contextRef") ?? "");
@@ -420,21 +435,61 @@ const EQUITY_ROW =
   /Equity|StockValue|PaidInCapital|RetainedEarnings|MinorityInterest|ComprehensiveIncome/u;
 export const FACE_LABEL_PREFIX = "faceLabel|";
 export const PRIOR_FACE_LINE_PREFIX = "priorFaceLine|";
+export const FACE_LEASE_PLACEMENT_PREFIX = "faceLeasePlacement|";
 
-function footedFaceRows(html: string, periodEnd: string) {
-  const contexts = new Set(
+// `faceLeasePlacement|<instant>|<lease leg>` names the one us-gaap line the filing places that leg in at that instant.
+function leasePlacements(html: string, instant: string): readonly (readonly [string, string])[] {
+  const contexts = consolidatedContexts(html, instant);
+  const placements = new Map<string, Set<string | undefined>>();
+  for (const match of html.matchAll(new RegExp(`<ix:nonNumeric\\b(${TAG_ATTRS})>`, "gu"))) {
+    const attrs = match[1]!;
+    const leg =
+      /^us-gaap:(FinanceLeaseLiability(?:Current|Noncurrent))StatementOfFinancialPositionExtensibleList$/u.exec(
+        attribute(attrs, "name") ?? "",
+      )?.[1];
+    if (leg === undefined || !contexts.has(attribute(attrs, "contextRef") ?? "")) {
+      continue;
+    }
+    // A continued or nested value may hold more lines than its first text shows, so it proves nothing.
+    const whole =
+      attribute(attrs, "continuedAt") === undefined
+        ? /^([^<]*)<\/ix:nonNumeric\s*>/u.exec(html.slice(match.index + match[0].length))?.[1]
+        : undefined;
+    placements.set(
+      leg,
+      (placements.get(leg) ?? new Set()).add(
+        whole === undefined ? undefined : decodeHtmlEntities(whole).trim(),
+      ),
+    );
+  }
+  return [...placements].flatMap(([leg, lists]) => {
+    const [list] = lists;
+    const line = /^http:\/\/fasb\.org\/us-gaap\/\d{4}#(\w+)$/u.exec(list ?? "")?.[1];
+    return lists.size === 1 && line !== undefined
+      ? [[`${FACE_LEASE_PLACEMENT_PREFIX}${instant}|${leg}`, line] as const]
+      : [];
+  });
+}
+
+function consolidatedContexts(html: string, instant: string): ReadonlySet<string> {
+  return new Set(
     [...html.matchAll(/<xbrli:context id="([^"]+)">([\s\S]*?)<\/xbrli:context>/gu)].flatMap(
       ([, id, body]) =>
-        /<xbrli:instant>\s*([^<\s]+)\s*</u.exec(body!)?.[1] === periodEnd &&
-        !body!.includes("<xbrli:segment>")
+        /<xbrli:instant>\s*([^<\s]+)\s*</u.exec(body!)?.[1] === instant && !SEGMENT.test(body!)
           ? [id!]
           : [],
     ),
   );
-  const facts: { concept: string; value: number; label: string; table: number }[] = [];
+}
+
+function footedFaceRows(html: string, periodEnd: string) {
+  const contexts = consolidatedContexts(html, periodEnd);
+  const facts: { concept: string; value: number; label: string; table: number; row: number }[] = [];
   const tableStarts = [...html.matchAll(/<table\b/gu)].map(({ index }) => index);
   let previousEnd = 0;
-  for (const match of html.matchAll(/<ix:nonFraction\b([^>]*)>([\s\S]*?)<\/ix:nonFraction>/gu)) {
+  for (const match of html.matchAll(
+    new RegExp(`<ix:nonFraction\\b(${TAG_ATTRS})>([\\s\\S]*?)<\\/ix:nonFraction>`, "gu"),
+  )) {
     const [whole, attrs, content] = match;
     const rowStart = html.lastIndexOf("<tr", match.index);
     const span = html.slice(rowStart === -1 ? previousEnd : rowStart, match.index);
@@ -460,6 +515,7 @@ function footedFaceRows(html: string, periodEnd: string) {
         value,
         label,
         table: tableStarts.filter((start) => start < match.index).length,
+        row: rowStart,
       });
     }
   }
@@ -492,6 +548,8 @@ function footedFaceRows(html: string, periodEnd: string) {
   const lines = [...current, ...noncurrent];
   if (
     new Set(lines.map(({ concept }) => concept)).size !== lines.length ||
+    // Two tags in one row's column (a parenthetical part) leave which one the row presents unknown.
+    new Set(lines.map(({ row }) => row)).size !== lines.length ||
     sumRows(current) !== Math.round(facts[currentEnd]!.value) ||
     sumRows(noncurrent) !== Math.round(noncurrentTotal)
   ) {
@@ -511,9 +569,11 @@ const faceRowEntries = (
 // `faceLine|<current|noncurrent>|<concept>` liability rows of the report-date balance sheet, emitted only when both sides foot exactly;
 // `priorFaceLine|<instant>|…` holds an earlier footed column of the same face (a 10-Q's prior fiscal year end).
 export function secBalanceSheetFaceMetrics(
-  html: string,
+  raw: string,
   periodEnd: string | undefined,
 ): Record<string, number | string> {
+  // A commented-out `<tr` or tag must not move a row boundary or add a fact.
+  const html = raw.replaceAll(/<!--[\s\S]*?-->/gu, "");
   const face = periodEnd === undefined ? undefined : footedFaceRows(html, periodEnd);
   if (periodEnd === undefined || face === undefined) {
     return {};
@@ -522,7 +582,7 @@ export function secBalanceSheetFaceMetrics(
     [...html.matchAll(/<xbrli:context id="[^"]+">([\s\S]*?)<\/xbrli:context>/gu)].flatMap(
       ([, body]) => {
         const instant = /<xbrli:instant>\s*([^<\s]+)\s*</u.exec(body!)?.[1];
-        return instant !== undefined && instant < periodEnd && !body!.includes("<xbrli:segment>")
+        return instant !== undefined && instant < periodEnd && !SEGMENT.test(body!)
           ? [instant]
           : [];
       },
@@ -542,5 +602,7 @@ export function secBalanceSheetFaceMetrics(
           ];
     }),
     ...face.lines.map(({ concept, label }) => [`${FACE_LABEL_PREFIX}${concept}`, label] as const),
+    ...leasePlacements(html, periodEnd),
+    ...[...priorInstants].flatMap((instant) => leasePlacements(html, instant)),
   ]);
 }

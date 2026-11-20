@@ -37,13 +37,14 @@ function faceFiling(
   accessionNumber: string,
   reportDate: string,
   rows: readonly Row[],
+  extraHtml = "",
 ): ExtendedEvidenceItem {
   return {
     sourceIds: [`sec-filing-${accessionNumber}`],
     metrics: {
       accessionNumber,
       reportDate,
-      ...secBalanceSheetFaceMetrics(balanceSheet(reportDate, rows), reportDate),
+      ...secBalanceSheetFaceMetrics(balanceSheet(reportDate, rows) + extraHtml, reportDate),
     },
   } as unknown as ExtendedEvidenceItem;
 }
@@ -51,6 +52,7 @@ function faceFiling(
 function derive(
   gaap: Readonly<Record<string, readonly Record<string, unknown>[]>>,
   secFilings: readonly ExtendedEvidenceItem[],
+  asOf = AS_OF,
 ) {
   const companyFacts = {
     facts: {
@@ -66,8 +68,8 @@ function derive(
   };
   const artifact = deriveFinancialStatements(companyFacts, {
     symbol: "TEST",
-    generatedAt: AS_OF,
-    analysisAsOf: AS_OF,
+    generatedAt: asOf,
+    analysisAsOf: asOf,
     sourceId: "sec",
     secFilings,
   });
@@ -1544,5 +1546,273 @@ describe("KR combined debt and finance-lease face rows", () => {
       ],
     );
     expect(januaryDebt([annualFaceOf(twice), q2Face])).toEqual([]);
+  });
+});
+
+const TDG_10K = "0001260221-26-000077";
+const tdgFy2026 = (millions: number) =>
+  fact(millions * 1e6, "2026-09-30", "2026-11-10", TDG_10K, "10-K");
+const TDG_FY2026_GAAP = {
+  LongTermDebt: [tdgFy2026(33_890)],
+  LongTermDebtCurrent: [tdgFy2026(147)],
+  ShortTermBankLoansAndNotesPayable: [tdgFy2026(873)],
+  LongTermDebtAndCapitalLeaseObligations: [tdgFy2026(33_743)],
+  FinanceLeaseLiability: [tdgFy2026(344)],
+  FinanceLeaseLiabilityCurrent: [tdgFy2026(12)],
+  FinanceLeaseLiabilityNoncurrent: [tdgFy2026(332)],
+  AccountsPayableCurrent: [tdgFy2026(518)],
+  AccruedLiabilitiesCurrent: [tdgFy2026(1100)],
+  OperatingLeaseLiabilityCurrent: [tdgFy2026(22)],
+  LiabilitiesCurrent: [tdgFy2026(2638)],
+  Liabilities: [tdgFy2026(37_921)],
+};
+const TDG_FY2026_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 60_000_000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 518_000],
+  ["Accrued and other current liabilities", "us-gaap:AccruedLiabilitiesCurrent", 1_100_000],
+  ["Current portion of long-term debt", "us-gaap:LongTermDebtCurrent", 147_000],
+  [
+    "Short-term borrowings - trade receivable securitization facility",
+    "us-gaap:ShortTermBankLoansAndNotesPayable",
+    873_000,
+  ],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 2_638_000],
+  ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 33_743_000],
+  ["Deferred income taxes", "us-gaap:DeferredIncomeTaxLiabilitiesNet", 1_023_000],
+  ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 517_000],
+  ["Total liabilities", "us-gaap:Liabilities", 37_921_000],
+];
+const AFTER_TDG_10K = "2026-11-20T00:00:00.000Z";
+const placement = (context: string, attrs = "", value = "#LongTermDebtCurrent") =>
+  `<xbrli:context id="d"><xbrli:entity></xbrli:entity><xbrli:period><xbrli:instant>2025-12-31</xbrli:instant></xbrli:period></xbrli:context>` +
+  `<ix:nonNumeric contextRef="${context}" name="us-gaap:FinanceLeaseLiabilityCurrentStatementOfFinancialPositionExtensibleList"${attrs}>http://fasb.org/us-gaap/2026${value}</ix:nonNumeric>`;
+const TDG_LEASE_PLACEMENT = [
+  ["Current", "LongTermDebtCurrent"],
+  ["Noncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+]
+  .map(
+    ([leg, line]) =>
+      `<ix:nonNumeric contextRef="c" name="us-gaap:FinanceLeaseLiability${leg}StatementOfFinancialPositionExtensibleList">http://fasb.org/us-gaap/2026#${line}</ix:nonNumeric>`,
+  )
+  .join("");
+
+describe("short-term bank loans beside LongTermDebtCurrent", () => {
+  test("TDG 10-K 0001260221-26-000077 FY2026 sums the facility, net of both lease legs: 147 + 873 + 33,743 - 12 - 332", () => {
+    const { debt } = derive(
+      TDG_FY2026_GAAP,
+      [faceFiling(TDG_10K, "2026-09-30", TDG_FY2026_ROWS, TDG_LEASE_PLACEMENT)],
+      AFTER_TDG_10K,
+    );
+    expect(debt).toMatchObject({
+      value: 34_419e6,
+      concept:
+        "LongTermDebtCurrent+ShortTermBankLoansAndNotesPayable+LongTermDebtAndCapitalLeaseObligations-FinanceLeaseLiabilityCurrent-FinanceLeaseLiabilityNoncurrent",
+    });
+    expect(debt?.sourceIds).toContain(`sec-filing-${TDG_10K}`);
+  });
+
+  test("a lease placement list naming two lines proves no current lease deduction", () => {
+    const twoLines = TDG_LEASE_PLACEMENT.replace(
+      "#LongTermDebtCurrent<",
+      "#LongTermDebtCurrent http://fasb.org/us-gaap/2026#AccruedLiabilitiesCurrent<",
+    );
+    const { debt } = derive(
+      TDG_FY2026_GAAP,
+      [faceFiling(TDG_10K, "2026-09-30", TDG_FY2026_ROWS, twoLines)],
+      AFTER_TDG_10K,
+    );
+    expect(debt?.concept).not.toContain("FinanceLeaseLiabilityCurrent");
+  });
+
+  test("TDG FY2026 without its face is a gap, not LongTermDebt 33,890", () => {
+    expect(derive(TDG_FY2026_GAAP, [], AFTER_TDG_10K).debt?.value).toBeUndefined();
+  });
+
+  test("footed current liabilities do not prove a bank loan sits beside current maturities", () => {
+    const june = (value: number) => sameJune(value);
+    const { debt } = derive(
+      {
+        LongTermDebt: [june(100_000)],
+        LongTermDebtCurrent: [june(40_000)],
+        ShortTermBankLoansAndNotesPayable: [june(10_000)],
+        LongTermDebtNoncurrent: [june(60_000)],
+        AccountsPayableCurrent: [june(30_000)],
+        IncomeTaxesPayableCurrent: [june(10_000)],
+        LiabilitiesCurrent: [june(80_000)],
+      },
+      [],
+    );
+    expect(debt?.value).toBeUndefined();
+  });
+
+  test("a bank loan beside commercial paper is withheld, never dropped as its alias", () => {
+    const june = (value: number) => sameJune(value);
+    const { debt, notes } = derive(
+      {
+        CommercialPaper: [june(10_000)],
+        ShortTermBankLoansAndNotesPayable: [june(20_000)],
+        LongTermDebtNoncurrent: [june(100_000)],
+        AccountsPayableCurrent: [june(50_000)],
+        LiabilitiesCurrent: [june(80_000)],
+      },
+      [],
+    );
+    expect(debt?.value).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "CommercialPaper, ShortTermBankLoansAndNotesPayable are tagged as alternatives, but commercial paper cannot hold another line",
+        ),
+      }),
+    );
+  });
+
+  test("equal commercial paper and a bank loan are withheld, never one 10", () => {
+    const june = (value: number) => sameJune(value);
+    const { debt } = derive(
+      {
+        CommercialPaper: [june(10_000)],
+        ShortTermBankLoansAndNotesPayable: [june(10_000)],
+        LongTermDebtNoncurrent: [june(100_000)],
+        AccountsPayableCurrent: [june(50_000)],
+        LiabilitiesCurrent: [june(70_000)],
+      },
+      [],
+    );
+    expect(debt?.value).toBeUndefined();
+  });
+
+  describe("a June face with a bank loan row beside current maturities", () => {
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 1000],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 30],
+      ["Current maturities", "us-gaap:LongTermDebtCurrent", 40],
+      ["Bank loans", "us-gaap:ShortTermBankLoansAndNotesPayable", 10],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 80],
+      ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 60],
+      ["Total liabilities", "us-gaap:Liabilities", 140],
+    ];
+    const gaap = {
+      LongTermDebtCurrent: [sameJune(40_000)],
+      ShortTermBankLoansAndNotesPayable: [sameJune(10_000)],
+      LongTermDebtNoncurrent: [sameJune(60_000)],
+      FinanceLeaseLiabilityCurrent: [sameJune(5000)],
+    };
+    const debtWith = (extra: string) =>
+      derive(gaap, [faceFiling(SAME_ACCN, "2026-06-30", rows, extra)]).debt;
+
+    test.each([
+      ["", placement("c")],
+      [" with a quoted >", placement("c", ' xhtml:title="Loans > 1 year"')],
+      [" with a spaced end tag", placement("c").replace("</ix:nonNumeric>", "</ix:nonNumeric >")],
+      [" with a decimal reference", placement("c", "", "&#35;LongTermDebtCurrent")],
+      [" with a hex reference", placement("c", "", "&#x23;LongTermDebtCurrent")],
+    ])(
+      "a June placement in current maturities%s deducts the 5 current lease, citing the filing",
+      (_case, extra) => {
+        expect(debtWith(extra)).toMatchObject({ value: 105_000 });
+        expect(debtWith(extra)?.sourceIds).toContain(`sec-filing-${SAME_ACCN}`);
+      },
+    );
+
+    test.each([
+      ["no placement", ""],
+      ["a placement only in the December context", placement("d")],
+      ["a placement continued elsewhere", placement("c", ' continuedAt="more"')],
+      ["a single-quoted continuation", placement("c", " continuedAt='more'")],
+      [
+        "an unquoted attribute before the continuation",
+        placement("c", ' xhtml:title=Lease continuedAt="more"'),
+      ],
+      [
+        "a valueless attribute before the continuation",
+        placement("c", ' xhtml:title continuedAt="more"'),
+      ],
+      ["a spaced continuation", placement("c", ' continuedAt = "more"')],
+      [
+        "a placement in a spaced segment context",
+        `<xbrli:context id="g"><xbrli:entity><xbrli:segment ><xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>2026-06-30</xbrli:instant></xbrli:period></xbrli:context>${placement("g")}`,
+      ],
+      ["a placement naming another line", placement("c", "", "#AccruedLiabilitiesCurrent")],
+      [
+        "a segment placement whose title quotes the consolidated context",
+        `<xbrli:context id="g"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="srt:ConsolidationItemsAxis">us-gaap:OperatingSegmentsMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>2026-06-30</xbrli:instant></xbrli:period></xbrli:context>${placement("g").replace('contextRef="g"', `xhtml:title=" contextRef='c' " contextRef="g"`)}`,
+      ],
+    ])("%s deducts nothing: 40 + 10 + 60", (_case, extra) => {
+      expect(debtWith(extra)?.value).toBe(110_000);
+    });
+  });
+
+  test.each([
+    ["a bank loan tagged inside the maturities row is no separate face row", ""],
+    ["a commented-out row start does not split the maturities row", "<!-- <tr -->"],
+  ])("%s", (_case, comment) => {
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 1000],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 30],
+      ["Current maturities", "us-gaap:LongTermDebtCurrent", 40],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 80],
+      ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 60],
+      ["Total liabilities", "us-gaap:Liabilities", 140],
+    ];
+    const parenthetical = balanceSheet("2026-06-30", rows).replace(
+      /(Current maturities<\/td>.*?)<\/tr>/u,
+      `$1${comment}${cell("us-gaap:ShortTermBankLoansAndNotesPayable", 10, "c")}</tr>`,
+    );
+    expect(secBalanceSheetFaceMetrics(parenthetical, "2026-06-30")).toEqual({});
+    const { debt } = derive(
+      {
+        LongTermDebt: [sameJune(100_000)],
+        LongTermDebtCurrent: [sameJune(40_000)],
+        ShortTermBankLoansAndNotesPayable: [sameJune(10_000)],
+        LongTermDebtNoncurrent: [sameJune(60_000)],
+        AccountsPayableCurrent: [sameJune(30_000)],
+        IncomeTaxesPayableCurrent: [sameJune(10_000)],
+        LiabilitiesCurrent: [sameJune(80_000)],
+      },
+      [
+        {
+          sourceIds: [`sec-filing-${SAME_ACCN}`],
+          metrics: {
+            accessionNumber: SAME_ACCN,
+            reportDate: "2026-06-30",
+            ...secBalanceSheetFaceMetrics(parenthetical, "2026-06-30"),
+          },
+        } as unknown as ExtendedEvidenceItem,
+      ],
+    );
+    expect(debt?.value).toBeUndefined();
+  });
+
+  test("GGG 10-K 0000042888-17-000006 2016-12-30 publishes notes payable to banks beside long-term debt", () => {
+    const dec = (value: number) =>
+      fact(value, "2016-12-30", "2017-02-21", "0000042888-17-000006", "10-K");
+    const { debt } = derive(
+      {
+        ShortTermBankLoansAndNotesPayable: [dec(8_913_000)],
+        LongTermDebtNoncurrent: [dec(305_685_000)],
+      },
+      [],
+    );
+    expect(debt?.value).toBe(314_598_000);
+  });
+
+  test("AMGN 10-K 0000318154-17-000004 2016-12-31 never adds 605 short-term borrowings that do not foot", () => {
+    const dec = (value: number) =>
+      fact(value * 1e6, "2016-12-31", "2017-02-14", "0000318154-17-000004", "10-K");
+    const { debt } = derive(
+      {
+        LongTermDebt: [dec(34_596)],
+        LongTermDebtCurrent: [dec(4403)],
+        LongTermDebtNoncurrent: [dec(30_193)],
+        ShortTermBankLoansAndNotesPayable: [dec(605)],
+        AccountsPayableCurrent: [dec(917)],
+        AccruedLiabilitiesCurrent: [dec(5884)],
+        LiabilitiesCurrent: [dec(11_204)],
+      },
+      [],
+    );
+    expect(debt?.value).not.toBe(35_201e6);
+    expect(debt?.value).toBeUndefined();
   });
 });

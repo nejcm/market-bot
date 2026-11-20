@@ -211,8 +211,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `DebtCurrent` subsume side instruments and convertible aliases. Issuers tag current instruments (short-term
   borrowings, lines of credit, notes, current convertibles) inside (AMAT) or beside (GPN) a nonzero
   current-maturities line, and equal amounts prove neither. An instrument added beside maturities needs the same
-  instant's `DebtCurrent` to sum both; one left out needs the selected total to equal the lines plus it;
-  otherwise the instant is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
+  instant's `DebtCurrent` to sum both, or the same filing's footed face presenting both as separate rows at the
+  tagged amounts, one tag per row (TDG's securitization facility, FY2026; a face with a parenthetical second tag
+  in a row fails). Current liabilities footing is not that proof: an
+  allowlist cannot show which tags are disjoint rows. One left out needs the selected total to equal the lines plus
+  it, a combined total equal to the classified lines, or a maturities line equal to it whose current liabilities
+  foot; otherwise the instant is a gap. Alias members are alternatives where the first tagged one holds the rest (NOW: short-term borrowings at carrying value hold paper at principal), but commercial paper holds no other line, so any nonzero bank loan beside it, equal or not, is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
   a selected total must still sum it. `DebtCurrent` is the balance-sheet current line and outranks narrower
   `LongTermDebtCurrent` maturities (INTC FY2018: 1,261M vs 761M), unless a nonzero `CapitalLeaseObligationsCurrent`
   shows a `DebtCurrent` above the maturities may hold leases no finance-lease leg deducts (LRCX FY2018). A combined total that differs
@@ -221,7 +225,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
 - `LineOfCredit` covers both legs: use tagged legs instead only if their sum equals the tagged umbrella,
   otherwise refuse; with no legs but a generic side, refuse overlap. Continuity coverage requires both legs or
   tagged legs summing to the umbrella. Exclude operating/finance leases; subtract matching same-instant tagged
-  finance leases from lease-inclusive aggregates, else retain with a no-cap possible-lease gap.
+  finance leases from lease-inclusive aggregates, else retain with a no-cap possible-lease gap. A line is
+  lease-inclusive by its definition or when its own filing's lease-placement tag
+  (`FinanceLeaseLiability{Current,Noncurrent}StatementOfFinancialPositionExtensibleList`) names it alone, complete
+  (no continuation), in a consolidated context of the debt line's own instant and accession (TDG `LongTermDebtCurrent` FY2026: 12M current lease deducted).
 - Composite debt needs a borrowing line, no unrecognized standard borrowing tag, and coverage of every prior
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
   constituent details. The lines that decide a published composite come from one filing: when the instant's

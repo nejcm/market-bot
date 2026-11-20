@@ -1,6 +1,11 @@
 import type { ExtendedEvidenceItem } from "../../domain/evidence";
 import type { SourceGap } from "../../domain/sources";
-import { FACE_LABEL_PREFIX, FACE_LINE_PREFIX, PRIOR_FACE_LINE_PREFIX } from "../sec-segment-facts";
+import {
+  FACE_LABEL_PREFIX,
+  FACE_LEASE_PLACEMENT_PREFIX,
+  FACE_LINE_PREFIX,
+  PRIOR_FACE_LINE_PREFIX,
+} from "../sec-segment-facts";
 import {
   UNTAGGED_ZERO,
   ZERO_BORROWINGS_CURRENCY_KEY,
@@ -333,7 +338,27 @@ export function factsForDebt(
         fact.periodEnd !== instant.periodEnd ||
         fact.value === 0 ||
         filingOf(fact) === filing.id;
-      return resolveDebtAtInstant(
+      // A filing's lease-placement tag for this instant puts that lease leg inside its own debt line.
+      const placements = filings.flatMap(({ metrics, sourceIds }) =>
+        (["Current", "Noncurrent"] as const).flatMap((leg) => {
+          const line =
+            metrics?.[
+              `${FACE_LEASE_PLACEMENT_PREFIX}${instant.periodEnd}|FinanceLeaseLiability${leg}`
+            ];
+          return typeof line === "string" &&
+            lines.get(line)?.accessionNumber === metrics?.accessionNumber
+            ? [
+                {
+                  line,
+                  lease: `FinanceLeaseLiability${leg}`,
+                  scope: leg === "Current" ? ("current" as const) : ("noncurrent" as const),
+                  sourceIds,
+                },
+              ]
+            : [];
+        }),
+      );
+      const resolution = resolveDebtAtInstant(
         taxonomy,
         instant,
         lines,
@@ -362,7 +387,20 @@ export function factsForDebt(
           lines.get(concept)?.accessionNumber === face.accessionNumber &&
           lines.get(concept)?.value === face.standard.get(concept),
         (fact) => seen(fact),
+        Object.fromEntries(placements.map(({ line, scope }) => [line, scope])),
       );
+      const cited = placements.flatMap(({ line, lease, sourceIds }) =>
+        resolution.contributors.some(({ concept }) => concept === line) &&
+        resolution.contributors.some(({ concept, subtract }) => subtract && concept === lease)
+          ? sourceIds
+          : [],
+      );
+      return cited.length === 0
+        ? resolution
+        : {
+            ...resolution,
+            proofSourceIds: [...new Set([...(resolution.proofSourceIds ?? []), ...cited])],
+          };
     };
     const faces = faceDebtLines(
       filings,
@@ -1054,12 +1092,16 @@ function withFaceStatementDebt(
   }
   const faces = allFaces.filter((face) => face.rejected === undefined);
   // Same-concept rows of a footed same-filing face settle LongTermDebt scope and current-line placement.
-  const placed = faces
+  const placement = faces
     .map((face) => ({ face, candidate: resolveAt(tagged, face) }))
     .find(
       ({ face, candidate }) =>
         candidate.incompleteReason === undefined && presentsAll(face, candidate),
-    )?.candidate;
+    );
+  const placed =
+    placement === undefined
+      ? undefined
+      : { ...placement.candidate, proofSourceIds: placement.face.sourceIds };
   if (resolution.incompleteReason === undefined || placed !== undefined) {
     return withFaceRowsChecked(
       resolution.incompleteReason === undefined ? resolution : (placed ?? resolution),

@@ -118,6 +118,37 @@ describe("SEC segment facts", () => {
     });
   });
 
+  test("a sign quoted inside another attribute's value keeps the fact positive", () => {
+    const html = [
+      UNITS,
+      context("q", "abc:WidgetMember", "2026-03-29", "2026-06-27"),
+      `<ix:nonFraction xhtml:title=" sign='-' " name="${OI}" contextRef="q" unitRef="usd" decimals="-6" scale="6">12</ix:nonFraction>`,
+    ].join("");
+    expect(
+      secSegmentFactMetrics(html, "2026-06-27")[
+        "segment|abc:WidgetMember|operatingIncome|2026-03-29|2026-06-27"
+      ],
+    ).toBe(12_000_000);
+  });
+
+  test.each([
+    ['xhtml:title=Loss sign="-" scale="6"', undefined],
+    ['xhtml:title sign="-" scale="6"', undefined],
+    ['scale="6" xhtml:title=Loss', undefined],
+    ['xhtml:title="Loss > 10M" sign="-" scale="6"', -12_000_000],
+  ])("operating income tagged with %s reads as %p", (attrs, expected) => {
+    const html = [
+      UNITS,
+      context("q", "abc:WidgetMember", "2026-03-29", "2026-06-27"),
+      `<ix:nonFraction name="${OI}" contextRef="q" unitRef="usd" decimals="-6" ${attrs}>12</ix:nonFraction>`,
+    ].join("");
+    expect(
+      secSegmentFactMetrics(html, "2026-06-27")[
+        "segment|abc:WidgetMember|operatingIncome|2026-03-29|2026-06-27"
+      ],
+    ).toBe(expected);
+  });
+
   test("a filing without segment facts declares a Source Gap", () => {
     expect(secSegmentFactMetrics("<html>no facts</html>", "2026-06-27")).toEqual({});
     const result = segmentResultsSection("amd", [filingItem({})]);

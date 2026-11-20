@@ -418,8 +418,13 @@ export function resolveDebtAtInstant<T>(
   faceRow: (concept: string, side: DebtFaceSide) => boolean = () => false,
   // Facts another filing reported stay obligations but may not vouch for this resolution's lines.
   vouches: (fact: DebtHistoryFact) => boolean = () => true,
+  // The filing's own lease-placement tag puts a finance lease leg inside this debt line.
+  leasePlacements: Readonly<Record<string, "current" | "noncurrent">> = {},
 ): DebtResolution<T> {
-  const concepts = DEBT_CONCEPTS[taxonomy];
+  const concepts = {
+    ...DEBT_CONCEPTS[taxonomy],
+    leaseInclusive: { ...DEBT_CONCEPTS[taxonomy].leaseInclusive, ...leasePlacements },
+  };
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
   const ambiguous = concepts.ambiguousLongTermDebt;
   const taggedValue = (concept: string | undefined) => {
@@ -679,11 +684,19 @@ export function resolveDebtAtInstant<T>(
     currentGeneric !== undefined &&
     currentGeneric !== ambiguous.currentTotal &&
     valueAt(currentGeneric) !== 0 &&
-    ((added.length > 0 && valueAt(ambiguous.currentTotal) !== sum([generic, ...added])) ||
+    ((added.length > 0 &&
+      valueAt(ambiguous.currentTotal) !== sum([generic, ...added]) &&
+      ![generic, ...added].every((concept) => faceRow(concept, "current"))) ||
       (subsumed.length > 0 &&
         !combinedHoldsSubsumed &&
         !(valueAt(generic) === sum(subsumed) && faceStatementLines("current", subsumed)) &&
         (total === undefined || valueAt(total) !== sum([...classifiedLines, ...subsumed]))));
+  // The first tagged alternative holds the rest (paper at carrying value), but commercial paper holds no other line.
+  const paper = ambiguous?.commercialPaper ?? "";
+  const besidePaper = concepts.current.instruments
+    .filter((aliases) => first(aliases) === paper)
+    .flat()
+    .filter((concept) => concept !== paper && (valueAt(concept) ?? 0) !== 0);
   const strayConstituents =
     total === undefined && sides[1]?.generic === undefined
       ? (concepts.constituents ?? []).filter(
@@ -732,15 +745,17 @@ export function resolveDebtAtInstant<T>(
             ? `${strayConstituents.join(", ")} tagged without a noncurrent debt line or total that holds it`
             : total === ambiguous?.concept && restatedScope.length > 0
               ? `a later filing restated ${restatedScope.join(", ")} without restating ${ambiguous?.concept ?? ""}`
-              : unprovenCurrent
-                ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
-                : untaggedCurrent
-                  ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
-                  : omittedShortTerm.length > 0
-                    ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
-                    : excess === undefined
-                      ? componentReason
-                      : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+              : besidePaper.length > 0
+                ? `${[paper, ...besidePaper].join(", ")} are tagged as alternatives, but commercial paper cannot hold another line`
+                : unprovenCurrent
+                  ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
+                  : untaggedCurrent
+                    ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
+                    : omittedShortTerm.length > 0
+                      ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
+                      : excess === undefined
+                        ? componentReason
+                        : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&
     longTermDebt === "total" &&

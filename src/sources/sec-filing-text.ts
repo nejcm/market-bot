@@ -44,7 +44,7 @@ function decodeCodePoint(value: string, radix: number): string {
     : " ";
 }
 
-function decodeHtmlEntities(value: string): string {
+export function decodeHtmlEntities(value: string): string {
   return value
     .replaceAll("&nbsp;", " ")
     .replaceAll("&amp;", "&")

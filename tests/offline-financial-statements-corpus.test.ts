@@ -13,8 +13,8 @@ describe("offline financial-statement corpus", () => {
       msft: { matched: 20, allowances: 4 },
       mara: { matched: 10, allowances: 8 },
       nbis: { matched: 3, allowances: 9 },
-      "fpi-quarterly": { matched: 2, allowances: 19 },
-      "fpi-ifrs-semiannual": { matched: 3, allowances: 17 },
+      "fpi-quarterly": { matched: 3, allowances: 18 },
+      "fpi-ifrs-semiannual": { matched: 4, allowances: 16 },
     } as const;
     const originalFetch = globalThis.fetch;
     let networkAttempts = 0;

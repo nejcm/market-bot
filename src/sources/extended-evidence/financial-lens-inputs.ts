@@ -24,6 +24,7 @@ import {
   type MetricDefinition,
   type MetricInput,
   type MetricOutcome,
+  type MetricResult,
   sameCurrency,
 } from "./metric-engine";
 import {
@@ -561,27 +562,42 @@ export function annualFlow(
     : { ...flow, input: factInput(anchor, key), period: periodOf(anchor) };
 }
 
-export function positiveOf(value: number | undefined): boolean | undefined {
-  return value === undefined ? undefined : value > 0;
+export type PostureCriterion = boolean | undefined | "not-applicable";
+
+export function criterionOf(
+  metrics: readonly MetricResult[] | undefined,
+  id: string,
+  test: (value: number) => boolean,
+  read: (metric: MetricResult | undefined) => unknown = (metric) =>
+    metric?.status === "value" ? metric.value : undefined,
+): PostureCriterion {
+  const metric = metrics?.find((candidate) => candidate.id === id);
+  if (metric?.status === "not-applicable") {
+    return "not-applicable";
+  }
+  const value = read(metric);
+  return typeof value === "number" ? test(value) : undefined;
 }
 
-export function atOrBelow(value: number | undefined, threshold: number): boolean | undefined {
-  return value === undefined ? undefined : value <= threshold;
-}
-
+// A not-applicable criterion leaves the denominator; an unassessed applicable one stays in it.
 export function postureFrom(
-  criteria: readonly (boolean | undefined)[],
+  criteria: readonly PostureCriterion[],
   requiredCount = 1,
 ): FinancialLensPosture {
-  const known = criteria.filter((value): value is boolean => value !== undefined);
+  const applicable = criteria.filter((value) => value !== "not-applicable");
+  const known = applicable.filter((value): value is boolean => value !== undefined);
   if (known.length < requiredCount || known.length === 0) {
     return "insufficient-data";
   }
   const supported = known.filter(Boolean).length;
-  if (supported === known.length) {
-    return "criteria-supported";
+  if (supported === 0) {
+    return "criteria-not-supported";
   }
-  return supported === 0 ? "criteria-not-supported" : "criteria-mixed";
+  if (supported < known.length) {
+    return "criteria-mixed";
+  }
+  // An unassessed criterion could still fail, so support needs every criterion assessed.
+  return known.length === applicable.length ? "criteria-supported" : "insufficient-data";
 }
 
 export function secItem(ctx: MetricContext): ExtendedEvidenceItem | undefined {

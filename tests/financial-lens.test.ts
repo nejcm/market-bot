@@ -107,7 +107,9 @@ function evidence(): ExtendedEvidence {
           operatingCashFlow: 30,
           operatingCashFlowPrior: 25,
           operatingCashFlowDeltaPercent: 20,
+          operatingCashFlowPeriodEnd: "2025-06-28",
           capex: 5,
+          capexPeriodEnd: "2025-06-28",
           cash: 35,
           cashPeriodEnd: "2026-03-28",
           debt: 20,
@@ -643,25 +645,40 @@ describe("addFinancialLensEvidence", () => {
     expect(result.extendedEvidence).toBe(existing);
   });
 
-  test("derives momentum posture from partial indicators", () => {
-    const result = addFinancialLensEvidence(
-      command,
-      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
-      evidence(),
-      verifiedSnapshot({
-        indicators: {
-          ...verifiedSnapshot().indicators,
-          sma50: 180,
-          sma200: undefined as unknown as number,
-        },
-      }),
-      "2026-06-22T00:00:00.000Z",
-    );
+  test("a chart too short for SMA200 leaves Momentum unassessed, never supported", () => {
+    // JPM chart ending 2026-06-11: 206 bars give SMA200 above SMA50; the trailing 120 give none.
+    const run = (sma200: number | null) =>
+      addFinancialLensEvidence(
+        command,
+        [],
+        evidence(),
+        verifiedSnapshot({
+          symbol: "JPM",
+          currency: "USD",
+          latestSessionDate: "2026-06-11",
+          ohlcv: { date: "2026-06-11", open: 312, high: 314, low: 310, close: 313.49, volume: 1 },
+          indicators: {
+            ...verifiedSnapshot().indicators,
+            sma50: 306.0818,
+            sma200,
+            rsi14: 59.0561,
+            macdHistogram: 1.4044,
+          },
+        }),
+        "2026-06-12T00:00:00.000Z",
+      );
+    const momentum = (sma200: number | null) =>
+      run(sma200).artifact?.lenses.find((lens) => lens.name === "Momentum");
+    const momentumGap = (sma200: number | null) =>
+      run(sma200).metricSectionGaps?.find(({ source }) => source === "financial-lens-momentum");
 
-    const momentum = result.artifact?.lenses.find((lens) => lens.name === "Momentum");
-    // Close > sma50 and rsi in band and macd>=0 are known; sma50/sma200 cross is unknown.
-    expect(momentum?.posture).toBe("criteria-supported");
-    expect(momentum?.metrics.find((m) => m.key === "sma200")).toBeUndefined();
+    expect(momentum(306.4497)?.posture).toBe("criteria-mixed");
+    expect(momentumGap(306.4497)).toBeUndefined();
+    expect(momentum(null)?.posture).toBe("insufficient-data");
+    expect(momentum(null)?.metrics.find((m) => m.key === "sma200")).toBeUndefined();
+    expect(momentumGap(null)?.message).toBe(
+      "Financial Lens: Momentum metrics for AAPL not computed: SMA200 missing (sma200 not computable from the verified chart's sessions)",
+    );
   });
 
   test("retains financial lens evidence while omitting the raw equity markdown dump", () => {
@@ -2264,8 +2281,6 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(roe?.value).toBeCloseTo((71.7 * (12 / 9)) / 50, 5);
     expect(roa?.label).toBe("ROA (assets at 2025-12-31)");
     expect(roa?.value).toBeCloseTo((71.7 * (12 / 9)) / 120, 5);
-    // Display-only: Quality posture is unaffected by ROE/ROA (no threshold).
-    expect(lensByName(result, "Quality")?.posture).not.toBe("insufficient-data");
   });
 
   // Kroger 28-week YTD to 2026-08-15 (run 2026-11-14T18-11-39-305Z-5488dc9c): 1543M net income, 5840M equity.
@@ -2400,6 +2415,58 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     // Payout criterion flips the lens to criteria-mixed.
     expect(metricByKey(result, "Financial Strength", "payoutRatio")?.value).toBe(1);
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-mixed");
+  });
+
+  test.each([
+    ["aligned", "2026-03-28", "criteria-mixed"],
+    ["mismatched", "2025-12-31", "insufficient-data"],
+  ] as const)(
+    "a filed dividend keeps payout a Strength criterion when its period is %s",
+    (_label, dividendsPaidPeriodEnd, posture) => {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            secEvidenceWithRatios({ dividendsPaid: 20, dividendsPaidPeriodEnd }),
+            valuationEvidence(),
+          ],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+      expect(lensByName(result, "Financial Strength")?.posture).toBe(posture);
+    },
+  );
+
+  test("explicitly not-applicable depository criteria leave the posture denominators", () => {
+    const lens = (sic: string) => {
+      const base = evidence();
+      const [sec, ...rest] = base.items;
+      return addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        { ...base, items: [{ ...sec!, metrics: { ...sec!.metrics, sic } }, ...rest] },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+    };
+    const names = ["Quality", "Growth", "Financial Strength"];
+    const bank = lens("6022");
+    expect(
+      ["freeCashFlowProxy", "operatingCashFlowDeltaPercent", "netDebt", "netDebtToMarketCap"].map(
+        (id) =>
+          bank.metricSections?.flatMap(({ metrics }) => metrics).find((metric) => metric.id === id)
+            ?.status,
+      ),
+    ).toEqual(Array.from({ length: 4 }, () => "not-applicable"));
+    for (const result of [lens("3571"), bank]) {
+      expect(names.map((name) => lensByName(result, name)?.posture)).toEqual(
+        names.map(() => "criteria-supported"),
+      );
+    }
   });
 
   test("Yahoo PE/Forward PE/PBV appear in Value lens and are display-only", () => {
@@ -3101,7 +3168,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       currentLiabilitiesPeriodEnd: "2025-06-30",
       stockholdersEquityPeriodEnd: "2025-06-30",
     });
-    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(metricByKey(result, "Financial Strength", "currentRatio")).toBeUndefined();
     expect(metricByKey(result, "Financial Strength", "debtToEquity")).toBeUndefined();
     expect(strengthReason(result, "currentRatio")).toBe("no same-period SEC current ratio");
@@ -3125,7 +3192,7 @@ describe("addFinancialLensEvidence — Financial Strength debt currentness", () 
       verifiedSnapshot(),
       "2026-07-01T00:00:00.000Z",
     );
-    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(metricByKey(result, "Financial Strength", "netDebt")).toBeUndefined();
     expect(strengthReason(result, "netDebt")).toBe("stale net debt as of an undated period");
     expect(strengthReason(result, "debtToEquity")).toBe("no same-period SEC debt/equity");
@@ -3322,14 +3389,15 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
       analysisAsOf,
     );
   };
-  test("a current positive-income payout supports Financial Strength without a gap", () => {
+  test("a current positive-income payout publishes without a gap", () => {
     const result = canonicalPayout(20, "2026-06-29T00:00:00.000Z");
 
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toMatchObject({
       value: 0.25,
       periodEnd: "2025-12-31",
     });
-    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    // Payout alone cannot support the posture while the balance-sheet criteria are unassessed.
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(payoutGap(result)).toBeUndefined();
   });
 
@@ -3424,7 +3492,8 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
       value: 0.25,
       periodEnd: "2025-12-31",
     });
-    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    // Payout alone cannot support the posture while the balance-sheet criteria are unassessed.
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
     expect(payoutGap(result)).toBeUndefined();
   });
 
@@ -3442,6 +3511,69 @@ describe("addFinancialLensEvidence — Financial Strength payout validity", () =
     expect(metricByKey(result, "Financial Strength", "payoutRatio")).toBeUndefined();
     expect(payoutGap(result)).toBe("stale payout ratio as of 2025-12-31");
   });
+
+  test.each([2025, 2023])(
+    "a filed FY%i dividend with a display-only Yahoo payout leaves Strength unassessed with a gap",
+    (dividendYear) => {
+      const analysisAsOf = "2026-06-01T00:00:00.000Z";
+      const q1 = (value: number) =>
+        canonicalInstantFact(value, "2026-03-31", "2026-05-01", "10-Q", "Q1");
+      const artifact = deriveFinancialStatements(
+        {
+          facts: {
+            "us-gaap": {
+              Revenues: { units: { USD: [canonicalAnnualFact(100, 2025)] } },
+              PaymentsOfDividends: { units: { USD: [canonicalAnnualFact(5, dividendYear)] } },
+              CashAndCashEquivalentsAtCarryingValue: { units: { USD: [q1(35)] } },
+              LongTermDebt: { units: { USD: [q1(20)] } },
+              AssetsCurrent: { units: { USD: [q1(80)] } },
+              LiabilitiesCurrent: { units: { USD: [q1(40)] } },
+            },
+          },
+        },
+        {
+          symbol: "AAPL",
+          generatedAt: analysisAsOf,
+          analysisAsOf,
+          sourceId: "extended-sec-edgar-aapl-fundamentals",
+        },
+      );
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        withCanonicalFinancialLensInputs(
+          {
+            instrument: { symbol: "AAPL", assetClass: "equity" },
+            items: [
+              yahooFundamentalsEvidence({
+                financialCurrency: "USD",
+                trailingAnnualDividendRate: 1,
+                epsTrailingTwelveMonths: 5,
+              }),
+            ],
+            gaps: [],
+          },
+          artifact,
+        ),
+        verifiedSnapshot(),
+        analysisAsOf,
+        undefined,
+        undefined,
+        artifact,
+      );
+
+      expect(metricByKey(result, "Financial Strength", "payoutRatio")).toMatchObject({
+        value: 0.2,
+      });
+      expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+      expect(
+        result.metricSectionGaps?.find(({ message }) => message.includes("payout criterion"))
+          ?.message,
+      ).toBe(
+        "Financial Lens: Financial Strength payout criterion for AAPL not assessed: no current same-period filed payout ratio; the Yahoo-derived ratio is display-only",
+      );
+    },
+  );
 
   const legacyPayout = (overrides: Record<string, number | string>) =>
     addFinancialLensEvidence(

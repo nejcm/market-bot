@@ -79,6 +79,7 @@ const ANNUAL_STATEMENTS = statements({
   OperatingIncomeLoss: annual(22.2, 24),
   NetIncomeLoss: annual(17.14, 18),
   PaymentsOfDividends: annual(4, 5),
+  NetCashProvidedByUsedInOperatingActivities: annual(27, 30),
 });
 
 function lensMetric(
@@ -427,10 +428,54 @@ describe("business framework evidence", () => {
       metricOf(framework(evidence(), AS_OF), "business-framework-risk", "currentRatio"),
     ).toMatchObject({ status: "value", value: 1.5, periodEnd: "2026-03-31" });
     const staleAsOf = "2026-12-01T00:00:00.000Z";
-    expect(risk(staleAsOf)?.summary).toBe("Risk criteria-supported (Debt/market cap 10.0%)");
+    expect(risk(staleAsOf)?.summary).toBe("Risk insufficient-data (Debt/market cap 10.0%)");
     expect(
       metricOf(framework(evidence(), staleAsOf), "business-framework-risk", "currentRatio"),
     ).toMatchObject({ status: "missing", reason: "stale current ratio as of 2026-03-31" });
+  });
+
+  test("Growth declares a missing operating cash flow YoY and drops it only for a depository issuer", () => {
+    const withoutOcf = {
+      Revenues: annual(94.34, 100),
+      OperatingIncomeLoss: annual(22.2, 24),
+      NetIncomeLoss: annual(17.14, 18),
+    };
+    const growth = (sic: string) => {
+      const base = evidence();
+      const [sec, ...rest] = base.items;
+      const result = framework(
+        { ...base, items: [{ ...sec!, metrics: { ...sec!.metrics, sic } }, ...rest] },
+        AS_OF,
+        statements(withoutOcf),
+      );
+      return {
+        posture: result.artifact?.sections.find(({ name }) => name === "Growth")?.posture,
+        ocf: metricOf(result, "business-framework-growth", "operatingCashFlowDeltaPercent"),
+        gap: gapOf(result, "business-framework-growth"),
+      };
+    };
+
+    const industrial = growth("3571");
+    expect(industrial.posture).toBe("insufficient-data");
+    expect(industrial.ocf?.status).toBe("missing");
+    expect(industrial.gap?.message).toContain("Operating cash flow YoY");
+    const bank = growth("6022");
+    expect(bank.ocf?.status).toBe("not-applicable");
+    expect(bank.posture).toBe("criteria-supported");
+  });
+
+  test("Growth labels a continuing-operations cash flow YoY as the lens does", () => {
+    const result = framework(
+      evidence(),
+      AS_OF,
+      statements({
+        Revenues: annual(94.34, 100),
+        NetCashProvidedByUsedInOperatingActivitiesContinuingOperations: annual(80, 100),
+      }),
+    );
+    expect(
+      metricOf(result, "business-framework-growth", "operatingCashFlowDeltaPercent"),
+    ).toMatchObject({ label: "Operating cash flow YoY (continuing operations)", value: 25 });
   });
 
   test("SEC-summary fallback reads the periods summarizeSecFundamentals writes", () => {

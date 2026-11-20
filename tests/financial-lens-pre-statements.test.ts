@@ -102,11 +102,11 @@ test("the rebuilt lens keeps summary projections when only the SEC summary exist
   const { result } = lens(evidence());
 
   expect(result.artifact?.lenses.map(({ name, posture }) => [name, posture])).toEqual([
-    ["Quality", "criteria-supported"],
+    ["Quality", "insufficient-data"],
     ["Growth", "insufficient-data"],
-    ["Financial Strength", "criteria-supported"],
+    ["Financial Strength", "insufficient-data"],
     ["Value", "criteria-supported"],
-    ["Momentum", "criteria-supported"],
+    ["Momentum", "insufficient-data"],
   ]);
   expect(strengthMetric(result, "netDebt")).toMatchObject({ value: -15, periodEnd: "2026-03-31" });
   expect(strengthMetric(result, "payoutRatio")).toMatchObject({ value: 0.25 });
@@ -196,14 +196,16 @@ test("the extended evidence item drops a withheld metric instead of guessing a v
 
   expect(item?.metrics?.netDebt).toBeUndefined();
   expect(item?.metrics?.netDebtPeriodEnd).toBeUndefined();
-  expect(item?.metrics?.financialStrengthPosture).toBe("criteria-supported");
+  expect(item?.metrics?.financialStrengthPosture).toBe("insufficient-data");
 });
 
-test("quote-only and disabled filed inputs emit neither lens sections nor their gaps", () => {
+test("quote-only and disabled filed inputs emit no lens sections and only the chart's Momentum gap", () => {
   for (const items of [[], evidence().items.filter((item) => item.category !== "sec-edgar")]) {
     const { result } = lens({ ...evidence(), items });
     expect(result.metricSections ?? []).toEqual([]);
-    expect(result.metricSectionGaps).toBeUndefined();
+    expect(result.metricSectionGaps?.map(({ message }) => message)).toEqual([
+      "Financial Lens: Momentum metrics for AAPL not computed: SMA200 missing (sma200 not computable from the verified chart's sessions)",
+    ]);
   }
 });
 
@@ -279,5 +281,5 @@ test("without a valuation item the guarded SEC net debt is shown and scored", ()
   const result = valuationNetDebtOnFullSec(undefined, true);
 
   expect(strengthMetric(result, "netDebt")).toMatchObject({ value: -15 });
-  expect(strengthPosture(result)).toBe("criteria-supported");
+  expect(strengthPosture(result)).toBe("insufficient-data");
 });

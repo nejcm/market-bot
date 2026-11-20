@@ -125,7 +125,7 @@ export function netMarginLabel(ctx: MetricContext): string {
     : "Net margin";
 }
 
-function operatingCashFlowScope(ctx: MetricContext): string | undefined {
+export function operatingCashFlowScope(ctx: MetricContext): string | undefined {
   return ctx.statements === undefined
     ? readStringMetric(secItem(ctx)?.metrics, "operatingCashFlowScope")
     : conceptScope(latestFact(ctx, "operatingCashFlow")?.concept);

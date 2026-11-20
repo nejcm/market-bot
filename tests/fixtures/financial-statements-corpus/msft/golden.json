@@ -5738,6 +5738,25 @@
             "currency": "USD",
             "periodEnd": "2026-06-30"
           },
+          "liquidity": {
+            "key": "liquidity",
+            "label": "Cash + short-term investments",
+            "value": 20935000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
+            "periodEnd": "2026-06-30"
+          },
+          "trailingOperatingCashFlow": {
+            "key": "trailingOperatingCashFlow",
+            "label": "Operating cash flow (trailing)",
+            "value": 182935000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
+          },
           "debt": {
             "key": "debt",
             "label": "Debt",
@@ -5932,6 +5951,25 @@
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-msft"],
             "periodEnd": "2026-06-30"
+          },
+          "liquidity": {
+            "key": "liquidity",
+            "label": "Cash + short-term investments",
+            "value": 20935000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
+            "periodEnd": "2026-06-30"
+          },
+          "trailingOperatingCashFlow": {
+            "key": "trailingOperatingCashFlow",
+            "label": "Operating cash flow (trailing)",
+            "value": 182935000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-msft"],
+            "currency": "USD",
+            "periodEnd": "2026-06-30",
+            "periodMonths": 12
           },
           "debt": {
             "key": "debt",

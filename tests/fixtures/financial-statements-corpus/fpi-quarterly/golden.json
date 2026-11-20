@@ -1819,7 +1819,7 @@
         }
       },
       "Financial Strength": {
-        "posture": "criteria-not-supported",
+        "posture": "criteria-mixed",
         "metrics": {
           "cash": {
             "key": "cash",
@@ -1829,6 +1829,25 @@
             "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
             "currency": "USD",
             "periodEnd": "2026-03-31"
+          },
+          "liquidity": {
+            "key": "liquidity",
+            "label": "Cash + short-term investments",
+            "value": 780000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
+            "currency": "USD",
+            "periodEnd": "2026-03-31"
+          },
+          "trailingOperatingCashFlow": {
+            "key": "trailingOperatingCashFlow",
+            "label": "Operating cash flow (trailing)",
+            "value": 972000000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-fpi-quarterly"],
+            "currency": "USD",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12
           },
           "debt": {
             "key": "debt",

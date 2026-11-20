@@ -106,7 +106,7 @@
   {
     "fixture": "fpi-quarterly",
     "path": "financialLens.Financial Strength.posture",
-    "canonicalSha256": "b767047370f53b0f551c98d7a8bc5379a3bbbb32cb221626f451106917c07fef",
+    "canonicalSha256": "8e4dc849451103e05fcbac90d49addbdca72f34bf77d8146feb4f618d9611334",
     "legacySha256": "664fbc7d28652a5d615db5026767ec834049a0c53941f40f311039fda6416bda",
     "kind": "legacy-form-unsupported",
     "justification": "fpi-quarterly canonical Financial Strength.posture comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
@@ -470,5 +470,61 @@
     "legacySha256": "ccc3425735a567c9d4ee041101f6fc5b222070976982f2d124e5114d55549262",
     "kind": "filed-currency",
     "justification": "mara statement-derived amounts retain the filed currency; the summary-only legacy metric omitted its currency."
+  },
+  {
+    "fixture": "aapl",
+    "path": "financialLens.Financial Strength.metrics.trailingOperatingCashFlow",
+    "canonicalSha256": "5639df16cad4a0daf9f1b5184567931659bf286a64da181d1ee75fd7949636de",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "canonical-exact-period-correction",
+    "justification": "AAPL canonical Financial Strength.metrics.trailingOperatingCashFlow reads the reconciled TTM operating cash flow (FY + latest YTD - prior YTD); the legacy summary carries only the latest year-to-date period, which is withheld rather than annualized."
+  },
+  {
+    "fixture": "mara",
+    "path": "financialLens.Financial Strength.metrics.cashRunwayYears",
+    "canonicalSha256": "a45354b4349131ba7aee98ee2f8ad3a41cdff13e305c5d79bbe7e2d78147b462",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "canonical-exact-period-correction",
+    "justification": "MARA canonical Financial Strength.metrics.cashRunwayYears reads the reconciled TTM operating cash flow (FY + latest YTD - prior YTD); the legacy summary carries only the latest year-to-date period, which is withheld rather than annualized."
+  },
+  {
+    "fixture": "mara",
+    "path": "financialLens.Financial Strength.metrics.trailingOperatingCashFlow",
+    "canonicalSha256": "11194508416990d951ab810cb68fbc74d19230ce4d3b420df42a871a8113ea4e",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "canonical-exact-period-correction",
+    "justification": "MARA canonical Financial Strength.metrics.trailingOperatingCashFlow reads the reconciled TTM operating cash flow (FY + latest YTD - prior YTD); the legacy summary carries only the latest year-to-date period, which is withheld rather than annualized."
+  },
+  {
+    "fixture": "fpi-quarterly",
+    "path": "financialLens.Financial Strength.metrics.liquidity",
+    "canonicalSha256": "00384af95613526c6c06387af6b15b5018765702c07d5ccc6adab5f03c769135",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "legacy-form-unsupported",
+    "justification": "fpi-quarterly canonical Financial Strength.metrics.liquidity comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+  },
+  {
+    "fixture": "fpi-quarterly",
+    "path": "financialLens.Financial Strength.metrics.trailingOperatingCashFlow",
+    "canonicalSha256": "7fce29d42d7c1e54103930a6e91d7075cfec19d54a11cd3a6a845c048d6357d0",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "legacy-form-unsupported",
+    "justification": "fpi-quarterly canonical Financial Strength.metrics.trailingOperatingCashFlow comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+  },
+  {
+    "fixture": "fpi-ifrs-semiannual",
+    "path": "financialLens.Financial Strength.metrics.trailingOperatingCashFlow",
+    "canonicalSha256": "9ca749b87525386d38a8c59c5ab46e40d88578379490744fd775ea91bfacd03d",
+    "legacySha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "kind": "legacy-form-unsupported",
+    "justification": "fpi-ifrs-semiannual canonical Financial Strength.metrics.trailingOperatingCashFlow comes from fixture-locked standard-taxonomy 20-F/6-K facts; the legacy consumer accepts only 10-K/10-Q forms."
+  },
+  {
+    "fixture": "aapl",
+    "path": "financialLens.Financial Strength.posture",
+    "canonicalSha256": "8e4dc849451103e05fcbac90d49addbdca72f34bf77d8146feb4f618d9611334",
+    "legacySha256": "b767047370f53b0f551c98d7a8bc5379a3bbbb32cb221626f451106917c07fef",
+    "kind": "canonical-exact-period-correction",
+    "justification": "AAPL canonical Financial Strength.posture reads the reconciled TTM operating cash flow (FY + latest YTD - prior YTD); the legacy summary carries only the latest year-to-date period, which is withheld rather than annualized."
   }
 ]

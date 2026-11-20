@@ -195,6 +195,16 @@ function notApplicableTrendMetric(rationale: string) {
   return { status: "not-applicable" as const, display: "not applicable", rationale };
 }
 
+// Filed zero or negative revenue is a denominator verdict, not missing data.
+function operatingMarginGap(revenue: number | undefined): string {
+  if (revenue === undefined) {
+    return metricCell(suppressedTrendMetric("revenue-unavailable"));
+  }
+  return revenue <= 0
+    ? metricCell({ status: "not-meaningful", display: "N/M" })
+    : metricCell(suppressedTrendMetric("numerator-unavailable"));
+}
+
 function financialTrendRows(
   history: FundamentalHistoryArtifact,
   depositorySic: string | undefined,
@@ -240,13 +250,7 @@ function financialTrendRows(
       operatingMargin:
         inapplicableOperatingMargin ??
         (operatingMargin === undefined
-          ? metricCell(
-              suppressedTrendMetric(
-                revenue === undefined || revenue === 0
-                  ? "revenue-unavailable"
-                  : "numerator-unavailable",
-              ),
-            )
+          ? operatingMarginGap(revenue)
           : formatTrendPercent(operatingMargin)),
       freeCashFlow:
         inapplicableFreeCashFlow ??

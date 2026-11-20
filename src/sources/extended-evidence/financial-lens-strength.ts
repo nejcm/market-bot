@@ -33,7 +33,11 @@ import {
   evidenceDisplayNetDebt,
   marketCapInput,
   currencyMismatchReason,
+  annualFlow,
+  annualizeSummary,
 } from "./financial-lens-inputs";
+import { operatingCashFlowScope } from "./financial-lens-quality";
+import { conceptScope, isContinuingScope, scopedLabel } from "./financial-statement-definitions";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -161,6 +165,250 @@ export function netDebtDefinition(): MetricDefinition {
       };
     },
   };
+}
+
+const LIQUIDITY_BASIS =
+  "cash and cash equivalents + short-term investments at the latest balance-sheet instant; long-term investments excluded";
+const OPERATING_CASH_FLOW_BASIS = "annual or reconciled TTM operating cash flow";
+const NO_ANNUAL_FLOW_REASON =
+  "latest operating cash flow is neither a full fiscal year nor a reconciled TTM";
+const RUNWAY_BASIS =
+  "years of cash + short-term investments at the trailing operating cash outflow, both ending on one date; a derived observation at the reported rate, not a forecast of spending or financing";
+
+function summaryLiquidityOutcome(ctx: MetricContext): MetricOutcome {
+  const item = secItem(ctx);
+  const cash = readNumberMetric(item?.metrics, "cash");
+  const shortTermInvestments = readNumberMetric(item?.metrics, "shortTermInvestments");
+  const period = summaryPeriod(ctx, "cash");
+  const inputs = [
+    ...chosenInput(item, "cash", "cash", period),
+    ...chosenInput(item, "shortTermInvestments", "short-term investments", period),
+  ];
+  if (cash === undefined) {
+    return { status: "missing", reason: "no SEC cash", ...period, inputs };
+  }
+  const currentness = summaryCurrentness(ctx, "liquidity");
+  if (!currentness.current) {
+    return {
+      status: "missing",
+      reason: `stale cash as of ${currentness.periodEnd ?? "an undated period"}`,
+      ...period,
+      inputs,
+    };
+  }
+  if (shortTermInvestments === undefined) {
+    return {
+      status: "missing",
+      reason:
+        readStringMetric(item?.metrics, "shortTermInvestmentsIncompleteReason") ??
+        "no SEC short-term investments",
+      ...period,
+      inputs,
+    };
+  }
+  // Summary SEC metrics read USD-unit facts only.
+  return {
+    status: "value",
+    value: cash + shortTermInvestments,
+    currency: "USD",
+    ...period,
+    inputs,
+  };
+}
+
+function liquidityOutcome(ctx: MetricContext): MetricOutcome {
+  if (ctx.statements === undefined) {
+    return summaryLiquidityOutcome(ctx);
+  }
+  const cash = latestFact(ctx, "cash");
+  if (cash === undefined) {
+    return noFact(ctx, "cash");
+  }
+  const shortTermInvestments = shortTermInvestmentsAt(ctx, cash);
+  const inputs = [factInput(cash, "cash"), ...shortTermInvestments.inputs];
+  if (!isCurrentPeriod(ctx, cash.periodEnd)) {
+    return {
+      status: "missing",
+      reason: `stale cash as of ${cash.periodEnd}`,
+      ...periodOf(cash),
+      inputs,
+    };
+  }
+  if (shortTermInvestments.value === undefined) {
+    return {
+      status: "missing",
+      reason: shortTermInvestments.reason ?? "short-term investments unavailable",
+      ...periodOf(cash),
+      inputs,
+    };
+  }
+  if (shortTermInvestments.inputs.some(({ currency }) => !sameCurrency(currency, cash.currency))) {
+    return {
+      status: "missing",
+      reason: `short-term investments are not filed in cash's currency ${cash.currency ?? "(undeclared)"} at ${cash.periodEnd}`,
+      ...periodOf(cash),
+      inputs,
+    };
+  }
+  return {
+    status: "value",
+    value: cash.value + shortTermInvestments.value,
+    ...periodOf(cash),
+    ...(cash.currency !== null ? { currency: cash.currency } : {}),
+    inputs,
+  };
+}
+
+function summaryOperatingCashFlowOutcome(ctx: MetricContext): MetricOutcome {
+  const item = secItem(ctx);
+  const value = readNumberMetric(item?.metrics, "operatingCashFlow");
+  if (value === undefined) {
+    return { status: "missing", reason: "no SEC operating cash flow" };
+  }
+  const period = summaryPeriod(ctx, "operatingCashFlow");
+  const inputs = [
+    evidenceInput(item, "operatingCashFlow", "operating cash flow", "currency", value, period),
+  ];
+  const currentness = summaryCurrentness(ctx, "trailingOperatingCashFlow");
+  if (!currentness.current) {
+    return {
+      status: "missing",
+      reason: `stale operating cash flow as of ${currentness.periodEnd ?? "an undated period"}`,
+      ...period,
+      inputs,
+    };
+  }
+  const annual = annualizeSummary(ctx, "operatingCashFlow", value);
+  if (annual === undefined || annual.annualizedFrom !== undefined) {
+    return { status: "missing", reason: NO_ANNUAL_FLOW_REASON, ...period, inputs };
+  }
+  // Summary SEC metrics read USD-unit facts only.
+  return { status: "value", value, currency: "USD", ...period, inputs };
+}
+
+function trailingOperatingCashFlowOutcome(ctx: MetricContext): MetricOutcome {
+  if (ctx.statements === undefined) {
+    return summaryOperatingCashFlowOutcome(ctx);
+  }
+  const anchor = latestFact(ctx, "operatingCashFlow");
+  if (anchor === undefined) {
+    return noFact(ctx, "operatingCashFlow");
+  }
+  const flow = annualFlow(ctx, anchor, "operatingCashFlow");
+  // A span that merely rounds to 12 months is not a fiscal year; only a filed FY or a reconciled TTM is.
+  if (
+    flow === undefined ||
+    flow.annualizedFrom !== undefined ||
+    (flow.ttmComponents === undefined && anchor.periodType !== "annual")
+  ) {
+    return {
+      status: "missing",
+      reason: NO_ANNUAL_FLOW_REASON,
+      ...periodOf(anchor),
+      inputs: [factInput(anchor, "operatingCashFlow")],
+    };
+  }
+  const legScopes = new Set(flow.ttmComponents?.map(({ concept }) => conceptScope(concept)));
+  if (legScopes.size > 1) {
+    return {
+      status: "missing",
+      reason: "TTM operating cash flow legs mix continuing-operations and total-operations scope",
+      ...flow.period,
+      inputs: [flow.input],
+    };
+  }
+  if (!isCurrentPeriod(ctx, anchor.periodEnd)) {
+    return {
+      status: "missing",
+      reason: `stale operating cash flow as of ${anchor.periodEnd}`,
+      ...flow.period,
+      inputs: [flow.input],
+    };
+  }
+  return {
+    status: "value",
+    value: flow.value,
+    ...flow.period,
+    ...(anchor.currency !== null ? { currency: anchor.currency } : {}),
+    inputs: [flow.input],
+  };
+}
+
+export function liquidityDefinition(): MetricDefinition {
+  return {
+    id: "liquidity",
+    label: "Cash + short-term investments",
+    unit: "currency",
+    basis: LIQUIDITY_BASIS,
+    compute: liquidityOutcome,
+  };
+}
+
+export function trailingOperatingCashFlowDefinition(ctx: MetricContext): MetricDefinition {
+  const scope = operatingCashFlowScope(ctx);
+  return {
+    id: "trailingOperatingCashFlow",
+    label: scopedLabel(
+      "Operating cash flow (trailing)",
+      isContinuingScope(scope) ? scope : undefined,
+    ),
+    unit: "currency",
+    basis: OPERATING_CASH_FLOW_BASIS,
+    cashFlowBased: true,
+    compute: trailingOperatingCashFlowOutcome,
+  };
+}
+
+// Runway exists only while operating cash flow burns; a self-funding issuer gets no row.
+export function cashRunwayDefinitions(ctx: MetricContext): readonly MetricDefinition[] {
+  const flow = trailingOperatingCashFlowOutcome(ctx);
+  if (flow.status !== "value" || typeof flow.value !== "number" || flow.value >= 0) {
+    return [];
+  }
+  const burn = -flow.value;
+  const period = periodEndInput(flow.periodEnd);
+  return [
+    {
+      id: "cashRunwayYears",
+      label: "Cash runway at trailing operating cash outflow (years)",
+      unit: "number",
+      basis: RUNWAY_BASIS,
+      cashFlowBased: true,
+      compute: () => {
+        const liquidity = liquidityOutcome(ctx);
+        const inputs = [...(liquidity.inputs ?? []), ...flow.inputs];
+        if (liquidity.status !== "value" || typeof liquidity.value !== "number") {
+          return { ...liquidity, inputs };
+        }
+        if (isContinuingScope(operatingCashFlowScope(ctx))) {
+          return {
+            status: "missing",
+            reason:
+              "operating cash flow covers continuing operations only while cash + short-term investments is issuer-wide",
+            ...period,
+            inputs,
+          };
+        }
+        if (liquidity.periodEnd !== flow.periodEnd) {
+          return {
+            status: "missing",
+            reason: `cash and short-term investments (${liquidity.periodEnd ?? "undated"}) and operating cash flow (${flow.periodEnd ?? "undated"}) end on different dates`,
+            ...period,
+            inputs,
+          };
+        }
+        if (!sameCurrency(liquidity.currency, flow.currency)) {
+          return {
+            status: "missing",
+            reason: "cash and operating cash flow have different or undeclared currencies",
+            ...period,
+            inputs,
+          };
+        }
+        return { status: "value", value: liquidity.value / burn, ...period, inputs };
+      },
+    },
+  ];
 }
 
 export function currentRatioDefinition(): MetricDefinition {

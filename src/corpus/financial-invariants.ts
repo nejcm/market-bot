@@ -68,6 +68,7 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   continuingIncomeDeltaPercent: ["continuingIncome"],
   continuingDilutedEpsDeltaPercent: ["continuingDilutedEps"],
   operatingCashFlowDeltaPercent: ["operatingCashFlow"],
+  trailingOperatingCashFlow: ["operatingCashFlow"],
   capexDeltaPercent: ["capitalExpenditure"],
   annualizedRevenue: ["revenue"],
   evToAnnualizedRevenue: ["revenue"],
@@ -95,6 +96,7 @@ const TTM_FLOW_INPUTS: Readonly<Record<string, FinancialStatementSeriesKey>> = {
   roe: "netIncome",
   roa: "netIncome",
   pcfRatio: "operatingCashFlow",
+  trailingOperatingCashFlow: "operatingCashFlow",
 };
 
 function assertSummarySpan(

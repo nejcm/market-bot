@@ -4798,6 +4798,33 @@
             "currency": "USD",
             "periodEnd": "2026-03-31"
           },
+          "liquidity": {
+            "key": "liquidity",
+            "label": "Cash + short-term investments",
+            "value": 513653000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "currency": "USD",
+            "periodEnd": "2026-03-31"
+          },
+          "trailingOperatingCashFlow": {
+            "key": "trailingOperatingCashFlow",
+            "label": "Operating cash flow (trailing)",
+            "value": -834726000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "currency": "USD",
+            "periodEnd": "2026-03-31",
+            "periodMonths": 12
+          },
+          "cashRunwayYears": {
+            "key": "cashRunwayYears",
+            "label": "Cash runway at trailing operating cash outflow (years)",
+            "value": 0.6153552183590784,
+            "unit": "number",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "periodEnd": "2026-03-31"
+          },
           "debt": {
             "key": "debt",
             "label": "Debt",
@@ -4901,6 +4928,15 @@
             "value": 513653000,
             "unit": "currency",
             "sourceIds": ["offline-sec-companyfacts-mara"],
+            "periodEnd": "2026-03-31"
+          },
+          "liquidity": {
+            "key": "liquidity",
+            "label": "Cash + short-term investments",
+            "value": 513653000,
+            "unit": "currency",
+            "sourceIds": ["offline-sec-companyfacts-mara"],
+            "currency": "USD",
             "periodEnd": "2026-03-31"
           },
           "debt": {

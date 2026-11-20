@@ -42,6 +42,9 @@ import {
 import { yoyLabel, yearOverYearDefinition } from "./financial-lens-growth";
 import {
   instantDefinition,
+  liquidityDefinition,
+  trailingOperatingCashFlowDefinition,
+  cashRunwayDefinitions,
   netDebtDefinition,
   currentRatioDefinition,
   debtToEquityDefinition,
@@ -226,6 +229,8 @@ function strengthPosture(
     criterionOf(section, "debtToMarketCap", (value) => value <= 0.5),
     criterionOf(section, "currentRatio", (value) => value >= 1),
     payoutCriterion(ctx, section),
+    // Balance-sheet tests alone pass a cash-funded loss-maker; self-funding is the burn test.
+    criterionOf(section, "trailingOperatingCashFlow", (value) => value >= 0),
   ]);
 }
 
@@ -283,6 +288,9 @@ function lensDefinitions(
     ],
     "Financial Strength": [
       instantDefinition("cash", "cash", "Cash"),
+      liquidityDefinition(),
+      trailingOperatingCashFlowDefinition(ctx),
+      ...cashRunwayDefinitions(ctx),
       withCompleteDebt(instantDefinition("debt", "debt", "Debt")),
       withNetDebtApplicability(withCompleteDebt(withCurrentEquityNote(netDebtDefinition()))),
       withCompleteDebt(marketLeverageDefinition("debtToMarketCap")),
@@ -341,12 +349,15 @@ export function financialLensMetrics(ctx: MetricContext): {
     lensMetrics,
     postures,
     sourceGaps: [
-      // Momentum never has a filed input, so its gaps follow the verified chart its posture reads.
+      // Momentum never has a filed input, so its gaps follow the verified chart its posture reads;
+      // Strength's posture reads SEC evidence, so its gaps follow that evidence even when no row is filed.
       ...evaluated
         .filter(
           (entry) =>
             emitted.includes(entry) ||
-            (entry[0] === "Momentum" && ctx.verifiedSnapshot !== undefined),
+            (entry[0] === "Momentum" && ctx.verifiedSnapshot !== undefined) ||
+            (entry[0] === "Financial Strength" &&
+              (ctx.statements !== undefined || secItem(ctx) !== undefined)),
         )
         .flatMap(([, { sourceGaps }]) => sourceGaps),
       ...(displayOnlyPayout

@@ -643,3 +643,216 @@ test("a stale continuing EPS YoY keeps its scope so it never reads as total dilu
     { id: "continuingDilutedEpsDeltaPercent", label: "Diluted EPS YoY (continuing operations)" },
   ]);
 });
+
+// VKTX 10-Q 0001193125-26-436432 (Q3 2026, filed 2026-10-29) and 10-K 0001193125-26-046876 (FY2025).
+const VKTX_AS_OF = "2026-11-20T06:07:17.253Z";
+
+function q3Fact(value: number, end: string, start?: string) {
+  return {
+    val: value,
+    form: "10-Q",
+    fp: "Q3",
+    fy: 2026,
+    filed: "2026-10-29",
+    accn: "0001193125-26-436432",
+    ...(start === undefined ? {} : { start }),
+    end,
+  };
+}
+
+function vktxConcepts(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    RevenueFromContractWithCustomerExcludingAssessedTax: {
+      units: { USD: [{ ...annualFact(0, "2025-01-01", "2025-12-31"), filed: "2026-02-11" }] },
+    },
+    CashAndCashEquivalentsAtCarryingValue: { units: { USD: [q3Fact(677_609_000, "2026-09-30")] } },
+    AvailableForSaleSecuritiesDebtSecuritiesCurrent: {
+      units: { USD: [q3Fact(282_204_000, "2026-09-30")] },
+    },
+    ConvertibleLongTermNotesPayable: { units: { USD: [q3Fact(250_656_000, "2026-09-30")] } },
+    AssetsCurrent: { units: { USD: [q3Fact(972_999_000, "2026-09-30")] } },
+    LiabilitiesCurrent: { units: { USD: [q3Fact(133_897_000, "2026-09-30")] } },
+    StockholdersEquity: { units: { USD: [q3Fact(588_600_000, "2026-09-30")] } },
+    NetCashProvidedByUsedInOperatingActivities: {
+      units: {
+        USD: [
+          { ...annualFact(-278_685_000, "2025-01-01", "2025-12-31"), filed: "2026-02-11" },
+          q3Fact(-193_395_000, "2025-09-30", "2025-01-01"),
+          q3Fact(-377_342_000, "2026-09-30", "2026-01-01"),
+        ],
+      },
+    },
+    ...overrides,
+  };
+}
+
+function vktxStrength(
+  concepts: Record<string, unknown>,
+  edit: (artifact: ReturnType<typeof statements>) => ReturnType<typeof statements> = (a) => a,
+) {
+  const statementsArtifact = edit(statements(concepts, VKTX_AS_OF));
+  const result = addFinancialLensEvidence(
+    command,
+    [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 3_295_000_000 })],
+    withCanonicalFinancialLensInputs(evidence(), statementsArtifact),
+    verifiedMarketSnapshot(),
+    VKTX_AS_OF,
+    undefined,
+    undefined,
+    statementsArtifact,
+  );
+  const section = result.metricSections?.find(({ title }) => title.endsWith("Financial Strength"));
+  const metric = (id: string) => section?.metrics.find((candidate) => candidate.id === id);
+  const posture = result.artifact?.lenses.find(
+    ({ name }) => name === "Financial Strength",
+  )?.posture;
+  return { metric, posture };
+}
+
+test("VKTX Q3 2026: liquidity adds short-term investments, burn reads TTM operating cash flow", () => {
+  const { metric, posture } = vktxStrength(vktxConcepts());
+  expect(metric("cash")).toMatchObject({ value: 677_609_000, periodEnd: "2026-09-30" });
+  expect(metric("liquidity")).toMatchObject({
+    status: "value",
+    value: 959_813_000,
+    currency: "USD",
+    periodEnd: "2026-09-30",
+  });
+  // TTM = FY2025 -278.685M + 9M 2026 -377.342M - 9M 2025 -193.395M.
+  expect(metric("trailingOperatingCashFlow")).toMatchObject({
+    status: "value",
+    value: -462_632_000,
+    periodEnd: "2026-09-30",
+    periodMonths: 12,
+  });
+  expect(metric("cashRunwayYears")?.value).toBeCloseTo(959_813_000 / 462_632_000, 12);
+  expect(metric("netDebt")).toMatchObject({ value: 250_656_000 - 959_813_000 });
+  // Every balance-sheet criterion passes; the operating cash outflow fails self-funding.
+  expect(posture).toBe("criteria-mixed");
+});
+
+test("liquidity equals cash when no short-term investment concept is tagged", () => {
+  const { metric } = vktxStrength(
+    vktxConcepts({ AvailableForSaleSecuritiesDebtSecuritiesCurrent: undefined }),
+  );
+  expect(metric("liquidity")).toMatchObject({ status: "value", value: 677_609_000 });
+});
+
+test("positive operating cash flow passes self-funding and emits no runway row", () => {
+  const { metric, posture } = vktxStrength(
+    vktxConcepts({
+      NetCashProvidedByUsedInOperatingActivities: {
+        units: {
+          USD: [
+            { ...annualFact(278_685_000, "2025-01-01", "2025-12-31"), filed: "2026-02-11" },
+            q3Fact(193_395_000, "2025-09-30", "2025-01-01"),
+            q3Fact(377_342_000, "2026-09-30", "2026-01-01"),
+          ],
+        },
+      },
+    }),
+  );
+  expect(metric("trailingOperatingCashFlow")).toMatchObject({ value: 462_632_000 });
+  expect(metric("cashRunwayYears")).toBeUndefined();
+  expect(posture).toBe("criteria-supported");
+});
+
+test("missing operating cash flow leaves self-funding unassessed, so no support", () => {
+  const { metric, posture } = vktxStrength(
+    vktxConcepts({ NetCashProvidedByUsedInOperatingActivities: undefined }),
+  );
+  expect(metric("trailingOperatingCashFlow")?.status).toBe("missing");
+  expect(metric("cashRunwayYears")).toBeUndefined();
+  expect(posture).toBe("insufficient-data");
+});
+
+test.each([
+  ["a single quarter", "2026-07-01"],
+  ["six months (AMRC-shaped)", "2026-04-01"],
+])("%s of operating cash flow without a reconciled TTM is never annualized", (_label, start) => {
+  const { metric, posture } = vktxStrength(
+    vktxConcepts({
+      NetCashProvidedByUsedInOperatingActivities: {
+        units: { USD: [q3Fact(-12_000_000, "2026-09-30", start)] },
+      },
+    }),
+  );
+  expect(metric("trailingOperatingCashFlow")).toMatchObject({
+    status: "missing",
+    reason: "latest operating cash flow is neither a full fiscal year nor a reconciled TTM",
+  });
+  expect(metric("cashRunwayYears")).toBeUndefined();
+  expect(posture).toBe("insufficient-data");
+});
+
+test("short-term investments in a currency other than cash's withhold liquidity and runway", () => {
+  const { metric } = vktxStrength(vktxConcepts(), (artifact) => ({
+    ...artifact,
+    enterpriseValueBridge: {
+      ...artifact.enterpriseValueBridge!,
+      shortTermInvestments: artifact.enterpriseValueBridge!.shortTermInvestments.map((fact) => ({
+        ...fact,
+        currency: "CAD",
+      })),
+    },
+  }));
+  expect(metric("liquidity")).toMatchObject({
+    status: "missing",
+    reason: "short-term investments are not filed in cash's currency USD at 2026-09-30",
+  });
+  expect(metric("cashRunwayYears")?.status).toBe("missing");
+});
+
+test("an interim span that rounds to 12 months is neither a fiscal year nor a TTM", () => {
+  const { metric } = vktxStrength(
+    vktxConcepts({
+      NetCashProvidedByUsedInOperatingActivities: {
+        units: { USD: [q3Fact(-50_000_000, "2026-09-30", "2025-10-14")] },
+      },
+    }),
+  );
+  expect(metric("trailingOperatingCashFlow")).toMatchObject({
+    status: "missing",
+    reason: "latest operating cash flow is neither a full fiscal year nor a reconciled TTM",
+  });
+  expect(metric("cashRunwayYears")).toBeUndefined();
+});
+
+test("a TTM whose legs mix continuing and total operations scope is withheld", () => {
+  const [fiscalYear, priorYearToDate, latestYearToDate] = (
+    vktxConcepts().NetCashProvidedByUsedInOperatingActivities as { units: { USD: unknown[] } }
+  ).units.USD;
+  const { metric } = vktxStrength(
+    vktxConcepts({
+      NetCashProvidedByUsedInOperatingActivities: {
+        units: { USD: [priorYearToDate, latestYearToDate] },
+      },
+      NetCashProvidedByUsedInOperatingActivitiesContinuingOperations: {
+        units: { USD: [fiscalYear] },
+      },
+    }),
+  );
+  expect(metric("trailingOperatingCashFlow")).toMatchObject({
+    status: "missing",
+    reason: "TTM operating cash flow legs mix continuing-operations and total-operations scope",
+  });
+  expect(metric("cashRunwayYears")).toBeUndefined();
+});
+
+test("continuing-only operating cash flow is scope-labelled and never divides issuer-wide liquidity", () => {
+  const { metric } = vktxStrength(
+    vktxConcepts({
+      NetCashProvidedByUsedInOperatingActivities: undefined,
+      NetCashProvidedByUsedInOperatingActivitiesContinuingOperations:
+        vktxConcepts().NetCashProvidedByUsedInOperatingActivities,
+    }),
+  );
+  expect(metric("trailingOperatingCashFlow")).toMatchObject({
+    label: "Operating cash flow (trailing) (continuing operations)",
+  });
+  expect(metric("cashRunwayYears")).toMatchObject({
+    status: "missing",
+    reason:
+      "operating cash flow covers continuing operations only while cash + short-term investments is issuer-wide",
+  });
+});

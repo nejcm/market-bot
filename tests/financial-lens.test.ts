@@ -110,8 +110,10 @@ function evidence(): ExtendedEvidence {
           operatingCashFlowPrior: 25,
           operatingCashFlowDeltaPercent: 20,
           operatingCashFlowPeriodEnd: "2025-06-28",
+          operatingCashFlowPeriodMonths: 12,
           capex: 5,
           capexPeriodEnd: "2025-06-28",
+          capexPeriodMonths: 12,
           cash: 35,
           cashPeriodEnd: "2026-03-28",
           debt: 20,
@@ -168,17 +170,18 @@ describe("addFinancialLensEvidence", () => {
       "Value",
       "Momentum",
     ]);
+    // FY operating cash flow ends 273 days before the balance sheet, so self-funding is unassessed.
     expect(result.artifact?.lenses.map((lens) => lens.posture)).toEqual([
       "criteria-supported",
       "criteria-supported",
-      "criteria-supported",
+      "insufficient-data",
       "criteria-supported",
       "criteria-supported",
     ]);
     expect(item?.summary).toContain("Financial Lens Evidence:");
     expect(item?.sourceIds).toContain("verified-snapshot-AAPL");
     expect(item?.metrics?.qualityPosture).toBe("criteria-supported");
-    expect(item?.metrics?.financialStrengthPosture).toBe("criteria-supported");
+    expect(item?.metrics?.financialStrengthPosture).toBe("insufficient-data");
     expect(metricByKey(result, "Quality", "grossMargin")).toMatchObject({
       periodEnd: "2025-06-28",
       periodMonths: 12,
@@ -859,6 +862,12 @@ const CASH_FLOW_LENS_IDS = [
   "capexDeltaPercent",
   "pcfRatio",
 ];
+
+// Strength's self-funding criterion reads operating cash flow only over a known span.
+const DATED_ANNUAL_CASH_FLOW = {
+  operatingCashFlowPeriodEnd: "2026-03-28",
+  operatingCashFlowPeriodMonths: 12,
+};
 
 function secEvidenceWithRatios(
   overrides: Record<string, number | string> = {},
@@ -2384,7 +2393,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
-        items: [secEvidenceWithRatios(), valuationEvidence()],
+        items: [secEvidenceWithRatios(DATED_ANNUAL_CASH_FLOW), valuationEvidence()],
         gaps: [],
       },
       verifiedSnapshot(),
@@ -2398,6 +2407,59 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
     });
     expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+  });
+
+  test.each([
+    ["stale FY2024", { operatingCashFlow: -50, operatingCashFlowPeriodEnd: "2024-12-31" }],
+    ["absent", { operatingCashFlow: "" }],
+  ])(
+    "SEC summary with %s operating cash flow leaves self-funding unassessed with a gap",
+    (_label, overrides) => {
+      const result = addFinancialLensEvidence(
+        command,
+        [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+        {
+          instrument: { symbol: "AAPL", assetClass: "equity" },
+          items: [
+            secEvidenceWithRatios({ ...DATED_ANNUAL_CASH_FLOW, ...overrides }),
+            valuationEvidence(),
+          ],
+          gaps: [],
+        },
+        verifiedSnapshot(),
+        "2026-06-22T00:00:00.000Z",
+      );
+
+      expect(
+        metricByKey(result, "Financial Strength", "trailingOperatingCashFlow"),
+      ).toBeUndefined();
+      expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+      expect(
+        result.metricSectionGaps?.find(
+          ({ source }) => source === "financial-lens-financial-strength",
+        )?.message,
+      ).toContain("Operating cash flow (trailing) missing");
+    },
+  );
+
+  test("an empty SEC summary still declares the unassessed self-funding criterion", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [{ ...secEvidenceWithRatios(), metrics: {} }, valuationEvidence()],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+    expect(
+      result.metricSectionGaps?.find(({ source }) => source === "financial-lens-financial-strength")
+        ?.message,
+    ).toContain("Operating cash flow (trailing) missing");
   });
 
   test("SEC payout > 0.8 does not support Financial Strength", () => {
@@ -2464,11 +2526,15 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
             ?.status,
       ),
     ).toEqual(Array.from({ length: 4 }, () => "not-applicable"));
-    for (const result of [lens("3571"), bank]) {
-      expect(names.map((name) => lensByName(result, name)?.posture)).toEqual(
-        names.map(() => "criteria-supported"),
-      );
-    }
+    expect(names.map((name) => lensByName(bank, name)?.posture)).toEqual(
+      names.map(() => "criteria-supported"),
+    );
+    // The non-bank's stale FY operating cash flow leaves its self-funding criterion unassessed.
+    expect(names.map((name) => lensByName(lens("3571"), name)?.posture)).toEqual([
+      "criteria-supported",
+      "criteria-supported",
+      "insufficient-data",
+    ]);
   });
 
   test("Yahoo PE/Forward PE/PBV appear in Value lens and are display-only", () => {
@@ -2719,7 +2785,11 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
-        items: [secEvidenceWithRatios(), valuationEvidence(), yahooFundamentalsEvidence()],
+        items: [
+          secEvidenceWithRatios(DATED_ANNUAL_CASH_FLOW),
+          valuationEvidence(),
+          yahooFundamentalsEvidence(),
+        ],
         gaps: [],
       },
       verifiedSnapshot(),

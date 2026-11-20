@@ -90,7 +90,12 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
         "LongTermDebtAndCapitalLeaseObligationsCurrent",
       ],
       instruments: [
-        ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],
+        [
+          "ShortTermBorrowings",
+          "ShortTermDebt",
+          "CommercialPaper",
+          "ShortTermBankLoansAndNotesPayable",
+        ],
         ["NotesPayableCurrent"],
         ["LoansPayableCurrent"],
         ["LinesOfCreditCurrent"],
@@ -142,7 +147,12 @@ export const DEBT_CONCEPTS: Readonly<Record<FinancialStatementTaxonomy, DebtTaxo
       current: "LongTermDebtCurrent",
       currentTotal: "DebtCurrent",
       capitalLeaseCurrent: "CapitalLeaseObligationsCurrent",
-      shortTerm: ["ShortTermBorrowings", "ShortTermDebt", "CommercialPaper"],
+      shortTerm: [
+        "ShortTermBorrowings",
+        "ShortTermDebt",
+        "CommercialPaper",
+        "ShortTermBankLoansAndNotesPayable",
+      ],
       commercialPaper: "CommercialPaper",
       noncurrentIdentity: {
         noncurrentTotal: "LiabilitiesNoncurrent",

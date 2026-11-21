@@ -1,7 +1,6 @@
-import { DAY_MS, isFreshPeriodEnd } from "../config/shared";
+import { isFreshPeriodEnd } from "../config/shared";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../domain/market-data";
 import { isCashFlowInput, PRICE_RELATIVE_KEYS } from "../sources/extended-evidence/metric-engine";
-import { MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS } from "../sources/extended-evidence/valuation-comps-contract";
 import { unreconciledDividendsPerShare } from "../sources/extended-evidence/financial-statements";
 import {
   nearZeroBase,
@@ -171,8 +170,7 @@ export function reportInvariantViolations(
         section.id?.startsWith("valuation-workbench-") === true &&
         debt?.periodEnd !== undefined &&
         metric.periodEnd !== undefined &&
-        (Date.parse(metric.periodEnd) - Date.parse(debt.periodEnd)) / DAY_MS >
-          MAX_BALANCE_SHEET_PERIOD_DIVERGENCE_DAYS
+        debt.periodEnd < metric.periodEnd
       ) {
         add(
           "workbench-debt-behind-row-period",

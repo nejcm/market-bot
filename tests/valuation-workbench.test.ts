@@ -595,6 +595,8 @@ describe("valuation workbench", () => {
       });
       expect(result.sourceGaps.map(({ source, triage }) => ({ source, triage }))).toEqual([
         { source: "valuation-workbench-annual-2023-12-31-2024-02-15", triage: "material" },
+        // The TTM row's only debt is the 2024-12-31 annual instant, a quarter behind it.
+        { source: "valuation-workbench-ttm-2025-03-31-2025-05-01", triage: "material" },
       ]);
     });
 

@@ -681,7 +681,7 @@ describe("report sweep", () => {
     expect([...claims("value"), ...claims("not-meaningful")]).toEqual([]);
   });
 
-  test("flags a Workbench row of any status carrying debt more than 92 days before its period", () => {
+  test("flags a Workbench row of any status carrying debt from before its period end", () => {
     const sections = (
       debtPeriodEnd: string,
       sectionId = "valuation-workbench-annual-2023-03-31",
@@ -704,7 +704,10 @@ describe("report sweep", () => {
     expect(reportInvariantViolations(sections("2022-03-31")).map((row) => row.invariant)).toEqual([
       "workbench-debt-behind-row-period",
     ]);
-    expect(reportInvariantViolations(sections("2022-12-29"))).toEqual([]);
+    expect(reportInvariantViolations(sections("2022-12-31")).map((row) => row.invariant)).toEqual([
+      "workbench-debt-behind-row-period",
+    ]);
+    expect(reportInvariantViolations(sections("2023-03-31"))).toEqual([]);
     expect(reportInvariantViolations(sections("2022-03-31", "financial-lens-ttm"))).toEqual([]);
   });
 

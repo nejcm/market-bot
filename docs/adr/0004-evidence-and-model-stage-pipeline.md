@@ -296,8 +296,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,
   target EV, net debt, debt/equity, debt/market cap and net debt/market cap. One dated `SEC debt withheld` Source Gap
   names the period end and reason. Complete older instants stay only as dated balance-sheet history; the lens debt row
-  is also capped at 180 days. The Workbench drops debt when an incomplete instant falls after it and at or before
-  cash, or when its instant lags the row period end by more than 92 days. Older instants are checked by the same rules,
+  is also capped at 180 days. The Workbench pairs debt only at the row's own balance-sheet instant
+  (the row period end) and drops debt from any earlier instant. Older instants are checked by the same rules,
   which prove only what the tagged facts show (see above). Direct facts remain
   `sec-companyfacts` without composite metadata; artifact extraction method stays companyfacts.
 - A strictly newer `DebtInstrumentCarryingAmount` instant, calibrated to net debt at net's selected period within

@@ -771,15 +771,14 @@ describe("older complete debt never stands in for a newer incomplete instant", (
     );
   });
 
-  test("the Workbench ignores an incomplete filing published after the observation", () => {
+  test("the Workbench never pairs prior-quarter debt, even before the incomplete filing is public", () => {
     const { artifact } = resolve({
       ...gaap,
       NotesPayableCurrent: [q3(30), instant(40, "2025-12-31", "2026-04-15", "10-K/A", "FY")],
     });
-    expect(valuationPeriodInputs(artifact).periods.at(-1)?.debt).toMatchObject({
-      value: 100,
-      periodEnd: "2025-09-30",
-    });
+    const period = valuationPeriodInputs(artifact).periods.at(-1);
+    expect(period?.cash?.periodEnd).toBe("2025-12-31");
+    expect(period?.debt).toBeUndefined();
   });
 
   test("the Workbench drops debt for the observation", () => {

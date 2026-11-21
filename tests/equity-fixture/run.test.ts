@@ -796,6 +796,12 @@ describe("static equity run fixtures", () => {
             inputs: [],
           });
         }
+        expect(row("payoutRatio3y")).toMatchObject({
+          status: "not-applicable",
+          reason:
+            "REIT issuer (SIC 6798): payout is measured against FFO/AFFO, not net income; not assessed",
+        });
+        expect(result.markdown).toContain("### Capital Return History");
         expect(JSON.stringify(sections)).not.toContain("capital expenditure not filed");
         expect(result.markdown).toContain(`| not applicable (${reitCapex})\n`);
         expect(result.markdown).not.toContain("free-cash-flow-unavailable");

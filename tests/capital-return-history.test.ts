@@ -70,8 +70,13 @@ function tdg(overrides: Readonly<Record<string, Values>> = {}) {
   });
 }
 
-function strength(artifact: ReturnType<typeof statements>) {
-  const ctx: MetricContext = { symbol: "TDG", asOf: AS_OF, statements: artifact };
+function strength(artifact: ReturnType<typeof statements>, sic?: string) {
+  const ctx: MetricContext = {
+    symbol: "TDG",
+    asOf: AS_OF,
+    statements: artifact,
+    ...(sic === undefined ? {} : { secIssuer: { sic, sourceIds: [SOURCE_ID] } }),
+  };
   const lens = financialLensMetrics(ctx);
   return {
     payout: (id: string) => lens.lensMetrics["Financial Strength"].find((m) => m.id === id),
@@ -220,6 +225,26 @@ describe("3y cumulative payout ratio", () => {
       reason: "net income is zero or negative for the fiscal year ending 2024-09-30",
     });
     expect(loss.posture).toBe("insufficient-data");
+  });
+
+  test("a REIT's payout is not assessed on net income; the history table stays", () => {
+    // O-shaped: distributions run above net income every year (O fda86bad 3y read 276.7%).
+    const reit = tdg({
+      PaymentsOfDividends: { 2024: 2600, 2025: 2800, 2026: 2900 },
+      NetIncomeLoss: { 2024: 870, 2025: 1000, 2026: 1100 },
+    });
+    const { payout, posture } = strength(reit, "6798");
+
+    expect(payout("payoutRatio3y")).toMatchObject({
+      status: "not-applicable",
+      reason:
+        "REIT issuer (SIC 6798): payout is measured against FFO/AFFO, not net income; not assessed",
+    });
+    expect(payout("payoutRatio")?.status).toBe("value");
+    expect(posture).toBe("insufficient-data");
+    expect(strength(reit, "6022").payout("payoutRatio3y")?.status).toBe("value");
+    expect(strength(reit).posture).toBe("criteria-mixed");
+    expect(capitalReturnHistory(reit, AS_OF)?.rows.at(-1)?.dividendsPaid?.value).toBe(2900 * M);
   });
 
   test("no filed dividends withholds the 3y ratio", () => {

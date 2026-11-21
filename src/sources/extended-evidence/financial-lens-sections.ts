@@ -213,7 +213,7 @@ function payoutCriterion(
     return "not-applicable";
   }
   const cumulative = section?.find((metric) => metric.id === "payoutRatio3y");
-  if (cumulative?.status === "value" || cumulative?.status === "not-meaningful") {
+  if (cumulative !== undefined && cumulative.status !== "missing") {
     return criterionOf(section, "payoutRatio3y", (value) => value <= 0.8);
   }
   const payout = section?.find((metric) => metric.id === "payoutRatio");

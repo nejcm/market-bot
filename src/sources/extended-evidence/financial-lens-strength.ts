@@ -46,6 +46,7 @@ import {
 } from "./financial-statement-definitions";
 import { isYearAligned, latestFinancialStatementFact } from "./financial-statement-selection";
 import { staleAnchor } from "./capital-return";
+import { REIT_SIC } from "./industry-classification";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -735,6 +736,10 @@ export function cumulativePayoutRatioDefinition(): MetricDefinition {
     label: "Payout ratio (3y cumulative)",
     unit: "ratio-percent",
     basis: `sum of dividends paid / sum of net income over the latest ${String(PAYOUT_WINDOW_YEARS)} consecutive year-aligned fiscal years, each year joined on its own period; ${SPECIAL_DIVIDENDS_BASIS}; regular vs special not distinguished`,
+    applicable: (ctx) =>
+      ctx.secIssuer?.sic === REIT_SIC
+        ? `REIT issuer (SIC ${REIT_SIC}): payout is measured against FFO/AFFO, not net income; not assessed`
+        : undefined,
     compute: cumulativePayoutOutcome,
   };
 }

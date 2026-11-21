@@ -521,6 +521,17 @@ export function factsForDebt(
         : entry.restatements.map((fact) => [fact, entry.proofSourceIds] as const),
     ),
   );
+  // Any complete resolution of the instant's value makes it public, so the earliest one dates it.
+  const provenAt = new Map<string, string>();
+  for (const fact of kept) {
+    const key = `${fact.periodEnd}|${fact.value}`;
+    const faceAt = proofs.has(fact) ? proofFiledAt(filings, proofs.get(fact) ?? []) : undefined;
+    const at = faceAt !== undefined && faceAt > fact.filedAt ? faceAt : fact.filedAt;
+    const earliest = provenAt.get(key);
+    if (earliest === undefined || at < earliest) {
+      provenAt.set(key, at);
+    }
+  }
   const faceLeases = new Map(
     current.flatMap((entry) =>
       entry.incomplete || entry.faceLeases === undefined
@@ -544,7 +555,12 @@ export function factsForDebt(
     ].map((fact) => ({
       ...fact,
       ...(lineScoped.has(fact) ? { lineScope: true as const } : {}),
-      ...(proofs.has(fact) ? proofOf(filings, proofs.get(fact) ?? []) : {}),
+      ...(proofs.has(fact)
+        ? {
+            proofSourceIds: proofs.get(fact) ?? [],
+            ...withProvenAt(provenAt.get(`${fact.periodEnd}|${fact.value}`)),
+          }
+        : {}),
       ...(faceLeases.has(fact) ? { faceLeases: faceLeases.get(fact) ?? [] } : {}),
     })),
     notes: [
@@ -555,11 +571,15 @@ export function factsForDebt(
   };
 }
 
-function proofOf(
+const withProvenAt = (proofPublicAt: string | undefined) =>
+  proofPublicAt === undefined ? {} : { proofPublicAt };
+
+// A proof needs every filing it cites, so the latest of them is when it holds.
+function proofFiledAt(
   filings: readonly ExtendedEvidenceItem[],
   proofSourceIds: readonly string[],
-): Pick<ParsedFact, "proofSourceIds" | "proofPublicAt"> {
-  const proofPublicAt = filings
+): string | undefined {
+  return filings
     .flatMap(({ sourceIds, metrics }) =>
       typeof metrics?.filingDate === "string" && sourceIds.some((id) => proofSourceIds.includes(id))
         ? [metrics.filingDate]
@@ -567,7 +587,6 @@ function proofOf(
     )
     .toSorted()
     .at(-1);
-  return { proofSourceIds, ...(proofPublicAt === undefined ? {} : { proofPublicAt }) };
 }
 
 const ZERO_BORROWINGS_REASON =

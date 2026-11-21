@@ -396,9 +396,9 @@ const tdgCell = (concept: string, millions: number | undefined, context: string)
   millions === undefined
     ? "<td>—</td>"
     : `<td><ix:nonFraction name="${concept}" contextRef="${context}" unitRef="usd" scale="6">${millions.toLocaleString("en-US")}</ix:nonFraction></td>`;
-const tdgFace = (rows: readonly TdgRow[] = TDG_ROWS) =>
+const tdgFace = (rows: readonly TdgRow[] = TDG_ROWS, currentEnd = "2025-09-30") =>
   `${[
-    ["c", "2025-09-30"],
+    ["c", currentEnd],
     ["p", "2024-09-30"],
   ]
     .map(
@@ -482,6 +482,40 @@ describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", (
       value: 29_731e6,
       publicAt: "2025-11-12",
     });
+  });
+
+  test("a 10-Q comparative that proved 2024-09-30 on 2025-02-04 dates it before the 10-K's", async () => {
+    const q1 = "0001260221-25-000010";
+    const gaap = Object.fromEntries(
+      Object.entries(TDG_GAAP).map(([concept, facts]) => {
+        const prior = TDG_GAAP_ROWS[concept]?.[1];
+        return [
+          concept,
+          prior === undefined
+            ? facts
+            : [...facts, fact(prior * 1e6, "2024-09-30", "2025-02-04", q1)],
+        ];
+      }),
+    );
+    const q1Face = {
+      sourceIds: [`sec-filing-${q1}`],
+      metrics: {
+        accessionNumber: q1,
+        reportDate: "2024-12-28",
+        filingDate: "2025-02-04",
+        ...secBalanceSheetFaceMetrics(tdgFace(TDG_ROWS, "2024-12-28"), "2024-12-28"),
+      },
+    } as unknown as ExtendedEvidenceItem;
+    const { out } = await tdgFaces();
+    const debt = financialStatementFacts(
+      deriveItems(gaap, [...out.items, q1Face]).statements.balanceSheet.debt,
+    ).filter(({ periodEnd }) => periodEnd === "2024-09-30");
+    expect(
+      debt.map(({ periodType, value, firstPublicAt }) => [periodType, value, firstPublicAt]),
+    ).toEqual([
+      ["annual", 24_618e6, "2025-02-04"],
+      ["interim", 24_618e6, "2025-02-04"],
+    ]);
   });
 
   test("an unfooted comparative column is declared and stays withheld", async () => {

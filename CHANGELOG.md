@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.65](https://github.com/nejcm/market-bot/compare/v1.19.64...v1.19.65) (2026-11-21)
+
+### Bug Fixes
+
+- **valuation-workbench:** use only same-period debt in ev rows (#290) ([c4a72bf](https://github.com/nejcm/market-bot/commit/c4a72bfb6db8c53e53015e922f3edcff6c89fea3))
+
 ## [1.19.64](https://github.com/nejcm/market-bot/compare/v1.19.63...v1.19.64) (2026-11-21)
 
 ### Bug Fixes

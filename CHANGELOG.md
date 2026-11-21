@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.66](https://github.com/nejcm/market-bot/compare/v1.19.65...v1.19.66) (2026-11-21)
+
+### Bug Fixes
+
+- surface special dividends and judge payout over 3 fiscal years (#291) ([886dcaf](https://github.com/nejcm/market-bot/commit/886dcaf14a91d1c393895792fc223546546fcef4))
+
 ## [1.19.65](https://github.com/nejcm/market-bot/compare/v1.19.64...v1.19.65) (2026-11-21)
 
 ### Bug Fixes

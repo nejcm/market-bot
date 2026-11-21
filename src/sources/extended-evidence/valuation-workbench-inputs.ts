@@ -1,6 +1,7 @@
 import { statementInput } from "./metric-engine";
 import { materialRestatement } from "./fundamental-history-canonical";
 import { debtScopeUnproven, isWithheldDebtNote } from "./sec-debt";
+import { balanceSheetPeriodDivergence } from "./valuation-comps-support";
 import {
   ENTERPRISE_VALUE_BRIDGE_KEYS,
   bridgeContributors,
@@ -61,8 +62,6 @@ export interface ValuationPeriodInputs {
   readonly enterpriseValueBridgeIncomplete?: true;
   readonly debtScopeMismatch?: true;
   readonly debtScopeUnproven?: true;
-  // A newer incomplete debt instant sits between this debt and the cash instant, so they never pair.
-  readonly debtBehindIncompleteInstant?: true;
   readonly earlierShareBasis?: readonly ("dilutedEps" | "dilutedShares")[];
   // Annual rows only: the date pricing the row, its first annual report unless that is unavailable.
   readonly rowPublicAt?: string;
@@ -304,17 +303,14 @@ function bridgeInput(
   };
 }
 
-// Older complete debt never stands in past a newer incomplete debt instant.
+// Older complete debt never stands in past a newer incomplete debt instant or the row's own period.
 function debtInput(
   artifact: FinancialStatementsArtifact,
   debtFact: FinancialStatementFact | undefined,
   cashFact: FinancialStatementFact | undefined,
   publicAt: string,
   flow: { readonly periodEnd: string; readonly firstPublicAt: string },
-): Pick<
-  ValuationPeriodInputs,
-  "debt" | "debtScopeMismatch" | "debtScopeUnproven" | "debtBehindIncompleteInstant"
-> {
+): Pick<ValuationPeriodInputs, "debt" | "debtScopeMismatch" | "debtScopeUnproven"> {
   if (debtFact === undefined) {
     return {};
   }
@@ -338,7 +334,12 @@ function debtInput(
       periodEnd <= (cashFact?.periodEnd ?? debtFact.periodEnd)
     );
   });
-  if (newer.some((note) => note.periodKey === `instant|${cashFact?.periodEnd}`)) {
+  const lagging =
+    balanceSheetPeriodDivergence({
+      cashPeriodEnd: flow.periodEnd,
+      debtPeriodEnd: debtFact.periodEnd,
+    }) !== undefined;
+  if (lagging || newer.length > 0) {
     return {};
   }
   const unproven = debtScopeUnproven(artifact, debtFact, flow) !== undefined;
@@ -348,7 +349,6 @@ function debtInput(
       ...(unproven ? { scope: DEBT_SCOPE_CAVEAT } : {}),
     },
     ...(unproven ? { debtScopeUnproven: true as const } : {}),
-    ...(newer.length > 0 ? { debtBehindIncompleteInstant: true as const } : {}),
   };
 }
 

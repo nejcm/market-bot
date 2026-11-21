@@ -6834,7 +6834,6 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
     return {
       debt: period?.debt?.periodEnd,
       scope: period?.debtScopeMismatch,
-      behind: period?.debtBehindIncompleteInstant,
     };
   };
   const usGaap = { taxonomy: "us-gaap", unit: "USD", debtFiledAt: "2025-08-01" } as const;
@@ -6842,19 +6841,26 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
   test("52/53-week: a held-for-sale note at the cash instant withholds the prior-quarter debt", () => {
     expect(
       row({ ...usGaap, debtEnd: "2025-06-28", heldEnd: "2025-09-27", yearEnd: "2025-09-27" }),
-    ).toEqual({ debt: undefined, scope: undefined, behind: undefined });
+    ).toEqual({ debt: undefined, scope: undefined });
   });
 
   test("debt 91 days before cash never pairs past a note between them, though within 92 days", () => {
     expect(
       row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-09-27", yearEnd: "2025-10-01" }),
-    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: true });
+    ).toEqual({ debt: undefined, scope: undefined });
   });
 
   test("off-path: no note between debt and cash pairs them normally", () => {
     expect(
       row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-06-28", yearEnd: "2025-10-01" }),
-    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: undefined });
+    ).toEqual({ debt: "2025-07-02", scope: undefined });
+  });
+
+  test("with no note between, debt 92 days before the row pairs and 93 days drops", () => {
+    const noteBefore = { ...usGaap, heldEnd: "2025-06-28", yearEnd: "2025-10-01" };
+    expect(row({ ...noteBefore, debtEnd: "2025-07-01" }).debt).toBe("2025-07-01");
+    expect(row({ ...noteBefore, debtEnd: "2025-06-30" }).debt).toBeUndefined();
+    expect(row({ ...noteBefore, debtEnd: "2024-10-01" }).debt).toBeUndefined();
   });
 
   test("IFRS: pre-recast borrowings at a held-for-sale instant are mixed scope", () => {
@@ -6867,7 +6873,7 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
         heldEnd: "2025-09-27",
         yearEnd: "2025-09-27",
       }),
-    ).toEqual({ debt: undefined, scope: true, behind: undefined });
+    ).toEqual({ debt: undefined, scope: true });
   });
 });
 

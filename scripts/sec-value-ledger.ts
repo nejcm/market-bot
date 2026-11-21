@@ -76,7 +76,6 @@ const VALUATION_FLAGS = [
   "enterpriseValueBridgeIncomplete",
   "debtScopeMismatch",
   "debtScopeUnproven",
-  "debtBehindIncompleteInstant",
   "firstAnnualReportUnavailable",
 ] as const;
 

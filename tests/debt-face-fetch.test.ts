@@ -897,6 +897,52 @@ describe("VSAT 2025-03-31 debt proved by its original 10-K and the next 10-K's c
     );
     expect(debtAt(artifact, "2025-03-31")).toEqual([]);
   });
+
+  // Current maturities retagged ShortTermDebt leave an omission the face recovers, but not the lease's scope.
+  test.each<[string, [lease: string, line: string][], (string | number)[][]]>([
+    ["withholds with the 5,000 current lease unplaced", [], []],
+    [
+      "publishes 6,877.636M with the current lease placed inside ShortTermDebt",
+      [["FinanceLeaseLiabilityCurrent", "ShortTermDebt"]],
+      [["annual", 6_877_636e3, "2026-05-29"]],
+    ],
+  ])("the ShortTermDebt variant %s", (_name, placements, expected) => {
+    const {
+      LongTermDebtAndCapitalLeaseObligationsCurrent: _current,
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: _total,
+      LongTermDebtCurrent: currentDebt,
+      ...rest
+    } = tags;
+    const variant = { ...rest, ShortTermDebt: currentDebt };
+    const split = { FinanceLeaseLiabilityCurrent: 5000, FinanceLeaseLiabilityNoncurrent: 153_473 };
+    const filing = { form: "10-K", fp: "FY", end: "2025-03-31" } as const;
+    const face = filedFace(
+      K26,
+      "2026-03-31",
+      "2026-05-29",
+      columnsFace(
+        ["2026-03-31", "2025-03-31"],
+        ROWS.map(
+          ([label, concept, ...values]): ColumnRow =>
+            concept === "us-gaap:LongTermDebtCurrent"
+              ? [label, "us-gaap:ShortTermDebt", ...values]
+              : [label, concept, ...values],
+        ),
+        placements,
+      ),
+    );
+    const artifact = deriveItems(
+      {
+        Revenues: gaap.Revenues,
+        ...companyFacts([
+          { ...filing, accn: K25, filed: "2025-05-27", thousands: variant },
+          { ...filing, accn: K26, filed: "2026-05-29", thousands: { ...variant, ...split } },
+        ]),
+      },
+      [face],
+    );
+    expect(debtAt(artifact, "2025-03-31")).toEqual(expected);
+  });
 });
 
 // CORZ FY2025 10-K 0001628280-26-013305 own face and Q2 10-Q 0001839341-26-000014's 2025-12-31 comparative.

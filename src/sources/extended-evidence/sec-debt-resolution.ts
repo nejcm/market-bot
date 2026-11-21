@@ -764,10 +764,13 @@ export function resolveDebtAtInstant<T>(
                     : omittedShortTerm.length > 0
                       ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
                       : excess === undefined
-                        ? (componentReason ??
-                          (unplacedCurrentLease
+                        ? // A face can recover an omission but not the lease scope, so the lease veto outranks it.
+                          componentReason !== undefined &&
+                          !(unplacedCurrentLease && componentReason.startsWith("omits "))
+                          ? componentReason
+                          : unplacedCurrentLease
                             ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
-                            : undefined))
+                            : undefined
                         : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&

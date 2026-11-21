@@ -137,7 +137,7 @@ const UNCARRIED_HTM: ReadonlySet<string> = new Set([
 ]);
 // Lines a pick may contain (AAPL: AFS inside MSC); one larger or in another unit withholds.
 const SHORT_TERM_COVERS: Readonly<Record<string, readonly string[]>> = {
-  MarketableSecuritiesCurrent: [...DEBT_AFS, BROAD_AFS],
+  MarketableSecuritiesCurrent: [...DEBT_AFS, BROAD_AFS, "TradingSecuritiesCurrent"],
   AvailableForSaleSecuritiesDebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST],
   DebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, HTM_CURRENT],
   [BROAD_AFS]: ["AvailableForSaleSecuritiesEquitySecuritiesCurrent"],

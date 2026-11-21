@@ -2320,6 +2320,33 @@ describe("short-term investment classes the pick does not cover", () => {
     ).toMatchObject({ status: "tagged", value: 311 * M, concept: "MarketableSecuritiesCurrent" });
   });
 
+  // QCOM FY2012 10-K 0001234452-12-000371 and FY2013 10-K 0001234452-13-000483: MSC = AFS + trading on the face.
+  test.each([
+    ["2012-09-30", "2012-11-07", "0001234452-12-000371", 8567, 8088, 479, 3807],
+    ["2013-09-29", "2013-11-06", "0001234452-13-000483", 8824, 8314, 510, 6142],
+  ])(
+    "QCOM %s keeps MarketableSecuritiesCurrent with its trading line inside at the 10-K cutoff",
+    (end, filed, accn, total, afs, trading, cash) => {
+      const at = (value: number) => [fact(value * M, end, filed, accn, "10-K")];
+      expect(
+        resolvedAt(
+          {
+            MarketableSecuritiesCurrent: at(total),
+            AvailableForSaleSecuritiesCurrent: at(afs),
+            TradingSecuritiesCurrent: at(trading),
+          },
+          end,
+          cash * M,
+          `${filed}T23:59:59.000Z`,
+        ),
+      ).toMatchObject({
+        status: "tagged",
+        value: total * M,
+        concept: "MarketableSecuritiesCurrent",
+      });
+    },
+  );
+
   // INTC FY2012 10-K 0001193125-13-065416 (2013-02-19): 5,685M trading assets beside 3,999M AFS debt short-term investments.
   test("INTC 2012-12-29 TradingSecuritiesCurrent beside the AFS debt pick withholds rather than being dropped", () => {
     const fy12 = (value: number) => [

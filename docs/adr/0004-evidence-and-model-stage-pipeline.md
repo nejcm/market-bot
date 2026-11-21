@@ -428,7 +428,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   credit-loss allowance and the fair-value tag is not carrying amount, so a nonzero one is incomplete, never
   carrying amount or none (GHM FY2020 10-K: 40.048M CDs; HWM Q3 2025 10-Q: 4M); fair value beside a carrying HTM
   tag of the same instant is ignored (VRT). A pick covers only lines it may contain
-  (`MarketableSecuritiesCurrent` every AFS line; the debt-only AFS line the AFS line excluding accrued interest;
+  (`MarketableSecuritiesCurrent` every AFS and trading line (QCOM FY2013: 8,824M = 8,314M + 510M); the debt-only AFS line the AFS line excluding accrued interest;
   `DebtSecuritiesCurrent` that line and net HTM; broad `AvailableForSaleSecuritiesCurrent` the current AFS
   equity line; the `ShortTermInvestments` total every line). Broad AFS also holds equity, so beside a debt-only
   pick it stands only when it equals a usable AFS debt line (VKTX FY2019: 267,261K both). A nonzero or withheld

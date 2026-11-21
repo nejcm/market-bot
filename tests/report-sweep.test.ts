@@ -681,6 +681,36 @@ describe("report sweep", () => {
     expect([...claims("value"), ...claims("not-meaningful")]).toEqual([]);
   });
 
+  test("flags a Workbench row of any status carrying debt from before its period end", () => {
+    const sections = (
+      debtPeriodEnd: string,
+      sectionId = "valuation-workbench-annual-2023-03-31",
+    ) => [
+      {
+        id: sectionId,
+        metrics: [
+          metric({
+            id: "enterpriseValueToRevenue",
+            status: "missing",
+            reason: "mixed-period-balance-sheet",
+            periodEnd: "2023-03-31",
+            inputs: [
+              { label: "Debt", artifact: "statements", series: "debt", periodEnd: debtPeriodEnd },
+            ],
+          }),
+        ],
+      },
+    ];
+    expect(reportInvariantViolations(sections("2022-03-31")).map((row) => row.invariant)).toEqual([
+      "workbench-debt-behind-row-period",
+    ]);
+    expect(reportInvariantViolations(sections("2022-12-31")).map((row) => row.invariant)).toEqual([
+      "workbench-debt-behind-row-period",
+    ]);
+    expect(reportInvariantViolations(sections("2023-03-31"))).toEqual([]);
+    expect(reportInvariantViolations(sections("2022-03-31", "financial-lens-ttm"))).toEqual([]);
+  });
+
   test("accepts the negative EV/revenue the Workbench publishes when cash exceeds market cap plus debt", () => {
     const { section } = valuationMetricSection({
       symbol: "TEST",

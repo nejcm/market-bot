@@ -6783,7 +6783,7 @@ test("notes held-for-sale debt only when no debt is tagged in the recast filing 
   expect(heldNotes("2026-02-15")).toEqual([]);
 });
 
-describe("valuation debt never pairs past a newer incomplete debt instant", () => {
+describe("valuation debt pairs only at the row's own balance-sheet instant", () => {
   const row = (input: {
     readonly taxonomy: "us-gaap" | "ifrs-full";
     readonly unit: string;
@@ -6791,6 +6791,7 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
     readonly debtFiledAt: string;
     readonly heldEnd: string;
     readonly yearEnd: string;
+    readonly cashEnd?: string;
   }) => {
     const filed = "2025-11-20";
     const at = (value: number, periodEnd: string, filedAt: string, periodStart?: string) =>
@@ -6807,7 +6808,7 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
       input.taxonomy === "us-gaap"
         ? {
             Revenues: [at(1000, input.yearEnd, filed, "2024-09-29")],
-            CashAndCashEquivalentsAtCarryingValue: [at(40, input.yearEnd, filed)],
+            CashAndCashEquivalentsAtCarryingValue: [at(40, input.cashEnd ?? input.yearEnd, filed)],
             LongTermDebtNoncurrent: [at(20, input.debtEnd, input.debtFiledAt)],
             LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [
               at(50, input.heldEnd, filed),
@@ -6834,7 +6835,6 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
     return {
       debt: period?.debt?.periodEnd,
       scope: period?.debtScopeMismatch,
-      behind: period?.debtBehindIncompleteInstant,
     };
   };
   const usGaap = { taxonomy: "us-gaap", unit: "USD", debtFiledAt: "2025-08-01" } as const;
@@ -6842,19 +6842,29 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
   test("52/53-week: a held-for-sale note at the cash instant withholds the prior-quarter debt", () => {
     expect(
       row({ ...usGaap, debtEnd: "2025-06-28", heldEnd: "2025-09-27", yearEnd: "2025-09-27" }),
-    ).toEqual({ debt: undefined, scope: undefined, behind: undefined });
+    ).toEqual({ debt: undefined, scope: undefined });
   });
 
-  test("debt 91 days before cash never pairs past a note between them, though within 92 days", () => {
-    expect(
-      row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-09-27", yearEnd: "2025-10-01" }),
-    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: true });
+  test("off-path: debt at the row's own instant pairs, with or without older cash", () => {
+    const own = {
+      ...usGaap,
+      debtEnd: "2025-10-01",
+      debtFiledAt: "2025-11-20",
+      heldEnd: "2025-06-28",
+      yearEnd: "2025-10-01",
+    };
+    expect(row(own)).toEqual({ debt: "2025-10-01", scope: undefined });
+    expect(row({ ...own, cashEnd: "2025-07-02" })).toEqual({
+      debt: "2025-10-01",
+      scope: undefined,
+    });
   });
 
-  test("off-path: no note between debt and cash pairs them normally", () => {
-    expect(
-      row({ ...usGaap, debtEnd: "2025-07-02", heldEnd: "2025-06-28", yearEnd: "2025-10-01" }),
-    ).toEqual({ debt: "2025-07-02", scope: undefined, behind: undefined });
+  test("prior-quarter debt 91 or 92 days before the row drops, with no note between", () => {
+    const noteBefore = { ...usGaap, heldEnd: "2025-06-28", yearEnd: "2025-10-01" };
+    expect(row({ ...noteBefore, debtEnd: "2025-07-02" }).debt).toBeUndefined();
+    expect(row({ ...noteBefore, debtEnd: "2025-07-01" }).debt).toBeUndefined();
+    expect(row({ ...noteBefore, debtEnd: "2024-10-01" }).debt).toBeUndefined();
   });
 
   test("IFRS: pre-recast borrowings at a held-for-sale instant are mixed scope", () => {
@@ -6867,7 +6877,7 @@ describe("valuation debt never pairs past a newer incomplete debt instant", () =
         heldEnd: "2025-09-27",
         yearEnd: "2025-09-27",
       }),
-    ).toEqual({ debt: undefined, scope: true, behind: undefined });
+    ).toEqual({ debt: undefined, scope: true });
   });
 });
 

@@ -136,7 +136,7 @@ export function valuationMetricSection(input: {
       cashPeriodEnd: [period.cash.periodEnd, period.debt.periodEnd].toSorted()[0]!,
       debtPeriodEnd: period.periodEnd,
     });
-    return mixed !== undefined || laggingRow !== undefined || period.debtBehindIncompleteInstant
+    return mixed !== undefined || laggingRow !== undefined
       ? "mixed-period-balance-sheet"
       : undefined;
   };

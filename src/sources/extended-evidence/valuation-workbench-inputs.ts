@@ -61,8 +61,6 @@ export interface ValuationPeriodInputs {
   readonly enterpriseValueBridgeIncomplete?: true;
   readonly debtScopeMismatch?: true;
   readonly debtScopeUnproven?: true;
-  // A newer incomplete debt instant sits between this debt and the cash instant, so they never pair.
-  readonly debtBehindIncompleteInstant?: true;
   readonly earlierShareBasis?: readonly ("dilutedEps" | "dilutedShares")[];
   // Annual rows only: the date pricing the row, its first annual report unless that is unavailable.
   readonly rowPublicAt?: string;
@@ -304,42 +302,27 @@ function bridgeInput(
   };
 }
 
-// Older complete debt never stands in past a newer incomplete debt instant.
+// Debt from an earlier instant never stands in for the row's own balance-sheet instant.
 function debtInput(
   artifact: FinancialStatementsArtifact,
   debtFact: FinancialStatementFact | undefined,
-  cashFact: FinancialStatementFact | undefined,
   publicAt: string,
   flow: { readonly periodEnd: string; readonly firstPublicAt: string },
-): Pick<
-  ValuationPeriodInputs,
-  "debt" | "debtScopeMismatch" | "debtScopeUnproven" | "debtBehindIncompleteInstant"
-> {
-  if (debtFact === undefined) {
+): Pick<ValuationPeriodInputs, "debt" | "debtScopeMismatch" | "debtScopeUnproven"> {
+  if (debtFact?.periodEnd !== flow.periodEnd) {
     return {};
   }
-  const published = artifact.omissionNotes.filter(
-    (note) => isWithheldDebtNote(note) && (note.publicAt ?? "") <= publicAt,
-  );
-  const atInstant = (periodEnd: string | undefined) =>
-    published.filter((note) => note.periodKey === `instant|${periodEnd}`);
   if (
-    atInstant(debtFact.periodEnd).some(
-      (note) => note.code === "debt-held-for-sale" && (note.publicAt ?? "") > debtFact.filedAt,
+    artifact.omissionNotes.some(
+      (note) =>
+        isWithheldDebtNote(note) &&
+        note.code === "debt-held-for-sale" &&
+        note.periodKey === `instant|${debtFact.periodEnd}` &&
+        (note.publicAt ?? "") <= publicAt &&
+        (note.publicAt ?? "") > debtFact.filedAt,
     )
   ) {
     return { debtScopeMismatch: true };
-  }
-  const newer = published.filter((note) => {
-    const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
-    return (
-      periodEnd !== undefined &&
-      periodEnd > debtFact.periodEnd &&
-      periodEnd <= (cashFact?.periodEnd ?? debtFact.periodEnd)
-    );
-  });
-  if (newer.some((note) => note.periodKey === `instant|${cashFact?.periodEnd}`)) {
-    return {};
   }
   const unproven = debtScopeUnproven(artifact, debtFact, flow) !== undefined;
   return {
@@ -348,7 +331,6 @@ function debtInput(
       ...(unproven ? { scope: DEBT_SCOPE_CAVEAT } : {}),
     },
     ...(unproven ? { debtScopeUnproven: true as const } : {}),
-    ...(newer.length > 0 ? { debtBehindIncompleteInstant: true as const } : {}),
   };
 }
 
@@ -523,7 +505,7 @@ function annualInputs(
       : {}),
     ...(firstAnnualReportUnavailable ? { firstAnnualReportUnavailable } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...debtInput(artifact, debtFact, cashFact, publicAt, {
+    ...debtInput(artifact, debtFact, publicAt, {
       periodEnd,
       firstPublicAt:
         revenue === undefined || immaterialKeys.includes("revenue") ? publicAt : revenue.publicAt,
@@ -655,7 +637,7 @@ function periodInputsFromTtm(
     ...(capitalExpenditure !== undefined ? { capitalExpenditure } : {}),
     ...(freeCashFlow !== undefined ? { freeCashFlow } : {}),
     ...(cashFact !== undefined ? { cash: factInput("Cash", cashFact) } : {}),
-    ...debtInput(artifact, debtFact, cashFact, publicAt, {
+    ...debtInput(artifact, debtFact, publicAt, {
       periodEnd: revenue.periodEnd,
       firstPublicAt: revenue.publicAt,
     }),

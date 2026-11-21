@@ -771,15 +771,14 @@ describe("older complete debt never stands in for a newer incomplete instant", (
     );
   });
 
-  test("the Workbench ignores an incomplete filing published after the observation", () => {
+  test("the Workbench never pairs prior-quarter debt, even before the incomplete filing is public", () => {
     const { artifact } = resolve({
       ...gaap,
       NotesPayableCurrent: [q3(30), instant(40, "2025-12-31", "2026-04-15", "10-K/A", "FY")],
     });
-    expect(valuationPeriodInputs(artifact).periods.at(-1)?.debt).toMatchObject({
-      value: 100,
-      periodEnd: "2025-09-30",
-    });
+    const period = valuationPeriodInputs(artifact).periods.at(-1);
+    expect(period?.cash?.periodEnd).toBe("2025-12-31");
+    expect(period?.debt).toBeUndefined();
   });
 
   test("the Workbench drops debt for the observation", () => {
@@ -889,11 +888,7 @@ function fundamental(value: number, periodEnd: string): ValuationFundamentalInpu
   };
 }
 
-function evToRevenue(
-  debtPeriodEnd: string,
-  behindIncompleteInstant = false,
-  cashPeriodEnd = "2026-06-30",
-) {
+function evToRevenue(debtPeriodEnd: string, cashPeriodEnd = "2026-06-30") {
   return valuationMetricSection({
     symbol: "TEST",
     period: {
@@ -903,7 +898,6 @@ function evToRevenue(
       dilutedShares: { ...fundamental(10, "2026-06-30"), unit: "shares", currency: null },
       cash: fundamental(20, cashPeriodEnd),
       debt: fundamental(30, debtPeriodEnd),
-      ...(behindIncompleteInstant ? { debtBehindIncompleteInstant: true as const } : {}),
     },
     price: { close: 10, sessionDate: "2026-08-07", currency: "USD", sourceId: "quote" },
     reportingCurrency: "USD",
@@ -916,13 +910,6 @@ describe("valuation workbench balance-sheet period gate", () => {
     expect(evToRevenue("2026-03-30")).toMatchObject({ status: "value", value: 1.1 });
   });
 
-  test("suppresses EV/revenue within 92 days when a newer incomplete debt instant sits between", () => {
-    expect(evToRevenue("2026-03-30", true)).toMatchObject({
-      status: "missing",
-      reason: "mixed-period-balance-sheet",
-    });
-  });
-
   test("suppresses EV/revenue with a declared reason at 93 days apart", () => {
     expect(evToRevenue("2026-03-29")).toMatchObject({
       status: "missing",
@@ -931,14 +918,14 @@ describe("valuation workbench balance-sheet period gate", () => {
   });
 
   test("suppresses EV/revenue when cash and debt both stopped years before the row", () => {
-    expect(evToRevenue("2021-12-31", false, "2021-12-31")).toMatchObject({
+    expect(evToRevenue("2021-12-31", "2021-12-31")).toMatchObject({
       status: "missing",
       reason: "mixed-period-balance-sheet",
     });
   });
 
   test("suppresses EV/revenue when fresh debt pairs with stale cash", () => {
-    expect(evToRevenue("2026-06-30", false, "2021-12-31")).toMatchObject({
+    expect(evToRevenue("2026-06-30", "2021-12-31")).toMatchObject({
       status: "missing",
       reason: "mixed-period-balance-sheet",
     });

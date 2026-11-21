@@ -3792,10 +3792,6 @@ const NEGATIVE_WORKBENCH_DENOMINATOR = {
   status: "not-meaningful",
   reason: "negative-denominator",
 } as const;
-const MIXED_WORKBENCH_BALANCE_SHEET = {
-  status: "missing",
-  reason: "mixed-period-balance-sheet",
-} as const;
 const MISSING_WORKBENCH_FCF = { status: "missing", reason: "free-cash-flow-unavailable" } as const;
 const DEPOSITORY_WORKBENCH_EV = {
   status: "not-applicable",
@@ -3854,7 +3850,7 @@ const CLFD_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2022-09-30|2022-11-23": [
     36.478_873_239_436_62,
     6.647_980_596_789_019_5,
-    MIXED_WORKBENCH_BALANCE_SHEET,
+    MISSING_WORKBENCH_DEBT,
     RESTATED_WORKBENCH_INPUT,
   ],
   "annual|2023-09-30|2023-11-29": [
@@ -3912,7 +3908,7 @@ const IREN_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2025-06-30|2025-08-28": [
     59.076_925_424_429_085,
     10.266_155_452_798_57,
-    MIXED_WORKBENCH_BALANCE_SHEET,
+    MISSING_WORKBENCH_DEBT,
     MISSING_WORKBENCH_FCF,
   ],
   "ttm|2026-06-30|2026-08-27": [
@@ -3976,7 +3972,7 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2020-12-26|2021-01-29": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
-    MIXED_WORKBENCH_BALANCE_SHEET,
+    MISSING_WORKBENCH_DEBT,
     MISSING_WORKBENCH_PRICE,
   ],
   "annual|2021-12-25|2022-02-03": [
@@ -4247,52 +4243,53 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
   "equity-bursa-deep": {},
   "equity-bursa-brief": {},
   "equity-reit-deep": {
+    // O files NotesPayable, SecuredDebt and LoansPayable, but its debt series holds only 2016 LongTermDebt.
     "annual|2017-12-31|2018-02-22": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2018-12-31|2019-02-22": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2019-12-31|2020-02-24": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2020-12-31|2021-02-23": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      INCOMPLETE_WORKBENCH_EV_BRIDGE,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2021-12-31|2022-02-23": [
       75,
       13.008_519_017_161_085,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2022-12-31|2023-02-22": [
       46.140_842_706_384_795,
       11.995_790_586_766_212,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2023-12-31|2024-02-21": [
       41.817_459_227_546_81,
       8.952_070_672_412_619,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2024-12-31|2025-02-25": [
       57.387_756_814_762_035,
       9.216_155_347_331_98,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
     "ttm|2025-09-30|2025-11-04": [
@@ -4304,10 +4301,9 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2025-12-31|2026-02-25": [
       56.401_707_575_871_4,
       10.425_644_155_808_401,
-      MIXED_WORKBENCH_BALANCE_SHEET,
+      MISSING_WORKBENCH_DEBT,
       REIT_WORKBENCH_FCF,
     ],
-    // O files NotesPayable, SecuredDebt and LoansPayable, but its debt series holds only 2016 LongTermDebt.
     "ttm|2026-03-31|2026-05-07": [
       50.647_541_734_038_81,
       MISSING_WORKBENCH_SHARES,

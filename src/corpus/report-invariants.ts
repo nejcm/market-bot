@@ -163,6 +163,22 @@ export function reportInvariantViolations(
           `${metric.status ?? ""} ${metric.periodEnd ?? "undated"}`,
         );
       }
+      const debt = metric.inputs?.find(
+        (input) => input.artifact === "statements" && input.series === "debt",
+      );
+      if (
+        section.id?.startsWith("valuation-workbench-") === true &&
+        debt?.periodEnd !== undefined &&
+        metric.periodEnd !== undefined &&
+        debt.periodEnd < metric.periodEnd
+      ) {
+        add(
+          "workbench-debt-behind-row-period",
+          section.id,
+          metric.id ?? "",
+          `${metric.status ?? ""} debt ${debt.periodEnd} for ${metric.periodEnd}`,
+        );
+      }
     }
   }
 

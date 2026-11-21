@@ -421,6 +421,30 @@ const tdgSubmissions = (form = "10-K", reportDate = "2025-09-30") => ({
     },
   },
 });
+const TDG_Q1_25 = "0001260221-25-000014";
+const tdgK24Submissions = (k24Inline = 1) => ({
+  filings: {
+    recent: {
+      form: ["10-K", "10-Q", "10-K"],
+      filingDate: ["2025-11-12", "2025-02-04", "2024-11-07"],
+      reportDate: ["2025-09-30", "2024-12-28", "2024-09-30"],
+      accessionNumber: [TDG_K25, TDG_Q1_25, TDG_K24],
+      primaryDocument: ["tdg-20250930.htm", "tdg-20241228.htm", "tdg-20240930.htm"],
+      isInlineXBRL: [1, 1, k24Inline],
+    },
+  },
+});
+const tdgSubmissionsWithK24 = () => ({
+  filings: {
+    recent: {
+      form: ["10-K", "10-K"],
+      filingDate: ["2025-11-12", "2024-11-07"],
+      reportDate: ["2025-09-30", "2024-09-30"],
+      accessionNumber: [TDG_K25, TDG_K24],
+      primaryDocument: ["tdg-20250930.htm", "tdg-20240930.htm"],
+    },
+  },
+});
 const tdgDebt = (items: readonly ExtendedEvidenceItem[]) =>
   new Map(
     financialStatementFacts(deriveItems(TDG_GAAP, items).statements.balanceSheet.debt).map(
@@ -449,29 +473,27 @@ describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", (
     ]);
   });
 
-  test("with its own 10-K read, withheld 2024-09-30 asks for the earliest comparative, not the latest", () => {
-    const q1 = "0001260221-25-000014";
-    const k24Submissions = {
-      filings: {
-        recent: {
-          form: ["10-K", "10-Q", "10-K"],
-          filingDate: ["2025-11-12", "2025-02-04", "2024-11-07"],
-          reportDate: ["2025-09-30", "2024-12-28", "2024-09-30"],
-          accessionNumber: [TDG_K25, q1, TDG_K24],
-          primaryDocument: ["tdg-20250930.htm", "tdg-20241228.htm", "tdg-20240930.htm"],
-        },
-      },
-    };
+  test("withheld 2024-09-30 asks for the earliest comparative first, then its own iXBRL 10-K, unless read", () => {
     const artifact = deriveItems(TDG_GAAP, []);
+    const at2024 = (secFilings: readonly ExtendedEvidenceItem[] = []) =>
+      debtInstantsNeedingFace(artifact, tdgK24Submissions(), secFilings).filter(
+        ({ periodEnd }) => periodEnd === "2024-09-30",
+      );
+    expect(at2024()).toEqual([
+      { periodEnd: "2024-09-30", accessionNumber: TDG_Q1_25 },
+      { periodEnd: "2024-09-30", accessionNumber: TDG_K24 },
+    ]);
     const ownK24 = { metrics: { accessionNumber: TDG_K24 } } as unknown as ExtendedEvidenceItem;
-    expect(debtInstantsNeedingFace(artifact, k24Submissions)).toContainEqual({
-      periodEnd: "2024-09-30",
-      accessionNumber: TDG_K24,
-    });
-    expect(debtInstantsNeedingFace(artifact, k24Submissions, [ownK24])).toContainEqual({
-      periodEnd: "2024-09-30",
-      accessionNumber: q1,
-    });
+    expect(at2024([ownK24])).toEqual([{ periodEnd: "2024-09-30", accessionNumber: TDG_Q1_25 }]);
+  });
+
+  // TDG's FY2018 10-K 0001260221-18-000070 has isInlineXBRL 0, so its face cannot foot.
+  test("an own 10-K SEC marks as not inline XBRL is not requested, only the comparative", () => {
+    expect(
+      debtInstantsNeedingFace(deriveItems(TDG_GAAP, []), tdgK24Submissions(0)).filter(
+        ({ periodEnd }) => periodEnd === "2024-09-30",
+      ),
+    ).toEqual([{ periodEnd: "2024-09-30", accessionNumber: TDG_Q1_25 }]);
   });
 
   test("one read, one source, publishes 2025-09-30 29,731M and 2024-09-30 24,618M", async () => {
@@ -659,6 +681,14 @@ test("TDG 2024-09-30 is public from the FY2024 10-K whose own face proves 24,618
       ],
     ),
   );
+  expect(
+    debtInstantsNeedingFace(deriveItems(TDG_GAAP, []), tdgSubmissionsWithK24()).filter(
+      ({ periodEnd }) => periodEnd === "2024-09-30",
+    ),
+  ).toEqual([
+    { periodEnd: "2024-09-30", accessionNumber: TDG_K25 },
+    { periodEnd: "2024-09-30", accessionNumber: TDG_K24 },
+  ]);
   const { out } = await tdgFaces();
   const artifact = deriveItems(TDG_GAAP, [...out.items, k24Face]);
   expect(debtAt(artifact, "2024-09-30")).toEqual([["annual", 24_618e6, "2024-11-07"]]);

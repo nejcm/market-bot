@@ -183,7 +183,12 @@ export function debtScopeUnprovenNotes(
   });
 }
 
-// Face-fixable debt withholds at instants the revenue history joins, newest first.
+const requests = (periodEnd: string, [first, second]: readonly (string | undefined)[]) =>
+  [first, second].flatMap((accessionNumber, rank) =>
+    accessionNumber === undefined ? [] : [{ periodEnd, accessionNumber, rank }],
+  );
+
+// Faces for debt instants the revenue history joins: every first face, then second ones, each newest first.
 export function debtInstantsNeedingFace(
   artifact: FinancialStatementsArtifact,
   submissionsPayload?: unknown,
@@ -195,23 +200,31 @@ export function debtInstantsNeedingFace(
   );
   const debt = financialStatementSeriesByKey(artifact, "debt");
   const read = new Set(secFilings.map(({ metrics }) => metrics?.accessionNumber));
-  const earliestUnreadFace = (periodEnd: string, before = "\uFFFF") =>
-    selectInstantFaceFilings(submissionsPayload, periodEnd).find(
+  // The earliest comparative, else the instant's own face; its own face beside a comparative ranks second under the cap.
+  const unreadFaces = (periodEnd: string, before = "\uFFFF") => {
+    const unread = selectInstantFaceFilings(submissionsPayload, periodEnd).filter(
       ({ accessionNumber, filingDate }) => !read.has(accessionNumber) && filingDate < before,
-    )?.accessionNumber;
+    );
+    const own = unread.find(({ reportDate }) => reportDate === periodEnd);
+    const comparative = unread.find(({ reportDate }) => reportDate !== periodEnd);
+    return [comparative ?? own, comparative === undefined ? undefined : own].map(
+      (filing) => filing?.accessionNumber,
+    );
+  };
   const withheld = (artifact.omissionNotes ?? []).flatMap((note) => {
     const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
-    return note.faceAccession === undefined || periodEnd === undefined || !isWithheldDebtNote(note)
-      ? []
-      : [{ periodEnd, accessionNumber: earliestUnreadFace(periodEnd) ?? note.faceAccession }];
+    if (note.faceAccession === undefined || periodEnd === undefined || !isWithheldDebtNote(note)) {
+      return [];
+    }
+    const [first = note.faceAccession, second] = unreadFaces(periodEnd);
+    return requests(periodEnd, [first, second]);
   });
   // A filing-proved instant public only after an unread face that holds it asks for that face, which may date it earlier.
-  const late = (debt === undefined ? [] : financialStatementFacts(debt)).flatMap((fact) => {
-    const accessionNumber = fact.sourceIds.some((id) => id !== artifact.sourceId)
-      ? earliestUnreadFace(fact.periodEnd, fact.firstPublicAt)
-      : undefined;
-    return accessionNumber === undefined ? [] : [{ periodEnd: fact.periodEnd, accessionNumber }];
-  });
+  const late = (debt === undefined ? [] : financialStatementFacts(debt)).flatMap((fact) =>
+    fact.sourceIds.some((id) => id !== artifact.sourceId)
+      ? requests(fact.periodEnd, unreadFaces(fact.periodEnd, fact.firstPublicAt))
+      : [],
+  );
   return [...withheld, ...late]
     .filter(
       (instant, index, all) =>
@@ -221,7 +234,10 @@ export function debtInstantsNeedingFace(
             periodEnd === instant.periodEnd && accessionNumber === instant.accessionNumber,
         ) === index,
     )
-    .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd));
+    .toSorted(
+      (left, right) => left.rank - right.rank || right.periodEnd.localeCompare(left.periodEnd),
+    )
+    .map(({ periodEnd, accessionNumber }) => ({ periodEnd, accessionNumber }));
 }
 
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.

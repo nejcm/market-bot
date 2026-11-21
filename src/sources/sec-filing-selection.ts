@@ -155,6 +155,7 @@ export function selectInstantFaceFilings(payload: unknown, instant: string): rea
         (filing.form === "10-K" || filing.form === "10-Q"),
     )
     .toSorted((left, right) => left.filingDate.localeCompare(right.filingDate));
+  const unreadable = nonInlineXbrlAccessions(payload);
   const original = periodic.find((filing) => filing.reportDate === instant);
   const nextAnnual = periodic.find(
     (filing) => filing.form === "10-K" && filing.reportDate !== instant,
@@ -163,11 +164,28 @@ export function selectInstantFaceFilings(payload: unknown, instant: string): rea
     ? []
     : periodic.filter(
         (filing) =>
-          filing === original ||
-          (original.form === "10-K" &&
-            (nextAnnual === undefined ||
-              (filing.reportDate ?? "") <= (nextAnnual.reportDate ?? ""))),
+          !unreadable.has(filing.accessionNumber) &&
+          (filing === original ||
+            (original.form === "10-K" &&
+              (nextAnnual === undefined ||
+                (filing.reportDate ?? "") <= (nextAnnual.reportDate ?? "")))),
       );
+}
+
+// The face parser reads inline XBRL tags, so a filing SEC marks as not inline cannot foot.
+function nonInlineXbrlAccessions(payload: unknown): ReadonlySet<string> {
+  const recent =
+    isRecord(payload) && isRecord(payload.filings) && isRecord(payload.filings.recent)
+      ? payload.filings.recent
+      : {};
+  const { accessionNumber: accessions, isInlineXBRL: inline } = recent;
+  return new Set(
+    Array.isArray(accessions) && Array.isArray(inline) && accessions.length === inline.length
+      ? accessions.filter(
+          (accession, index) => inline[index] === 0 && typeof accession === "string",
+        )
+      : [],
+  );
 }
 
 function filingBasisDate(filing: SecFiling): string {

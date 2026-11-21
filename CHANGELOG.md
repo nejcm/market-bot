@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.64](https://github.com/nejcm/market-bot/compare/v1.19.63...v1.19.64) (2026-11-21)
+
+### Bug Fixes
+
+- **sec-debt:** recover older debt from comparative faces, dated by their proof (#289) ([f0f71cc](https://github.com/nejcm/market-bot/commit/f0f71ccb3c83bc5216370d58e8b01c61d40774f8))
+
 ## [1.19.63](https://github.com/nejcm/market-bot/compare/v1.19.62...v1.19.63) (2026-11-21)
 
 ### Bug Fixes

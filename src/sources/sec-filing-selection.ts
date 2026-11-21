@@ -127,15 +127,17 @@ export function selectLatestFilingByForm(
     )[0];
 }
 
+// A later report date is a comparative column of that filing's face.
 export function selectOriginalPeriodicFiling(
   payload: unknown,
   accessionNumber: string,
-  reportDate: string,
+  instant: string,
 ): SecFiling | undefined {
   return recentSecFilingRows(payload).find(
     (filing) =>
       filing.accessionNumber === accessionNumber &&
-      filing.reportDate === reportDate &&
+      filing.reportDate !== undefined &&
+      filing.reportDate >= instant &&
       filing.amended !== true &&
       (filing.form === "10-K" || filing.form === "10-Q"),
   );

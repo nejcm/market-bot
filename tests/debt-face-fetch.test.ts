@@ -274,8 +274,11 @@ const faceText = (url: string, periodEnd: string) => ({
 });
 
 describe("collectSecDebtFaceFilings", () => {
-  test(`reads at most ${String(DEBT_FACE_FETCH_CAP)} faces and declares the rest`, async () => {
-    const instants = [6, 5, 4, 3, 2].map((month) => instant(month));
+  test("reads at most 22 faces, one per filing, and declares the rest", async () => {
+    const instants = Array.from({ length: 23 }, (_, index) => ({
+      periodEnd: new Date(Date.UTC(2026, 8 - index, 28)).toISOString().slice(0, 10),
+      accessionNumber: `0001193125-26-${String(index).padStart(6, "0")}`,
+    }));
     const urls: string[] = [];
     const out = await collectSecDebtFaceFilings(
       ctx(async ({ url }) => {
@@ -289,14 +292,15 @@ describe("collectSecDebtFaceFilings", () => {
       { cik: CIK, symbol: "ORCL", submissionsPayload: submissions(instants) },
       instants,
     );
-    expect(urls).toHaveLength(DEBT_FACE_FETCH_CAP);
-    expect(out.items).toHaveLength(DEBT_FACE_FETCH_CAP);
-    expect(new Set(out.sources.map(({ id }) => id)).size).toBe(DEBT_FACE_FETCH_CAP);
+    expect(DEBT_FACE_FETCH_CAP).toBe(22);
+    expect(urls).toHaveLength(22);
+    expect(out.items).toHaveLength(22);
+    expect(new Set(out.sources.map(({ id }) => id)).size).toBe(22);
     expect(out.items[0]?.metrics?.accessionNumber).toBe(instants[0]?.accessionNumber);
     expect(out.gaps).toEqual([
       expect.objectContaining({
         cause: "suppressed-by-design",
-        message: expect.stringContaining("past the 4-filing cap per run: 2026-02-28"),
+        message: expect.stringContaining("past the 22-filing cap per run: 2024-11-28)"),
       }),
     ]);
   });
@@ -330,6 +334,169 @@ describe("collectSecDebtFaceFilings", () => {
         cause: "provider-data-missing",
         message: expect.stringMatching(
           /no original 10-K\/10-Q in the submissions index: 2026-07-28.*no footed balance-sheet face: 2026-06-28/u,
+        ),
+      }),
+    ]);
+  });
+});
+
+// TDG FY2025 10-K 0001260221-25-000081 (report date 2025-09-30), companyfacts values in millions with its
+// 2024-09-30 comparative column; lease placement as in the FY2026 10-K.
+const TDG_CIK = "1260221";
+const TDG_K25 = "0001260221-25-000081";
+const TDG_K24 = "0001260221-24-000083";
+type TdgRow = readonly [label: string, concept: string, fy2025: number | undefined, fy2024: number];
+const TDG_ROWS: readonly TdgRow[] = [
+  ["Total assets", "us-gaap:Assets", 22_909, 25_586],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 368, 323],
+  ["Accrued and other current liabilities", "us-gaap:AccruedLiabilitiesCurrent", 966, 1216],
+  ["Dividends payable", "us-gaap:DividendsPayableCurrent", undefined, 4216],
+  ["Current portion of long-term debt", "us-gaap:LongTermDebtCurrent", 124, 98],
+  ["Short-term borrowings", "us-gaap:ShortTermBankLoansAndNotesPayable", 724, 486],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 2182, 6339],
+  ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 29_167, 24_296],
+  ["Deferred income taxes", "us-gaap:DeferredIncomeTaxLiabilitiesNet", 759, 766],
+  ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 480, 468],
+  ["Total liabilities", "us-gaap:Liabilities", 32_588, 31_869],
+];
+const TDG_GAAP_ROWS: Readonly<Record<string, readonly [number | undefined, number]>> = {
+  LongTermDebt: [29_291, 24_394],
+  FinanceLeaseLiability: [284, 262],
+  FinanceLeaseLiabilityCurrent: [8, 6],
+  FinanceLeaseLiabilityNoncurrent: [276, 256],
+  OperatingLeaseLiabilityCurrent: [15, 19],
+  ...Object.fromEntries(
+    TDG_ROWS.map(([, concept, fy2025, fy2024]) => [
+      concept.replace("us-gaap:", ""),
+      [fy2025, fy2024],
+    ]),
+  ),
+};
+const tdgFact = (millions: number, end: string, accn: string, filed: string) =>
+  fact(millions * 1e6, end, filed, accn, "10-K");
+const TDG_GAAP = {
+  ...Object.fromEntries(
+    Object.entries(TDG_GAAP_ROWS).map(([concept, [fy2025, fy2024]]) => [
+      concept,
+      [
+        ...(fy2025 === undefined ? [] : [tdgFact(fy2025, "2025-09-30", TDG_K25, "2025-11-12")]),
+        tdgFact(fy2024, "2024-09-30", TDG_K24, "2024-11-07"),
+        tdgFact(fy2024, "2024-09-30", TDG_K25, "2025-11-12"),
+      ],
+    ]),
+  ),
+  Revenues: [
+    { ...tdgFact(8831, "2025-09-30", TDG_K25, "2025-11-12"), start: "2024-10-01" },
+    { ...tdgFact(7940, "2024-09-30", TDG_K25, "2025-11-12"), start: "2023-10-01" },
+  ],
+};
+const tdgCell = (concept: string, millions: number | undefined, context: string) =>
+  millions === undefined
+    ? "<td>—</td>"
+    : `<td><ix:nonFraction name="${concept}" contextRef="${context}" unitRef="usd" scale="6">${millions.toLocaleString("en-US")}</ix:nonFraction></td>`;
+const tdgFace = (rows: readonly TdgRow[] = TDG_ROWS) =>
+  `${[
+    ["c", "2025-09-30"],
+    ["p", "2024-09-30"],
+  ]
+    .map(
+      ([id, end]) =>
+        `<xbrli:context id="${id}"><xbrli:entity></xbrli:entity><xbrli:period><xbrli:instant>${end}</xbrli:instant></xbrli:period></xbrli:context>` +
+        `<ix:nonNumeric contextRef="${id}" name="us-gaap:FinanceLeaseLiabilityCurrentStatementOfFinancialPositionExtensibleList">http://fasb.org/us-gaap/2025#LongTermDebtCurrent</ix:nonNumeric>` +
+        `<ix:nonNumeric contextRef="${id}" name="us-gaap:FinanceLeaseLiabilityNoncurrentStatementOfFinancialPositionExtensibleList">http://fasb.org/us-gaap/2025#LongTermDebtAndCapitalLeaseObligations</ix:nonNumeric>`,
+    )
+    .join(
+      "",
+    )}<table>${rows.map(([label, concept, fy2025, fy2024]) => `<tr><td>${label}</td>${tdgCell(concept, fy2025, "c")}${tdgCell(concept, fy2024, "p")}</tr>`).join("")}</table>`;
+const tdgSubmissions = (form = "10-K", reportDate = "2025-09-30") => ({
+  filings: {
+    recent: {
+      form: [form],
+      filingDate: ["2025-11-12"],
+      reportDate: [reportDate],
+      accessionNumber: [TDG_K25],
+      primaryDocument: ["tdg-20250930.htm"],
+    },
+  },
+});
+const tdgDebt = (items: readonly ExtendedEvidenceItem[]) =>
+  new Map(
+    financialStatementFacts(deriveItems(TDG_GAAP, items).statements.balanceSheet.debt).map(
+      (debt) => [debt.periodEnd, debt],
+    ),
+  );
+
+async function tdgFaces(face = tdgFace(), submissionsPayload: unknown = tdgSubmissions()) {
+  const urls: string[] = [];
+  const out = await collectSecDebtFaceFilings(
+    ctx(async ({ url }) => {
+      urls.push(url);
+      return { ...faceText(url, "2025-09-30"), payload: face };
+    }),
+    { cik: TDG_CIK, symbol: "ORCL", submissionsPayload },
+    debtInstantsNeedingFace(deriveItems(TDG_GAAP, [])),
+  );
+  return { urls, out };
+}
+
+describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", () => {
+  test("both withheld instants ask for the one 10-K that last filed their lines", () => {
+    expect(debtInstantsNeedingFace(deriveItems(TDG_GAAP, []))).toEqual([
+      { periodEnd: "2025-09-30", accessionNumber: TDG_K25 },
+      { periodEnd: "2024-09-30", accessionNumber: TDG_K25 },
+    ]);
+  });
+
+  test("one read, one source, publishes 2025-09-30 29,731M and 2024-09-30 24,618M", async () => {
+    const { urls, out } = await tdgFaces();
+    expect(urls).toEqual([
+      "https://www.sec.gov/Archives/edgar/data/1260221/000126022125000081/tdg-20250930.htm",
+    ]);
+    expect(out.sources.map(({ id }) => id)).toEqual([
+      `extended-sec-edgar-orcl-10k-face-${TDG_K25}`,
+    ]);
+    expect(out.gaps).toEqual([]);
+    const debt = tdgDebt(out.items);
+    // 124 + 724 + 29,167 - 8 - 276 and 98 + 486 + 24,296 - 6 - 256.
+    expect(debt.get("2025-09-30")).toMatchObject({ value: 29_731e6, accessionNumber: TDG_K25 });
+    expect(debt.get("2024-09-30")).toMatchObject({ value: 24_618e6, accessionNumber: TDG_K25 });
+    expect(debt.get("2024-09-30")?.sourceIds).toContain(
+      `extended-sec-edgar-orcl-10k-face-${TDG_K25}`,
+    );
+  });
+
+  test("an unfooted comparative column is declared and stays withheld", async () => {
+    const unfooted = TDG_ROWS.map(
+      ([label, concept, fy2025, fy2024]): TdgRow =>
+        concept === "us-gaap:DividendsPayableCurrent"
+          ? [label, concept, fy2025, 4000]
+          : [label, concept, fy2025, fy2024],
+    );
+    const { urls, out } = await tdgFaces(tdgFace(unfooted));
+    expect(urls).toHaveLength(1);
+    expect(out.items).toHaveLength(1);
+    expect(out.gaps).toEqual([
+      expect.objectContaining({
+        cause: "provider-data-missing",
+        message: expect.stringContaining("(no footed balance-sheet face: 2024-09-30)"),
+      }),
+    ]);
+    const debt = tdgDebt(out.items);
+    expect(debt.get("2025-09-30")?.value).toBe(29_731e6);
+    expect(debt.get("2024-09-30")).toBeUndefined();
+  });
+
+  test.each([
+    ["an amended 10-K/A", tdgSubmissions("10-K/A")],
+    ["a report date before the instants", tdgSubmissions("10-K", "2024-06-29")],
+  ])("%s is refused without a request", async (_name, payload) => {
+    const { urls, out } = await tdgFaces(tdgFace(), payload);
+    expect(urls).toEqual([]);
+    expect(out.items).toEqual([]);
+    expect(out.gaps).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "no original 10-K/10-Q in the submissions index: 2025-09-30, 2024-09-30",
         ),
       }),
     ]);

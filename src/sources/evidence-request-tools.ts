@@ -57,6 +57,7 @@ import {
 import {
   EXTENSION_CAPEX_CHECKED_KEY,
   FACE_LINE_PREFIX,
+  PRIOR_FACE_LINE_PREFIX,
   secBalanceSheetFaceMetrics,
 } from "./sec-segment-facts";
 import { collectTradierIvTermStructure } from "./tradier-iv-term-structure";
@@ -532,9 +533,9 @@ export async function collectSecPeriodicFilingItems(
   };
 }
 
-export const DEBT_FACE_FETCH_CAP = 4;
+export const DEBT_FACE_FETCH_CAP = 22;
 
-// Historical balance-sheet faces for debt instants withheld only for want of face proof.
+// Historical balance-sheet faces for debt instants withheld only for want of face proof, one read per filing.
 export async function collectSecDebtFaceFilings(
   ctx: CollectContext,
   companyFacts: Pick<SecCompanyFactsResult, "cik" | "symbol" | "submissionsPayload">,
@@ -545,23 +546,40 @@ export async function collectSecDebtFaceFilings(
   if (!isInstrumentCommand(command) || cik === undefined) {
     return emptyOutput([]);
   }
+  const byFiling = new Map<string, string[]>();
+  for (const { periodEnd, accessionNumber } of instants) {
+    byFiling.set(accessionNumber, [...(byFiling.get(accessionNumber) ?? []), periodEnd]);
+  }
+  const filings = [...byFiling];
   const reads = await Promise.all(
-    instants.slice(0, DEBT_FACE_FETCH_CAP).map(async (instant) => {
+    filings.slice(0, DEBT_FACE_FETCH_CAP).map(async ([accessionNumber, periodEnds]) => {
       const filing = selectOriginalPeriodicFiling(
         companyFacts.submissionsPayload,
-        instant.accessionNumber,
-        instant.periodEnd,
+        accessionNumber,
+        periodEnds[0]!,
       );
       if (filing === undefined) {
-        return { instant, outcome: "no original 10-K/10-Q in the submissions index" } as const;
+        return {
+          unread: periodEnds,
+          outcome: "no original 10-K/10-Q in the submissions index",
+        } as const;
       }
       const { result, url } = await fetchFilingText(ctx, filing, cik);
       if (!isFetchTextResult(result)) {
-        return { instant, outcome: "fetch failed" } as const;
+        return { unread: periodEnds, outcome: "fetch failed" } as const;
       }
       const face = secBalanceSheetFaceMetrics(result.payload, filing.reportDate);
-      if (!Object.keys(face).some((key) => key.startsWith(FACE_LINE_PREFIX))) {
-        return { instant, outcome: "no footed balance-sheet face", result } as const;
+      const footed = periodEnds.filter((periodEnd) => {
+        const prefix =
+          periodEnd === filing.reportDate
+            ? FACE_LINE_PREFIX
+            : `${PRIOR_FACE_LINE_PREFIX}${periodEnd}|`;
+        return Object.keys(face).some((key) => key.startsWith(prefix));
+      });
+      const unread = periodEnds.filter((periodEnd) => !footed.includes(periodEnd));
+      const outcome = "no footed balance-sheet face";
+      if (footed.length === 0) {
+        return { unread, outcome, result } as const;
       }
       const { source, item } = buildSecFilingMetadataOnlyItem(
         command,
@@ -572,14 +590,15 @@ export async function collectSecDebtFaceFilings(
         result.rawSnapshot.id,
       );
       const id = `${source.id}-face-${filing.accessionNumber}`;
-      const summary = `${filing.form} filed ${filing.filingDate} for period ${instant.periodEnd}: balance-sheet face read for debt proof.`;
+      const summary = `${filing.form} filed ${filing.filingDate} for period ${footed.join(", ")}: balance-sheet face read for debt proof.`;
       const faceSource = { ...source, id, summary };
       const zero = await fetchZeroBorrowingsProof(ctx, filing, cik, {
         source: faceSource,
         metrics: face,
       });
       return {
-        instant,
+        unread,
+        outcome,
         result,
         zero,
         source: faceSource,
@@ -594,11 +613,11 @@ export async function collectSecDebtFaceFilings(
   );
   const unread = new Map<string, string[]>();
   for (const read of reads) {
-    if ("outcome" in read) {
-      unread.set(read.outcome, [...(unread.get(read.outcome) ?? []), read.instant.periodEnd]);
+    if (read.unread.length > 0) {
+      unread.set(read.outcome, [...(unread.get(read.outcome) ?? []), ...read.unread]);
     }
   }
-  const capped = instants.slice(DEBT_FACE_FETCH_CAP).map(({ periodEnd }) => periodEnd);
+  const capped = filings.slice(DEBT_FACE_FETCH_CAP).flatMap(([, periodEnds]) => periodEnds);
   if (capped.length > 0) {
     unread.set(`past the ${String(DEBT_FACE_FETCH_CAP)}-filing cap per run`, capped);
   }

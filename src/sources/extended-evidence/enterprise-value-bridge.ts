@@ -20,6 +20,14 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
     "MarketableSecuritiesCurrent",
     "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
     "DebtSecuritiesCurrent",
+    "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+    "AvailableForSaleSecuritiesCurrent",
+    "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
+    "OtherShortTermInvestments",
+    "AvailableForSaleSecuritiesEquitySecuritiesCurrent",
+    "TradingSecuritiesCurrent",
+    "HeldToMaturitySecuritiesCurrent",
+    "DebtSecuritiesHeldToMaturityFairValueCurrent",
   ],
   cashAndShortTermInvestments: ["CashCashEquivalentsAndShortTermInvestments"],
   // Added to debt-only short-term lines; the generic concept counts only where current assets prove it current (NVDA).
@@ -116,9 +124,29 @@ const CONTINUITY_DAYS = 400;
 const NONE_TAGGED = "none tagged";
 const COMBINED_CONCEPT = "CashCashEquivalentsAndShortTermInvestments";
 const CURRENT_EQUITY_CONCEPT = "EquitySecuritiesFvNiCurrent";
+const TOTAL_SHORT_TERM_CONCEPT = "ShortTermInvestments";
+const AFS_EXCLUDING_INTEREST = "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent";
+const DEBT_AFS = ["AvailableForSaleSecuritiesDebtSecuritiesCurrent", AFS_EXCLUDING_INTEREST];
+const BROAD_AFS = "AvailableForSaleSecuritiesCurrent";
+const HTM_CURRENT = "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent";
+// HTM lines that are not carrying amount: before credit-loss allowance, or at fair value.
+const HTM_FAIR_VALUE = "DebtSecuritiesHeldToMaturityFairValueCurrent";
+const UNCARRIED_HTM: ReadonlySet<string> = new Set([
+  "HeldToMaturitySecuritiesCurrent",
+  HTM_FAIR_VALUE,
+]);
+// Lines a pick may contain (AAPL: AFS inside MSC); one larger or in another unit withholds.
+const SHORT_TERM_COVERS: Readonly<Record<string, readonly string[]>> = {
+  MarketableSecuritiesCurrent: [...DEBT_AFS, BROAD_AFS, "TradingSecuritiesCurrent"],
+  AvailableForSaleSecuritiesDebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST],
+  DebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, HTM_CURRENT],
+  [BROAD_AFS]: ["AvailableForSaleSecuritiesEquitySecuritiesCurrent"],
+};
 const DEBT_ONLY_SHORT_TERM: ReadonlySet<string> = new Set([
   "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
   "DebtSecuritiesCurrent",
+  AFS_EXCLUDING_INTEREST,
+  HTM_CURRENT,
 ]);
 const IDENTITY_TOLERANCE = 0.001;
 const DERIVED_NONCONTROLLING_CONCEPT =
@@ -263,6 +291,55 @@ function withCombinedCheck<F extends BridgeFact>(
     : part;
 }
 
+function usable(fact: BridgeFact): boolean {
+  return fact.shortTermInvestmentsWithheld === undefined;
+}
+
+// A separate line the pick does not cover (Allot deposits, MMI HTM beside AFS) may sit beside it or inside it: never summed.
+function withUncoveredShortTermLine<F extends BridgeFact>(
+  part: BridgeComponent<F>,
+  facts: readonly F[],
+  instant: string,
+): BridgeComponent<F> {
+  if (part.status !== "tagged" || part.concept === TOTAL_SHORT_TERM_CONCEPT) {
+    return part;
+  }
+  if (UNCARRIED_HTM.has(part.concept) && part.value !== 0) {
+    return {
+      status: "incomplete",
+      reason: `${part.concept} (${String(part.value)}) at ${instant} is HTM before credit-loss allowance or at fair value; its carrying amount is not proven`,
+    };
+  }
+  const covered = SHORT_TERM_COVERS[part.concept] ?? [];
+  const lines = facts.filter(
+    (fact) =>
+      fact.periodEnd === instant &&
+      facts.findLast((row) => row.periodEnd === instant && row.concept === fact.concept) === fact,
+  );
+  // Broad AFS also holds equity; only an equal usable AFS debt line proves it holds none (VKTX FY2019).
+  const debtOnlyBroadAfs = (fact: F) =>
+    fact.concept === BROAD_AFS &&
+    usable(fact) &&
+    lines.some((row) => DEBT_AFS.includes(row.concept) && usable(row) && row.value === fact.value);
+  const other = lines.find(
+    (fact) =>
+      fact.concept !== part.concept &&
+      (fact.value !== 0 || !usable(fact)) &&
+      !debtOnlyBroadAfs(fact) &&
+      // Vertiv tags fair value beside the carrying amount of the same holding.
+      !(fact.concept === HTM_FAIR_VALUE && lines.some((row) => row.concept === HTM_CURRENT)) &&
+      (!covered.includes(fact.concept) || fact.value > part.value || fact.unit !== part.fact.unit),
+  );
+  return other === undefined
+    ? part
+    : {
+        status: "incomplete",
+        reason:
+          other.shortTermInvestmentsWithheld ??
+          `${other.concept} (${String(other.value)}) beside ${part.concept} (${String(part.value)}) at ${instant}; whether it is a separate balance-sheet line is not proven`,
+      };
+}
+
 function valueAt<F extends BridgeFact>(facts: readonly F[], instant: string): number | undefined {
   return factAt(facts, instant)?.value;
 }
@@ -323,17 +400,16 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const withEquity = currentAssetsResidual(facts, cash, base + equity.value);
   const withoutEquity = currentAssetsResidual(facts, cash, base);
   const closesIdentity =
-    debtOnly &&
     withEquity !== undefined &&
     withoutEquity !== undefined &&
     withEquity <= tolerance &&
     withoutEquity > tolerance;
   const outsideIdentity =
     withoutEquity !== undefined && withoutEquity <= tolerance && (withEquity ?? 0) > tolerance;
-  const additive = closesIdentity || (explicitLine && debtOnly && !outsideIdentity);
-  // A withheld generic line withholds only where its as-filed value would add; otherwise it proves nothing, like no line.
+  const additive = debtOnly && (closesIdentity || (explicitLine && !outsideIdentity));
+  // A withheld generic line withholds where its as-filed value would add or withhold; otherwise it proves nothing.
   if (withheld !== undefined) {
-    return additive && equity.unit === total?.unit
+    return closesIdentity && equity.unit === total?.unit
       ? { status: "incomplete", reason: withheld }
       : unproven();
   }
@@ -351,11 +427,11 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
         }
       : { status: "tagged", value: equity.value, concept: equity.concept, fact: equity };
   }
-  // The generic concept is usually a noncurrent holding (META, MRK), which stays out like other long-term investments.
-  return explicitLine
+  // The generic concept is usually a noncurrent holding (META, MRK), which stays out unless the identity proves it current.
+  return explicitLine || closesIdentity
     ? {
         status: "incomplete",
-        reason: `${CURRENT_EQUITY_CONCEPT} (${String(equity.value)}) at ${cash.periodEnd} may already sit inside ${part.status === "tagged" ? part.concept : "short-term investments"}`,
+        reason: `${equity.concept} (${String(equity.value)}) at ${cash.periodEnd} may already sit inside ${part.status === "tagged" ? part.concept : "short-term investments"}`,
       }
     : part;
 }
@@ -464,11 +540,15 @@ export function resolveEnterpriseValueBridge<F extends BridgeFact>(
   return {
     shortTermInvestments: withCombinedCheck(
       withCurrentEquitySecurities(
-        component(
-          "shortTermInvestments",
+        withUncoveredShortTermLine(
+          component(
+            "shortTermInvestments",
+            shown.shortTermInvestments,
+            cash.periodEnd,
+            combinedShortTermInvestments(shown.cashAndShortTermInvestments, cash),
+          ),
           shown.shortTermInvestments,
           cash.periodEnd,
-          combinedShortTermInvestments(shown.cashAndShortTermInvestments, cash),
         ),
         shown,
         cash,

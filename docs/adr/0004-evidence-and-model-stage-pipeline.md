@@ -418,13 +418,31 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   resolver serves the legacy summary, the canonical artifact, peers, lenses, reverse DCF and the Workbench
   (point-in-time at `publicAt`). Each component is read at the cash instant from priority alternatives,
   never summed (`ShortTermInvestments` > `MarketableSecuritiesCurrent` >
-  `AvailableForSaleSecuritiesDebtSecuritiesCurrent` > `DebtSecuritiesCurrent`, else
-  `CashCashEquivalentsAndShortTermInvestments` − cash; current equity securities add to a debt-only pick:
-  `EquitySecuritiesFvNiCurrent` unless current assets already sum without it, and the generic
-  `EquitySecuritiesFvNi` only when it closes the current-asset identity with receivables, inventory and other
-  current assets all tagged (NVDA FY2027 Q2: 42,783M; usually it is a noncurrent holding, META, MRK); explicit
-  current equity beside any other pick is incomplete. Added equity keeps its own lineage row and is disclosed as
-  possibly sale-restricted, not cash on hand (NVDA Note 5); `MinorityInterest`; `PreferredStockValue` >
+  `AvailableForSaleSecuritiesDebtSecuritiesCurrent` > `DebtSecuritiesCurrent` >
+  `DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent` > `AvailableForSaleSecuritiesCurrent` >
+  `DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent` > `OtherShortTermInvestments` >
+  `AvailableForSaleSecuritiesEquitySecuritiesCurrent` (NOW FY2012 10-K 0001373715-13-000004: 195,702K) >
+  `TradingSecuritiesCurrent` (INTC FY2012: 5,685M beside 3,999M AFS, incomplete) >
+  `HeldToMaturitySecuritiesCurrent` > `DebtSecuritiesHeldToMaturityFairValueCurrent`, else
+  `CashCashEquivalentsAndShortTermInvestments` − cash). Gross `HeldToMaturitySecuritiesCurrent` is before
+  credit-loss allowance and the fair-value tag is not carrying amount, so a nonzero one is incomplete, never
+  carrying amount or none (GHM FY2020 10-K: 40.048M CDs; HWM Q3 2025 10-Q: 4M); fair value beside a carrying HTM
+  tag of the same instant is ignored (VRT). A pick covers only lines it may contain
+  (`MarketableSecuritiesCurrent` every AFS and trading line (QCOM FY2013: 8,824M = 8,314M + 510M); the debt-only AFS line the AFS line excluding accrued interest;
+  `DebtSecuritiesCurrent` that line and net HTM; broad `AvailableForSaleSecuritiesCurrent` the current AFS
+  equity line; the `ShortTermInvestments` total every line). Broad AFS also holds equity, so beside a debt-only
+  pick it stands only when it equals a usable AFS debt line (VKTX FY2019: 267,261K both). A nonzero or withheld
+  line of another class beside a pick, or a covered line larger than the pick or in another currency (a restated one at its as-filed value: QCOM FY2018 311M), the proven extension line
+  included, is incomplete, since it may be a separate face line (Allot 6-K 0001178913-25-002876: 11,050K
+  `OtherShortTermInvestments` beside 11,518K AFS) or inside the pick. Current equity securities add only to a
+  debt-only pick (the debt-only AFS and net HTM lines and `DebtSecuritiesCurrent`): `EquitySecuritiesFvNiCurrent`
+  unless current assets already sum without it, and the generic `EquitySecuritiesFvNi` when it closes the
+  current-asset identity with receivables, inventory and other current assets all tagged (NVDA FY2027 Q2:
+  42,783M; usually it is a noncurrent holding, META, MRK). Beside any other pick, explicit current equity or a
+  generic line that closes the identity is incomplete: the identity reads only named lines, so an omitted current
+  asset of the same amount would double-count equity already inside the pick (FTNT FY2021–23 withhold); a
+  withheld generic line whose as-filed value closes the identity withholds too. Added equity keeps its own lineage
+  row and is disclosed as possibly sale-restricted, not cash on hand (NVDA Note 5); `MinorityInterest`; `PreferredStockValue` >
   `PreferredStockValueOutstanding`; the equity-stack temporary-equity carrying concepts, then
   `TemporaryEquityCarryingAmountAttributableToParent`). Tagged zeros count; a nonzero fact within 400 days
   but absent at the instant is incomplete (the composite-debt continuity rule), as is a combined line that
@@ -565,8 +583,8 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   (weights ±1) foot exactly to the filed total, and the closed list of us-gaap investment facts located on that line
   (`AvailableForSaleSecuritiesDebtSecurities`) sums exactly to its value, every amount an integer in one currency
   under the issuer's CIK. A located line outside current assets is not a candidate; two proven lines at one instant
-  reject both. The proven value enters the EV Bridge only at an instant with no standard short-term investments tag
-  and only beside a companyfacts `AssetsCurrent` fact of the same accession, date and value, whose filing date dates
+  reject both. The proven value enters the EV Bridge at an instant until a `ShortTermInvestments` total is public
+  there (a standard component beside it withholds), and only beside a companyfacts `AssetsCurrent` fact of the same accession, date and value, whose filing date dates
   it; it carries extraction method `sec-xbrl-instance`, the proof text as `shortTermInvestmentsProof`, and one
   cited Source each for the instance, schema and linkbase. A proven line companyfacts cannot confirm (no such
   `AssetsCurrent` fact, a different total, or a currency other than the reporting currency) withholds the EV

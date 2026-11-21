@@ -1843,8 +1843,640 @@ describe("extension short-term investments proven from the filing's XBRL instanc
     },
   );
 
+  const afsComponent = (filed: string) => ({
+    ...ebay,
+    DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: [
+      fact(600 * M, "2026-09-30", filed, filed === "2026-10-29" ? accn : "later-10-q"),
+    ],
+  });
+  const resolvedExtension = (gaap: Facts, publicAt?: string) =>
+    resolveEnterpriseValueBridge(
+      bridgeAt(gaap, [proofItem()]).artifact.enterpriseValueBridge,
+      { value: 1166 * M, periodEnd: "2026-09-30" },
+      publicAt,
+    ).shortTermInvestments;
+
+  test("a standard component tag beside the proven extension line withholds instead of replacing it", () => {
+    expect(resolvedExtension(afsComponent("2026-10-29"))).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining(line),
+    });
+  });
+
+  test("a component tag filed after the proof leaves the extension line in effect before its filing", () => {
+    expect(resolvedExtension(afsComponent("2026-11-02"), "2026-11-01")).toMatchObject({
+      status: "tagged",
+      value: 809 * M,
+      concept: line,
+    });
+  });
+
   test("a standard ShortTermInvestments tag at the instant stays the bridge value", () => {
     const { sti } = bridgeAt({ ...ebay, ShortTermInvestments: [sep(700)] }, [proofItem()]);
     expect(sti).toMatchObject({ value: 700 * M, concept: "ShortTermInvestments" });
+  });
+});
+
+describe("current short-term investment concepts beside the face-line list", () => {
+  const asOf = "2026-11-21T00:00:00.000Z";
+  const resolvedAt = (gaap: Facts, periodEnd: string, publicAt?: string) =>
+    resolveEnterpriseValueBridge(
+      deriveFinancialStatements(companyFacts(gaap), {
+        symbol: "TEST",
+        generatedAt: asOf,
+        analysisAsOf: asOf,
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      }).enterpriseValueBridge,
+      { value: 1, periodEnd },
+      publicAt,
+    ).shortTermInvestments;
+
+  // FTNT 10-Q 0001262039-26-000021 (2026-07-30): cash 2,934.9 + OtherSTI 1,134.7 + 2,138.7 other lines = AssetsCurrent 6,208.3M.
+  const ftnt = (value: number) => [
+    fact(value * M, "2026-06-30", "2026-07-30", "0001262039-26-000021"),
+  ];
+  test.each(["legacy", "canonical"] as const)(
+    "FTNT %s 2026-06-30 net debt subtracts OtherShortTermInvestments 1,134.7M: 496.9 − 2,934.9 − 1,134.7 = −3,572.7M",
+    (path) => {
+      const { metrics, gaps } = valuations({
+        CashAndCashEquivalentsAtCarryingValue: ftnt(2934.9),
+        OtherShortTermInvestments: ftnt(1134.7),
+        LongTermDebtNoncurrent: ftnt(496.9),
+        LongTermDebtCurrent: ftnt(0),
+      })[path];
+      expect(metrics).toMatchObject({
+        shortTermInvestments: 1134.7 * M,
+        shortTermInvestmentsConcept: "OtherShortTermInvestments",
+      });
+      expect(metrics?.netDebt).toBeCloseTo(-3572.7 * M, 0);
+      expect(metrics?.enterpriseValue).toBeCloseTo(400_000 * M - 3572.7 * M, 0);
+      expect(bridgeGaps(gaps)).toHaveLength(0);
+    },
+  );
+
+  test.each([
+    // ZS FY2026 10-K 0001713683-26-000157 (2026-09-03): AFS debt current at fair value excluding accrued interest.
+    [
+      "ZS",
+      "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+      2545.797,
+      "2026-07-31",
+      "2026-09-03",
+      "0001713683-26-000157",
+    ],
+    // VRT 10-Q 0001628280-26-067893 (2026-10-28): held-to-maturity current at amortized cost after allowance.
+    [
+      "VRT",
+      "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
+      198.8,
+      "2026-09-30",
+      "2026-10-28",
+      "0001628280-26-067893",
+    ],
+  ] as const)("%s %s %dM at %s is tagged", (_issuer, concept, value, end, filed, accn) => {
+    expect(resolvedAt({ [concept]: [fact(value * M, end, filed, accn)] }, end)).toMatchObject({
+      status: "tagged",
+      value: value * M,
+      concept,
+    });
+  });
+
+  // ALLT 6-K 0001178913-25-002876 (2025-08-14): cash 26,943 + OtherSTI 11,050 + AFS 11,518 + other lines = AssetsCurrent 87,293K,
+  // So both lines sit on the face; 6-K 0001178913-25-003436 (2025-09-30) adds MSC 33,190K, the total incl. noncurrent AFS.
+  const allot = (thousands: number, filed = "2025-08-14", accn = "0001178913-25-002876") =>
+    fact(thousands * 1000, "2025-06-30", filed, accn, "6-K");
+  const allotFacts: Facts = {
+    CashAndCashEquivalentsAtCarryingValue: [allot(26_943)],
+    AvailableForSaleSecuritiesDebtSecuritiesCurrent: [allot(11_518)],
+    OtherShortTermInvestments: [allot(11_050)],
+    MarketableSecuritiesCurrent: [allot(33_190, "2025-09-30", "0001178913-25-003436")],
+  };
+  test.each([
+    ["2025-08-14", "AvailableForSaleSecuritiesDebtSecuritiesCurrent (11518000)"],
+    ["none", "MarketableSecuritiesCurrent (33190000)"],
+  ] as const)(
+    "ALLT 2025-06-30 at publicAt %s withholds short-term investments beside OtherShortTermInvestments 11.05M",
+    (publicAt, pick) => {
+      expect(
+        resolvedAt(allotFacts, "2025-06-30", publicAt === "none" ? undefined : publicAt),
+      ).toEqual({
+        status: "incomplete",
+        reason: `OtherShortTermInvestments (11050000) beside ${pick} at 2025-06-30; whether it is a separate balance-sheet line is not proven`,
+      });
+    },
+  );
+
+  // The legacy summary reads no 6-K, so only the canonical producer carries Allot.
+  test("ALLT canonical withholds net debt and EV with one SEC EV bridge incomplete gap", () => {
+    const { metrics, gaps } = valuations({ ...allotFacts, LongTermDebt: [allot(0)] }).canonical;
+    expect(metrics?.shortTermInvestmentsIncompleteReason).toContain("OtherShortTermInvestments");
+    expect(metrics?.debt).toBe(0);
+    expect(metrics?.netDebt).toBeUndefined();
+    expect(metrics?.enterpriseValue).toBeUndefined();
+    expect(bridgeGaps(gaps)).toHaveLength(1);
+  });
+
+  test("a switch from the legacy AFS concept to the excluding-accrued-interest concept keeps continuity", () => {
+    expect(
+      resolvedAt(
+        {
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: [
+            fact(2400 * M, "2026-04-30", "2026-06-01", "q3"),
+          ],
+          DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: [
+            fact(2500 * M, "2026-07-31", "2026-09-03", "fy"),
+          ],
+        },
+        "2026-07-31",
+      ),
+    ).toMatchObject({ status: "tagged", value: 2500 * M });
+  });
+
+  // BA 10-Q 0001628280-26-067508 (2026-10-27): OtherSTI 10,660M sits inside the ShortTermInvestments total 11,216M.
+  test("BA 2026-09-30 keeps the ShortTermInvestments total 11,216M beside OtherShortTermInvestments 10,660M", () => {
+    const ba = (value: number) => [
+      fact(value * M, "2026-09-30", "2026-10-27", "0001628280-26-067508"),
+    ];
+    expect(
+      resolvedAt(
+        { ShortTermInvestments: ba(11_216), OtherShortTermInvestments: ba(10_660) },
+        "2026-09-30",
+      ),
+    ).toMatchObject({ status: "tagged", value: 11_216 * M, concept: "ShortTermInvestments" });
+  });
+
+  test("OtherShortTermInvestments tagged 0 beside MarketableSecuritiesCurrent keeps the pick", () => {
+    const at = (value: number) => [fact(value * M, "2026-06-30", "2026-08-01", "q2")];
+    expect(
+      resolvedAt(
+        { MarketableSecuritiesCurrent: at(300), OtherShortTermInvestments: at(0) },
+        "2026-06-30",
+      ),
+    ).toMatchObject({ status: "tagged", value: 300 * M, concept: "MarketableSecuritiesCurrent" });
+  });
+
+  test("OtherShortTermInvestments filed only in EUR is withheld, never read as 0", () => {
+    const part = resolveEnterpriseValueBridge(
+      payloadValuations(
+        withEur(
+          {},
+          { OtherShortTermInvestments: [fact(50 * M, "2026-06-30", "2026-08-01", "q2")] },
+        ),
+      ).artifact.enterpriseValueBridge,
+      { value: 1, periodEnd: "2026-06-30" },
+    ).shortTermInvestments;
+    expect(part).toEqual({
+      status: "incomplete",
+      reason: "OtherShortTermInvestments at 2026-06-30 is filed in EUR, not reporting currency USD",
+    });
+  });
+});
+
+describe("short-term investment classes the pick does not cover", () => {
+  const asOf = "2026-11-21T00:00:00.000Z";
+  const resolvedAt = (
+    gaap: Facts,
+    periodEnd: string,
+    cash: number,
+    publicAt?: string,
+    eur: Facts = {},
+  ) =>
+    resolveEnterpriseValueBridge(
+      deriveFinancialStatements(withEur(gaap, eur), {
+        symbol: "TEST",
+        generatedAt: asOf,
+        analysisAsOf: asOf,
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      }).enterpriseValueBridge,
+      { value: cash, periodEnd },
+      publicAt,
+    ).shortTermInvestments;
+
+  // FTNT FY2021 10-K 0001262039-22-000008: 1,319.1 + 1,194.0 + 38.6 + 807.7 + 175.8 + 65.4 = AssetsCurrent 3,600.6M.
+  test("FTNT 2021-12-31 withholds the EquitySecuritiesFvNi 38.6M the current-asset identity places beside OtherShortTermInvestments", () => {
+    const fy21 = (value: number) => [
+      fact(value * 100_000, "2021-12-31", "2022-02-25", "0001262039-22-000008", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          CashAndCashEquivalentsAtCarryingValue: fy21(13_191),
+          OtherShortTermInvestments: fy21(11_940),
+          EquitySecuritiesFvNi: fy21(386),
+          AccountsReceivableNetCurrent: fy21(8077),
+          InventoryNet: fy21(1758),
+          PrepaidExpenseAndOtherAssetsCurrent: fy21(654),
+          AssetsCurrent: fy21(36_006),
+        },
+        "2021-12-31",
+        1319.1 * M,
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining(
+        "EquitySecuritiesFvNi (38600000) at 2021-12-31 may already sit inside OtherShortTermInvestments",
+      ),
+    });
+  });
+
+  test("FTNT 2021-12-31 keeps the gap at the 10-K cutoff when the generic equity is later restated", () => {
+    const fy21 = (value: number) => [
+      fact(value * 100_000, "2021-12-31", "2022-02-25", "0001262039-22-000008", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          CashAndCashEquivalentsAtCarryingValue: fy21(13_191),
+          OtherShortTermInvestments: fy21(11_940),
+          EquitySecuritiesFvNi: [
+            ...fy21(386),
+            fact(39.6 * M, "2021-12-31", "2022-05-06", "ftnt-hypothetical-restatement"),
+          ],
+          AccountsReceivableNetCurrent: fy21(8077),
+          InventoryNet: fy21(1758),
+          PrepaidExpenseAndOtherAssetsCurrent: fy21(654),
+          AssetsCurrent: fy21(36_006),
+        },
+        "2021-12-31",
+        1319.1 * M,
+        "2022-02-25T00:00:00.000Z",
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining("was restated on 2022-05-06"),
+    });
+  });
+
+  // An omitted IncomeTaxesReceivable 20M closes the identity as well as equity already inside the pick would.
+  test.each([
+    ["MarketableSecuritiesCurrent", 100],
+    ["CashCashEquivalentsAndShortTermInvestments", 300],
+  ])(
+    "generic equity closing the identity beside %s withholds instead of adding",
+    (concept, value) => {
+      const at = (amount: number) => [fact(amount * M, "2026-09-30", "2026-11-05", "q3")];
+      expect(
+        resolvedAt(
+          {
+            CashAndCashEquivalentsAtCarryingValue: at(200),
+            [concept]: at(value),
+            EquitySecuritiesFvNi: at(20),
+            AccountsReceivableNetCurrent: at(30),
+            InventoryNet: at(20),
+            PrepaidExpenseAndOtherAssetsCurrent: at(10),
+            AssetsCurrent: at(380),
+          },
+          "2026-09-30",
+          200 * M,
+        ),
+      ).toMatchObject({
+        status: "incomplete",
+        reason: expect.stringContaining("may already sit inside"),
+      });
+    },
+  );
+
+  test.each([
+    [
+      "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+      80,
+      "AvailableForSaleSecuritiesCurrent",
+      100,
+    ],
+    ["DebtSecuritiesCurrent", 80, "AvailableForSaleSecuritiesCurrent", 100],
+    [
+      "MarketableSecuritiesCurrent",
+      0,
+      "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+      80,
+    ],
+    [
+      "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+      80,
+      "HeldToMaturitySecuritiesCurrent",
+      20,
+    ],
+  ])("%s %d cannot mask %s %d", (pick, pickValue, other, otherValue) => {
+    const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+    expect(
+      resolvedAt({ [pick]: at(pickValue), [other]: at(otherValue) }, "2026-09-30", 200 * M),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining(`${other} (${String(otherValue * M)}) beside ${pick}`),
+    });
+  });
+
+  test("current AFS beside current HTM, with no total, is incomplete rather than the AFS alone", () => {
+    const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+    expect(
+      resolvedAt(
+        {
+          DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: at(80),
+          DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent: at(20),
+        },
+        "2026-09-30",
+        200 * M,
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining(
+        "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent (20000000) beside",
+      ),
+    });
+  });
+
+  test("DebtSecuritiesCurrent keeps covering its AFS and HTM components", () => {
+    const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+    expect(
+      resolvedAt(
+        {
+          DebtSecuritiesCurrent: at(100),
+          DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: at(80),
+          DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent: at(20),
+        },
+        "2026-09-30",
+        200 * M,
+      ),
+    ).toMatchObject({ status: "tagged", value: 100 * M, concept: "DebtSecuritiesCurrent" });
+  });
+
+  test.each([
+    [
+      "DebtSecuritiesCurrent 100 (AFS 80 + HTM 20) beside broad AFS 90",
+      {
+        DebtSecuritiesCurrent: 100,
+        DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: 80,
+        DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent: 20,
+        AvailableForSaleSecuritiesCurrent: 90,
+      },
+      {},
+    ],
+    [
+      "DebtSecuritiesCurrent 100 (AFS 80 + HTM 20) beside broad AFS 100",
+      {
+        DebtSecuritiesCurrent: 100,
+        DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: 80,
+        DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent: 20,
+        AvailableForSaleSecuritiesCurrent: 100,
+      },
+      {},
+    ],
+    [
+      "debt-only AFS 100 beside a EUR-only broad AFS 90",
+      { AvailableForSaleSecuritiesDebtSecuritiesCurrent: 100 },
+      { AvailableForSaleSecuritiesCurrent: 90 },
+    ],
+    [
+      "MarketableSecuritiesCurrent 100 beside a EUR-only broad AFS 90",
+      { MarketableSecuritiesCurrent: 100 },
+      { AvailableForSaleSecuritiesCurrent: 90 },
+    ],
+  ])(
+    "%s is incomplete: broad AFS proves no containment without an equal usable AFS debt line",
+    (_, usd, eur) => {
+      const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+      const rows = (values: Record<string, number>) =>
+        Object.fromEntries(Object.entries(values).map(([concept, value]) => [concept, at(value)]));
+      expect(resolvedAt(rows(usd), "2026-09-30", 200 * M, undefined, rows(eur))).toMatchObject({
+        status: "incomplete",
+      });
+    },
+  );
+
+  test("a broad AFS line restated after the cutoff cannot prove containment under DebtSecuritiesCurrent", () => {
+    const at = (value: number, filed = "2026-11-05", accn = "q3") => [
+      fact(value * M, "2026-09-30", filed, accn),
+    ];
+    expect(
+      resolvedAt(
+        {
+          DebtSecuritiesCurrent: at(100),
+          DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: at(90),
+          AvailableForSaleSecuritiesCurrent: [...at(90), ...at(110, "2026-11-15", "q3-a")],
+        },
+        "2026-09-30",
+        200 * M,
+        "2026-11-06T00:00:00.000Z",
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining("was restated on 2026-11-15"),
+    });
+  });
+
+  test("MarketableSecuritiesCurrent 100 beside a EUR-only AFS debt line 90 is incomplete: another unit proves no containment", () => {
+    const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+    expect(
+      resolvedAt({ MarketableSecuritiesCurrent: at(100) }, "2026-09-30", 200 * M, undefined, {
+        AvailableForSaleSecuritiesDebtSecuritiesCurrent: at(90),
+      }),
+    ).toMatchObject({ status: "incomplete" });
+  });
+
+  // AKAM FY2019 10-K 0001086222-20-000045 (2020-02-28): MSC 1,143,249K face; the AFS debt detail 1,143,006K was revised on 2020-05-08.
+  test("AKAM 2019-12-31 keeps the MarketableSecuritiesCurrent face total when a covered AFS debt detail is later revised", () => {
+    const fy19 = (value: number) => [
+      fact(value, "2019-12-31", "2020-02-28", "0001086222-20-000045", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          CashAndCashEquivalentsAtCarryingValue: fy19(393_745_000),
+          MarketableSecuritiesCurrent: fy19(1_143_249_000),
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: [
+            ...fy19(1_143_006_000),
+            fact(1_143_249_000, "2019-12-31", "2020-05-08", "0001086222-20-000103"),
+          ],
+        },
+        "2019-12-31",
+        393_745_000,
+        "2020-02-28T23:59:59.000Z",
+      ),
+    ).toMatchObject({
+      status: "tagged",
+      value: 1_143_249_000,
+      concept: "MarketableSecuritiesCurrent",
+    });
+  });
+
+  // QCOM FY2018 10-K 0001728949-18-000095 (2018-11-07): 311M face total; broad AFS 311M was revised to 144M on 2019-01-30.
+  test("QCOM 2018-09-30 keeps the MarketableSecuritiesCurrent total at the 10-K cutoff when broad AFS is later revised", () => {
+    const fy18 = (value: number) => [
+      fact(value * M, "2018-09-30", "2018-11-07", "0001728949-18-000095", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          MarketableSecuritiesCurrent: fy18(311),
+          AvailableForSaleSecuritiesCurrent: [
+            ...fy18(311),
+            fact(144 * M, "2018-09-30", "2019-01-30", "0001728949-19-000012"),
+          ],
+        },
+        "2018-09-30",
+        11_777 * M,
+        "2018-11-07T23:59:59.000Z",
+      ),
+    ).toMatchObject({ status: "tagged", value: 311 * M, concept: "MarketableSecuritiesCurrent" });
+  });
+
+  // QCOM FY2012 10-K 0001234452-12-000371 and FY2013 10-K 0001234452-13-000483: MSC = AFS + trading on the face.
+  test.each([
+    ["2012-09-30", "2012-11-07", "0001234452-12-000371", 8567, 8088, 479, 3807],
+    ["2013-09-29", "2013-11-06", "0001234452-13-000483", 8824, 8314, 510, 6142],
+  ])(
+    "QCOM %s keeps MarketableSecuritiesCurrent with its trading line inside at the 10-K cutoff",
+    (end, filed, accn, total, afs, trading, cash) => {
+      const at = (value: number) => [fact(value * M, end, filed, accn, "10-K")];
+      expect(
+        resolvedAt(
+          {
+            MarketableSecuritiesCurrent: at(total),
+            AvailableForSaleSecuritiesCurrent: at(afs),
+            TradingSecuritiesCurrent: at(trading),
+          },
+          end,
+          cash * M,
+          `${filed}T23:59:59.000Z`,
+        ),
+      ).toMatchObject({
+        status: "tagged",
+        value: total * M,
+        concept: "MarketableSecuritiesCurrent",
+      });
+    },
+  );
+
+  // INTC FY2012 10-K 0001193125-13-065416 (2013-02-19): 5,685M trading assets beside 3,999M AFS debt short-term investments.
+  test("INTC 2012-12-29 TradingSecuritiesCurrent beside the AFS debt pick withholds rather than being dropped", () => {
+    const fy12 = (value: number) => [
+      fact(value * M, "2012-12-29", "2013-02-19", "0001193125-13-065416", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: fy12(3999),
+          TradingSecuritiesCurrent: fy12(5685),
+        },
+        "2012-12-29",
+        8478 * M,
+        "2013-02-19T23:59:59.000Z",
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining("TradingSecuritiesCurrent (5685000000) beside"),
+    });
+  });
+
+  // HWM 10-Q 0001628280-25-047584 (2025-10-30): ~4M HTM debt investment tagged only at fair value.
+  test.each([
+    [4, "incomplete"],
+    [0, "tagged"],
+  ])("HWM 2025-09-30 HTM fair value %dM alone reads as %s", (value, status) => {
+    const q3 = [fact(value * M, "2025-09-30", "2025-10-30", "0001628280-25-047584")];
+    expect(
+      resolvedAt({ DebtSecuritiesHeldToMaturityFairValueCurrent: q3 }, "2025-09-30", 500 * M),
+    ).toMatchObject({ status });
+  });
+
+  // VRT 10-Q 0001674101-25-000024 (2025-10-22): carrying 544.6M beside fair value 544.9M of the same HTM holding.
+  test("VRT 2025-09-30 reads HTM carrying amount and ignores the fair-value tag beside it", () => {
+    const q3 = (value: number) => [
+      fact(value * M, "2025-09-30", "2025-10-22", "0001674101-25-000024"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent: q3(544.6),
+          DebtSecuritiesHeldToMaturityFairValueCurrent: q3(544.9),
+        },
+        "2025-09-30",
+        500 * M,
+      ),
+    ).toMatchObject({
+      status: "tagged",
+      value: 544.6 * M,
+      concept: "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
+    });
+  });
+
+  // NOW FY2012 10-K 0001373715-13-000004 (2013-03-08): 195,702K of current AFS equity is the face short-term investments line.
+  test("NOW 2012-12-31 publishes AvailableForSaleSecuritiesEquitySecuritiesCurrent alone at the 10-K cutoff", () => {
+    const fy12 = (value: number) => [
+      fact(value, "2012-12-31", "2013-03-08", "0001373715-13-000004", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          CashAndCashEquivalentsAtCarryingValue: fy12(118_989_000),
+          AvailableForSaleSecuritiesEquitySecuritiesCurrent: fy12(195_702_000),
+        },
+        "2012-12-31",
+        118_989_000,
+        "2013-03-08T00:00:00.000Z",
+      ),
+    ).toMatchObject({
+      status: "tagged",
+      value: 195_702_000,
+      concept: "AvailableForSaleSecuritiesEquitySecuritiesCurrent",
+    });
+  });
+
+  // GILD FY2017 10-K 0000882095-18-000008: 635M current AFS equity beside 17,922M MarketableSecuritiesCurrent; whether it sits inside is not proven.
+  test("GILD 2017-12-31 current AFS equity beside MarketableSecuritiesCurrent withholds", () => {
+    const fy17 = (value: number) => [
+      fact(value * M, "2017-12-31", "2018-02-27", "0000882095-18-000008", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          MarketableSecuritiesCurrent: fy17(17_922),
+          AvailableForSaleSecuritiesEquitySecuritiesCurrent: fy17(635),
+        },
+        "2017-12-31",
+        5000 * M,
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining(
+        "AvailableForSaleSecuritiesEquitySecuritiesCurrent (635000000) beside MarketableSecuritiesCurrent",
+      ),
+    });
+  });
+
+  // VKTX FY2019 10-K 0001564590-20-006766 tags the same 267,261K as broad and debt-only AFS: no equity beside the debt.
+  test("VKTX 2019-12-31 keeps the debt-only AFS pick beside an equal broad AFS line", () => {
+    const fy19 = [fact(267_261_000, "2019-12-31", "2020-02-26", "0001564590-20-006766", "10-K")];
+    expect(
+      resolvedAt(
+        {
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: fy19,
+          AvailableForSaleSecuritiesCurrent: fy19,
+        },
+        "2019-12-31",
+        8_377_000,
+      ),
+    ).toMatchObject({
+      status: "tagged",
+      value: 267_261_000,
+      concept: "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+    });
+  });
+
+  test("HeldToMaturitySecuritiesCurrent is before credit-loss allowance, so it withholds rather than reading as carrying amount or none", () => {
+    const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+    expect(
+      resolvedAt(
+        {
+          HeldToMaturitySecuritiesCurrent: at(100),
+          DebtSecuritiesHeldToMaturityAllowanceForCreditLossCurrent: at(15),
+        },
+        "2026-09-30",
+        200 * M,
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining("before credit-loss allowance"),
+    });
   });
 });

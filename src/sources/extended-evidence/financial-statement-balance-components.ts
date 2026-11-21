@@ -129,7 +129,6 @@ function extensionShortTermInvestments(
   input: FinancialStatementsDeriveInput,
   tagged: readonly FinancialStatementFact[],
 ): readonly FinancialStatementFact[] {
-  const taggedPeriods = new Set(tagged.map(({ periodEnd }) => periodEnd));
   const observable = (concept: string) =>
     unitFacts("us-gaap", root, concept).filter(
       (fact) => fact.periodStart === undefined && isObservable(fact, input.analysisAsOf),
@@ -144,8 +143,7 @@ function extensionShortTermInvestments(
       if (
         !key.startsWith(EXTENSION_SHORT_TERM_INVESTMENTS_PREFIX) ||
         typeof value !== "number" ||
-        typeof proof !== "string" ||
-        taggedPeriods.has(periodEnd)
+        typeof proof !== "string"
       ) {
         return [];
       }
@@ -221,14 +219,25 @@ function extensionShortTermInvestments(
   for (const fact of proved.toSorted((left, right) => left.filedAt.localeCompare(right.filedAt))) {
     periods.set(fact.periodEnd, [...(periods.get(fact.periodEnd) ?? []), fact]);
   }
-  return [...periods.values()].map((facts) => {
-    const latest = facts.at(-1)!;
-    const same = (fact: FinancialStatementFact) =>
-      fact.value === latest.value &&
-      fact.shortTermInvestmentsWithheld === latest.shortTermInvestmentsWithheld;
-    const changed = facts.findLastIndex((fact) => !same(fact));
-    return { ...latest, firstPublicAt: facts[changed + 1]!.filedAt };
-  });
+  // Only a ShortTermInvestments total public by then supersedes the line; a component beside it is left to the resolver.
+  return [...periods.values()]
+    .map((facts) => {
+      const latest = facts.at(-1)!;
+      const same = (fact: FinancialStatementFact) =>
+        fact.value === latest.value &&
+        fact.shortTermInvestmentsWithheld === latest.shortTermInvestmentsWithheld;
+      const changed = facts.findLastIndex((fact) => !same(fact));
+      return { ...latest, firstPublicAt: facts[changed + 1]!.filedAt };
+    })
+    .filter(
+      (line) =>
+        !tagged.some(
+          (fact) =>
+            fact.periodEnd === line.periodEnd &&
+            fact.concept === "ShortTermInvestments" &&
+            (fact.firstPublicAt ?? fact.filedAt) <= line.firstPublicAt!,
+        ),
+    );
 }
 
 function sameRevision(fact: ParsedFact, other: ParsedFact | undefined): boolean {
@@ -326,7 +335,7 @@ export function selectEnterpriseValueBridge(
   ) as unknown as FinancialStatementEnterpriseValueBridge;
   return trimToMezzaninePeriods({
     ...lists,
-    // An extension line is a fallback, so any standard row public at the cutoff overrides it.
+    // An extension line ranks below every standard row; a component pick beside it is withheld by the resolver.
     shortTermInvestments: [
       ...extensionShortTermInvestments(
         root,

@@ -422,14 +422,17 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent` > `AvailableForSaleSecuritiesCurrent` >
   `DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent` > `OtherShortTermInvestments` >
   `AvailableForSaleSecuritiesEquitySecuritiesCurrent` (NOW FY2012 10-K 0001373715-13-000004: 195,702K) >
-  `HeldToMaturitySecuritiesCurrent`, else `CashCashEquivalentsAndShortTermInvestments` − cash). Gross
-  `HeldToMaturitySecuritiesCurrent` is before credit-loss allowance, so a nonzero one is incomplete, never
-  carrying amount or none (GHM FY2020 10-K: 40.048M CDs). A pick covers only lines it may contain
+  `TradingSecuritiesCurrent` (INTC FY2012: 5,685M beside 3,999M AFS, incomplete) >
+  `HeldToMaturitySecuritiesCurrent` > `DebtSecuritiesHeldToMaturityFairValueCurrent`, else
+  `CashCashEquivalentsAndShortTermInvestments` − cash). Gross `HeldToMaturitySecuritiesCurrent` is before
+  credit-loss allowance and the fair-value tag is not carrying amount, so a nonzero one is incomplete, never
+  carrying amount or none (GHM FY2020 10-K: 40.048M CDs; HWM Q3 2025 10-Q: 4M); fair value beside a carrying HTM
+  tag of the same instant is ignored (VRT). A pick covers only lines it may contain
   (`MarketableSecuritiesCurrent` every AFS line; the debt-only AFS line the AFS line excluding accrued interest;
   `DebtSecuritiesCurrent` that line and net HTM; broad `AvailableForSaleSecuritiesCurrent` the current AFS
   equity line; the `ShortTermInvestments` total every line). Broad AFS also holds equity, so beside a debt-only
   pick it stands only when it equals a usable AFS debt line (VKTX FY2019: 267,261K both). A nonzero or withheld
-  line of another class beside a pick, or a covered line larger than the pick, in another currency, or a withheld broad AFS, the proven extension line
+  line of another class beside a pick, or a covered line larger than the pick or in another currency (a restated one at its as-filed value: QCOM FY2018 311M), the proven extension line
   included, is incomplete, since it may be a separate face line (Allot 6-K 0001178913-25-002876: 11,050K
   `OtherShortTermInvestments` beside 11,518K AFS) or inside the pick. Current equity securities add only to a
   debt-only pick (the debt-only AFS and net HTM lines and `DebtSecuritiesCurrent`): `EquitySecuritiesFvNiCurrent`

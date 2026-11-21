@@ -2299,6 +2299,80 @@ describe("short-term investment classes the pick does not cover", () => {
     });
   });
 
+  // QCOM FY2018 10-K 0001728949-18-000095 (2018-11-07): 311M face total; broad AFS 311M was revised to 144M on 2019-01-30.
+  test("QCOM 2018-09-30 keeps the MarketableSecuritiesCurrent total at the 10-K cutoff when broad AFS is later revised", () => {
+    const fy18 = (value: number) => [
+      fact(value * M, "2018-09-30", "2018-11-07", "0001728949-18-000095", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          MarketableSecuritiesCurrent: fy18(311),
+          AvailableForSaleSecuritiesCurrent: [
+            ...fy18(311),
+            fact(144 * M, "2018-09-30", "2019-01-30", "0001728949-19-000012"),
+          ],
+        },
+        "2018-09-30",
+        11_777 * M,
+        "2018-11-07T23:59:59.000Z",
+      ),
+    ).toMatchObject({ status: "tagged", value: 311 * M, concept: "MarketableSecuritiesCurrent" });
+  });
+
+  // INTC FY2012 10-K 0001193125-13-065416 (2013-02-19): 5,685M trading assets beside 3,999M AFS debt short-term investments.
+  test("INTC 2012-12-29 TradingSecuritiesCurrent beside the AFS debt pick withholds rather than being dropped", () => {
+    const fy12 = (value: number) => [
+      fact(value * M, "2012-12-29", "2013-02-19", "0001193125-13-065416", "10-K"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: fy12(3999),
+          TradingSecuritiesCurrent: fy12(5685),
+        },
+        "2012-12-29",
+        8478 * M,
+        "2013-02-19T23:59:59.000Z",
+      ),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining("TradingSecuritiesCurrent (5685000000) beside"),
+    });
+  });
+
+  // HWM 10-Q 0001628280-25-047584 (2025-10-30): ~4M HTM debt investment tagged only at fair value.
+  test.each([
+    [4, "incomplete"],
+    [0, "tagged"],
+  ])("HWM 2025-09-30 HTM fair value %dM alone reads as %s", (value, status) => {
+    const q3 = [fact(value * M, "2025-09-30", "2025-10-30", "0001628280-25-047584")];
+    expect(
+      resolvedAt({ DebtSecuritiesHeldToMaturityFairValueCurrent: q3 }, "2025-09-30", 500 * M),
+    ).toMatchObject({ status });
+  });
+
+  // VRT 10-Q 0001674101-25-000024 (2025-10-22): carrying 544.6M beside fair value 544.9M of the same HTM holding.
+  test("VRT 2025-09-30 reads HTM carrying amount and ignores the fair-value tag beside it", () => {
+    const q3 = (value: number) => [
+      fact(value * M, "2025-09-30", "2025-10-22", "0001674101-25-000024"),
+    ];
+    expect(
+      resolvedAt(
+        {
+          DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent: q3(544.6),
+          DebtSecuritiesHeldToMaturityFairValueCurrent: q3(544.9),
+        },
+        "2025-09-30",
+        500 * M,
+      ),
+    ).toMatchObject({
+      status: "tagged",
+      value: 544.6 * M,
+      concept: "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
+    });
+  });
+
   // NOW FY2012 10-K 0001373715-13-000004 (2013-03-08): 195,702K of current AFS equity is the face short-term investments line.
   test("NOW 2012-12-31 publishes AvailableForSaleSecuritiesEquitySecuritiesCurrent alone at the 10-K cutoff", () => {
     const fy12 = (value: number) => [

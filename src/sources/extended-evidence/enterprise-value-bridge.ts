@@ -25,7 +25,9 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
     "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
     "OtherShortTermInvestments",
     "AvailableForSaleSecuritiesEquitySecuritiesCurrent",
+    "TradingSecuritiesCurrent",
     "HeldToMaturitySecuritiesCurrent",
+    "DebtSecuritiesHeldToMaturityFairValueCurrent",
   ],
   cashAndShortTermInvestments: ["CashCashEquivalentsAndShortTermInvestments"],
   // Added to debt-only short-term lines; the generic concept counts only where current assets prove it current (NVDA).
@@ -127,8 +129,13 @@ const AFS_EXCLUDING_INTEREST = "DebtSecuritiesAvailableForSaleExcludingAccruedIn
 const DEBT_AFS = ["AvailableForSaleSecuritiesDebtSecuritiesCurrent", AFS_EXCLUDING_INTEREST];
 const BROAD_AFS = "AvailableForSaleSecuritiesCurrent";
 const HTM_CURRENT = "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent";
-const GROSS_HTM_CURRENT = "HeldToMaturitySecuritiesCurrent";
-// Lines a pick may contain (AAPL: AFS inside MSC); one larger, in another unit, or an unusable broad AFS withholds.
+// HTM lines that are not carrying amount: before credit-loss allowance, or at fair value.
+const HTM_FAIR_VALUE = "DebtSecuritiesHeldToMaturityFairValueCurrent";
+const UNCARRIED_HTM: ReadonlySet<string> = new Set([
+  "HeldToMaturitySecuritiesCurrent",
+  HTM_FAIR_VALUE,
+]);
+// Lines a pick may contain (AAPL: AFS inside MSC); one larger or in another unit withholds.
 const SHORT_TERM_COVERS: Readonly<Record<string, readonly string[]>> = {
   MarketableSecuritiesCurrent: [...DEBT_AFS, BROAD_AFS],
   AvailableForSaleSecuritiesDebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST],
@@ -297,10 +304,10 @@ function withUncoveredShortTermLine<F extends BridgeFact>(
   if (part.status !== "tagged" || part.concept === TOTAL_SHORT_TERM_CONCEPT) {
     return part;
   }
-  if (part.concept === GROSS_HTM_CURRENT && part.value !== 0) {
+  if (UNCARRIED_HTM.has(part.concept) && part.value !== 0) {
     return {
       status: "incomplete",
-      reason: `${GROSS_HTM_CURRENT} (${String(part.value)}) at ${instant} is amortized cost before credit-loss allowance; its carrying amount is not proven`,
+      reason: `${part.concept} (${String(part.value)}) at ${instant} is HTM before credit-loss allowance or at fair value; its carrying amount is not proven`,
     };
   }
   const covered = SHORT_TERM_COVERS[part.concept] ?? [];
@@ -319,10 +326,9 @@ function withUncoveredShortTermLine<F extends BridgeFact>(
       fact.concept !== part.concept &&
       (fact.value !== 0 || !usable(fact)) &&
       !debtOnlyBroadAfs(fact) &&
-      (!covered.includes(fact.concept) ||
-        fact.value > part.value ||
-        fact.unit !== part.fact.unit ||
-        (fact.concept === BROAD_AFS && !usable(fact))),
+      // Vertiv tags fair value beside the carrying amount of the same holding.
+      !(fact.concept === HTM_FAIR_VALUE && lines.some((row) => row.concept === HTM_CURRENT)) &&
+      (!covered.includes(fact.concept) || fact.value > part.value || fact.unit !== part.fact.unit),
   );
   return other === undefined
     ? part

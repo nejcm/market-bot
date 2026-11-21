@@ -1,5 +1,6 @@
 import {
   ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
+  OTHER_CURRENCY_BRIDGE_KEYS,
   TEMPORARY_EQUITY_CONCEPT_PRIORITY,
   trimToMezzaninePeriods,
 } from "./enterprise-value-bridge";
@@ -9,7 +10,10 @@ import {
   EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX,
 } from "../sec-extension-investments-proof";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
-import { compareFinancialStatementFacts } from "./financial-statement-selection";
+import {
+  compareFinancialStatementFacts,
+  compareFinancialStatementRevisions,
+} from "./financial-statement-selection";
 import {
   type FinancialStatementFact,
   ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
@@ -25,6 +29,7 @@ import {
   type SelectedSeries,
   type FinancialStatementsDeriveInput,
   parseFact,
+  currencyForUnit,
   taxonomyRoot,
   unitFacts,
   isObservable,
@@ -40,6 +45,9 @@ const EQUITY_INCLUDING_NONCONTROLLING_CONCEPT =
 const MINORITY_INTEREST_CONCEPT = "MinorityInterest";
 const STATUTORY_TAX_RATE_CONCEPT =
   "EffectiveIncomeTaxRateReconciliationAtFederalStatutoryIncomeTaxRate";
+const INSTANT_DEFINITION = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
+  (definition) => definition.key === "stockholdersEquity",
+)!;
 type EquityStackComponentKey =
   | "minorityInterest"
   | "stockholdersEquityIncludingNoncontrollingInterest"
@@ -95,12 +103,6 @@ function selectInstantComponent(
   for (const fact of candidates) {
     byPeriodEnd.set(fact.periodEnd, [...(byPeriodEnd.get(fact.periodEnd) ?? []), fact]);
   }
-  const instantDefinition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
-    (definition) => definition.key === "stockholdersEquity",
-  );
-  if (instantDefinition === undefined) {
-    throw new Error("Financial statement definitions must include stockholdersEquity");
-  }
   return [...byPeriodEnd.values()]
     .map((facts) =>
       withFirstPublicAt(
@@ -116,7 +118,7 @@ function selectInstantComponent(
       ),
     )
     .toSorted(chronological)
-    .map((fact) => toSelectedFact(fact, instantDefinition, reportingCurrency, input.sourceId));
+    .map((fact) => toSelectedFact(fact, INSTANT_DEFINITION, reportingCurrency, input.sourceId));
 }
 
 // A short-term investments line the filing's own instance proves, dated by that filing's companyfacts AssetsCurrent.
@@ -127,12 +129,6 @@ function extensionShortTermInvestments(
   input: FinancialStatementsDeriveInput,
   tagged: readonly FinancialStatementFact[],
 ): readonly FinancialStatementFact[] {
-  const definition = FINANCIAL_STATEMENT_SERIES_DEFINITIONS.find(
-    (candidate) => candidate.key === "stockholdersEquity",
-  );
-  if (definition === undefined) {
-    return [];
-  }
   const taggedPeriods = new Set(tagged.map(({ periodEnd }) => periodEnd));
   const observable = (concept: string) =>
     unitFacts("us-gaap", root, concept).filter(
@@ -206,7 +202,7 @@ function extensionShortTermInvestments(
                 (id, index) => index === 0 || id.includes(EXTENSION_INVESTMENTS_SOURCE_INFIX),
               ),
             },
-            definition,
+            INSTANT_DEFINITION,
             reportingCurrency,
             input.sourceId,
           ),
@@ -235,34 +231,111 @@ function extensionShortTermInvestments(
   });
 }
 
+function sameRevision(fact: ParsedFact, other: ParsedFact | undefined): boolean {
+  return (
+    other !== undefined &&
+    other.periodEnd === fact.periodEnd &&
+    other.concept === fact.concept &&
+    other.unit === fact.unit &&
+    other.value === fact.value
+  );
+}
+
+// Every value an additive bridge line held at an instant, ordered so the last row public at a cutoff is in effect:
+// Concept priority, then the Reporting Currency over any other, then filing order (foreign units as one stream).
+function bridgeRevisions(
+  root: Record<string, unknown>,
+  concepts: readonly string[],
+  reportingCurrency: string,
+  input: FinancialStatementsDeriveInput,
+): readonly FinancialStatementFact[] {
+  const rows = concepts
+    .flatMap((concept) => unitFacts("us-gaap", root, concept))
+    .filter(
+      (fact) =>
+        fact.periodStart === undefined &&
+        currencyForUnit(fact.unit) === fact.unit &&
+        isObservable(fact, input.analysisAsOf),
+    )
+    .toSorted(
+      (left, right) =>
+        left.periodEnd.localeCompare(right.periodEnd) ||
+        concepts.indexOf(right.concept) - concepts.indexOf(left.concept) ||
+        Number(left.unit === reportingCurrency) - Number(right.unit === reportingCurrency) ||
+        compareFinancialStatementRevisions(right, left),
+    );
+  let runStart = rows[0];
+  return rows.flatMap((fact, index) => {
+    if (!sameRevision(fact, rows[index - 1])) {
+      runStart = fact;
+    }
+    const next = rows[index + 1];
+    if (sameRevision(fact, next)) {
+      return [];
+    }
+    const withheld =
+      fact.unit !== reportingCurrency
+        ? `is filed in ${fact.unit}, not reporting currency ${reportingCurrency}`
+        : next?.periodEnd !== fact.periodEnd || next.concept !== fact.concept
+          ? undefined
+          : `was restated on ${next.filedAt}; the value first filed is withheld`;
+    return [
+      {
+        ...toSelectedFact(
+          withFirstPublicAt(
+            { ...fact, firstPublicAt: runStart!.filedAt },
+            rows.filter(
+              (row) =>
+                row.periodEnd === fact.periodEnd &&
+                row.concept === fact.concept &&
+                row.unit === fact.unit,
+            ),
+          ),
+          INSTANT_DEFINITION,
+          fact.unit,
+          input.sourceId,
+        ),
+        ...(withheld === undefined
+          ? {}
+          : { shortTermInvestmentsWithheld: `${fact.concept} at ${fact.periodEnd} ${withheld}` }),
+      },
+    ];
+  });
+}
+
 export function selectEnterpriseValueBridge(
   payload: unknown,
   reportingCurrency: string,
   input: FinancialStatementsDeriveInput,
 ): FinancialStatementEnterpriseValueBridge {
-  const select = (key: keyof FinancialStatementEnterpriseValueBridge) =>
-    selectInstantComponent(
-      payload,
-      "us-gaap",
-      reportingCurrency,
-      () => ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
-      new Map(),
-      input,
-    );
-  const selected = Object.fromEntries(
-    ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [key, select(key)]),
+  const root = taxonomyRoot(payload, "us-gaap") ?? {};
+  const lists = Object.fromEntries(
+    ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [
+      key,
+      (OTHER_CURRENCY_BRIDGE_KEYS as readonly string[]).includes(key)
+        ? bridgeRevisions(root, ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key], reportingCurrency, input)
+        : selectInstantComponent(
+            payload,
+            "us-gaap",
+            reportingCurrency,
+            () => ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
+            new Map(),
+            input,
+          ),
+    ]),
   ) as unknown as FinancialStatementEnterpriseValueBridge;
   return trimToMezzaninePeriods({
-    ...selected,
+    ...lists,
+    // An extension line is a fallback, so any standard row public at the cutoff overrides it.
     shortTermInvestments: [
-      ...selected.shortTermInvestments,
       ...extensionShortTermInvestments(
-        taxonomyRoot(payload, "us-gaap") ?? {},
+        root,
         reportingCurrency,
         input,
-        selected.shortTermInvestments,
+        lists.shortTermInvestments.filter((fact) => fact.unit === reportingCurrency),
       ),
-    ].toSorted(chronological),
+      ...lists.shortTermInvestments,
+    ].toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd)),
   });
 }
 

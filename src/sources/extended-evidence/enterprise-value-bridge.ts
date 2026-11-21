@@ -43,6 +43,16 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
   otherAssetsCurrent: ["PrepaidExpenseAndOtherAssetsCurrent", "OtherAssetsCurrent"],
 } as const;
 
+// Additive lists whose resolver honours a withheld other-currency fact; identity lists never carry one.
+export const OTHER_CURRENCY_BRIDGE_KEYS = [
+  "shortTermInvestments",
+  "cashAndShortTermInvestments",
+  "currentEquitySecurities",
+  "noncontrollingInterest",
+  "preferredStock",
+  "temporaryEquity",
+] as const satisfies readonly (keyof typeof ENTERPRISE_VALUE_BRIDGE_CONCEPTS)[];
+
 const MEZZANINE_IDENTITY_KEYS = [
   "assets",
   "liabilities",
@@ -63,6 +73,7 @@ export interface BridgeFact {
   readonly concept: string;
   readonly filedAt: string;
   readonly firstPublicAt?: string;
+  readonly unit?: string;
   readonly shortTermInvestmentsProof?: string;
   readonly shortTermInvestmentsWithheld?: string;
 }
@@ -125,7 +136,11 @@ export function trimToMezzaninePeriods<F extends BridgeFact>(
     facts.currentEquitySecurities.filter((fact) => fact.value !== 0).map((fact) => fact.periodEnd),
   );
   const parentPeriods = new Set(facts.stockholdersEquity.map((fact) => fact.periodEnd));
-  const taggedNoncontrolling = new Set(facts.noncontrollingInterest.map((fact) => fact.periodEnd));
+  const taggedNoncontrolling = new Set(
+    facts.noncontrollingInterest
+      .filter((fact) => fact.shortTermInvestmentsWithheld === undefined)
+      .map((fact) => fact.periodEnd),
+  );
   const periods = new Set([
     ...facts.temporaryEquity.map((fact) => fact.periodEnd),
     ...facts.stockholdersEquityIncludingNoncontrollingInterest
@@ -154,13 +169,27 @@ function withinContinuity(periodEnd: string, instant: string): boolean {
   return days > 0 && days <= CONTINUITY_DAYS;
 }
 
+// Lists are ordered so the last row at an instant is the one in effect (bridgeRevisions).
+function factAt<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
+  return facts.findLast((fact) => fact.periodEnd === instant);
+}
+
+function priorNonzero<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
+  return facts.findLast(
+    (fact) =>
+      fact.value !== 0 &&
+      withinContinuity(fact.periodEnd, instant) &&
+      factAt(facts, fact.periodEnd) === fact,
+  );
+}
+
 function component<F extends BridgeFact>(
   key: EnterpriseValueBridgeKey,
   facts: readonly F[],
   instant: string,
   derived?: BridgeComponent<F>,
 ): BridgeComponent<F> {
-  const tagged = facts.findLast((fact) => fact.periodEnd === instant);
+  const tagged = factAt(facts, instant);
   if (tagged?.shortTermInvestmentsWithheld !== undefined) {
     return { status: "incomplete", reason: tagged.shortTermInvestmentsWithheld };
   }
@@ -170,9 +199,7 @@ function component<F extends BridgeFact>(
   if (derived !== undefined) {
     return derived;
   }
-  const prior = facts.findLast(
-    (fact) => fact.value !== 0 && withinContinuity(fact.periodEnd, instant),
-  );
+  const prior = priorNonzero(facts, instant);
   return prior === undefined
     ? { status: "untagged" }
     : {
@@ -185,7 +212,10 @@ function combinedShortTermInvestments<F extends BridgeFact>(
   combined: readonly F[],
   cash: { readonly value: number; readonly periodEnd: string },
 ): BridgeComponent<F> | undefined {
-  const fact = combined.findLast((candidate) => candidate.periodEnd === cash.periodEnd);
+  const fact = factAt(combined, cash.periodEnd);
+  if (fact?.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: fact.shortTermInvestmentsWithheld };
+  }
   if (fact === undefined) {
     return combined.some((candidate) => withinContinuity(candidate.periodEnd, cash.periodEnd))
       ? {
@@ -213,13 +243,16 @@ function withCombinedCheck<F extends BridgeFact>(
   combined: readonly F[],
   cash: { readonly value: number; readonly periodEnd: string },
 ): BridgeComponent<F> {
-  const total = combined.findLast((candidate) => candidate.periodEnd === cash.periodEnd);
+  const total = factAt(combined, cash.periodEnd);
   if (
     part.status !== "tagged" ||
     total === undefined ||
     part.concept.startsWith(COMBINED_CONCEPT)
   ) {
     return part;
+  }
+  if (total.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: total.shortTermInvestmentsWithheld };
   }
   const residual = total.value - cash.value;
   return Math.abs(residual - part.value) > Math.abs(total.value) * IDENTITY_TOLERANCE
@@ -231,7 +264,7 @@ function withCombinedCheck<F extends BridgeFact>(
 }
 
 function valueAt<F extends BridgeFact>(facts: readonly F[], instant: string): number | undefined {
-  return facts.findLast((fact) => fact.periodEnd === instant)?.value;
+  return factAt(facts, instant)?.value;
 }
 
 function currentAssetsResidual<F extends BridgeFact>(
@@ -264,28 +297,29 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const explicit = facts.currentEquitySecurities.filter(
     (fact) => fact.concept === CURRENT_EQUITY_CONCEPT,
   );
-  const equity = facts.currentEquitySecurities.findLast(
-    (fact) => fact.periodEnd === cash.periodEnd,
-  );
-  if (equity === undefined) {
-    const prior = explicit.findLast(
-      (fact) => fact.value !== 0 && withinContinuity(fact.periodEnd, cash.periodEnd),
-    );
+  const equity = factAt(facts.currentEquitySecurities, cash.periodEnd);
+  const total = factAt(facts.assetsCurrent, cash.periodEnd);
+  const explicitLine = equity?.concept === CURRENT_EQUITY_CONCEPT;
+  const unproven = (): BridgeComponent<F> => {
+    const prior = priorNonzero(explicit, cash.periodEnd);
     return prior === undefined
       ? part
       : {
           status: "incomplete",
           reason: `${LABELS.shortTermInvestments} (${CURRENT_EQUITY_CONCEPT}) reported nonzero at ${prior.periodEnd} but not tagged at ${cash.periodEnd}`,
         };
+  };
+  if (equity === undefined) {
+    return unproven();
   }
-  if (equity.value === 0) {
-    return part;
+  const withheld = equity.shortTermInvestmentsWithheld;
+  if (withheld !== undefined && explicitLine) {
+    return { status: "incomplete", reason: withheld };
   }
   const base = part.status === "tagged" ? part.value : 0;
   const debtOnly = part.status === "untagged" || DEBT_ONLY_SHORT_TERM.has(part.concept);
   // Total current assets prove the equity a separate current line only when it closes the identity (VRTX sums without it).
-  const tolerance =
-    Math.abs(valueAt(facts.assetsCurrent, cash.periodEnd) ?? 0) * IDENTITY_TOLERANCE;
+  const tolerance = Math.abs(total?.value ?? 0) * IDENTITY_TOLERANCE;
   const withEquity = currentAssetsResidual(facts, cash, base + equity.value);
   const withoutEquity = currentAssetsResidual(facts, cash, base);
   const closesIdentity =
@@ -296,8 +330,16 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
     withoutEquity > tolerance;
   const outsideIdentity =
     withoutEquity !== undefined && withoutEquity <= tolerance && (withEquity ?? 0) > tolerance;
-  const additive =
-    closesIdentity || (equity.concept === CURRENT_EQUITY_CONCEPT && debtOnly && !outsideIdentity);
+  const additive = closesIdentity || (explicitLine && debtOnly && !outsideIdentity);
+  // A withheld generic line withholds only where its as-filed value would add; otherwise it proves nothing, like no line.
+  if (withheld !== undefined) {
+    return additive && equity.unit === total?.unit
+      ? { status: "incomplete", reason: withheld }
+      : unproven();
+  }
+  if (equity.value === 0) {
+    return part;
+  }
   if (additive) {
     return part.status === "tagged"
       ? {
@@ -310,7 +352,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
       : { status: "tagged", value: equity.value, concept: equity.concept, fact: equity };
   }
   // The generic concept is usually a noncurrent holding (META, MRK), which stays out like other long-term investments.
-  return equity.concept === CURRENT_EQUITY_CONCEPT
+  return explicitLine
     ? {
         status: "incomplete",
         reason: `${CURRENT_EQUITY_CONCEPT} (${String(equity.value)}) at ${cash.periodEnd} may already sit inside ${part.status === "tagged" ? part.concept : "short-term investments"}`,
@@ -324,9 +366,7 @@ function derivedNoncontrolling<F extends BridgeFact>(
   temporaryEquity: BridgeComponent<F>,
   instant: string,
 ): BridgeComponent<F> | undefined {
-  const including = facts.stockholdersEquityIncludingNoncontrollingInterest.findLast(
-    (fact) => fact.periodEnd === instant,
-  );
+  const including = factAt(facts.stockholdersEquityIncludingNoncontrollingInterest, instant);
   const parent = valueAt(facts.stockholdersEquity, instant);
   if (including === undefined || parent === undefined || including.value === parent) {
     return undefined;

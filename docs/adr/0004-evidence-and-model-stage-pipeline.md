@@ -434,7 +434,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   is what keeps temporary equity from double counting `MinorityInterest`. Untagged `MinorityInterest` is
   derived as equity including NCI − parent equity only when positive and assets − liabilities − equity
   including NCI − temporary equity reconciles (UBER 2026-06-30: 903M); otherwise it is incomplete. Otherwise
-  untagged counts as zero. Incomplete short-term investments withhold EV, net debt and their multiples;
+  untagged counts as zero. An additive component (short-term investments, the combined cash line,
+  current equity securities, NCI, preferred stock, temporary equity) keeps every value each concept held at
+  the instant and is read from the last row public at the cutoff, ordered by concept priority, then the
+  Reporting Currency over any other, then filing order (other currencies as one stream), with an extension line below every standard row; a row
+  in another currency, or an as-filed value a later filing restated, is incomplete, never untagged, including a
+  combined line checked against the pick and a generic equity line the current-assets identity would add. Incomplete short-term investments withhold EV, net debt and their multiples;
   incomplete noncontrolling interest, preferred stock or temporary equity withholds EV only; both emit one
   no-cap `SEC EV bridge incomplete` gap, and peers exclude with that reason. Non-us-gaap issuers have no
   bridge yet, so EV and net debt are withheld rather than published without investments. An artifact whose

@@ -624,18 +624,27 @@ function assertCapitalReturnHistory(result: RunFixtureResult, report: ResearchRe
       (fact) => fact.periodType === "annual" && isYearAlignedFact(key, fact),
     );
   };
+  // The window is the issuer's annual-report calendar, whatever flows survived normalization.
+  const cutoff = report.generatedAt.slice(0, 10);
+  const window = [
+    ...new Set(
+      (statements.firstAnnualReports ?? [])
+        .filter((filing) => filing.filedAt.slice(0, 10) <= cutoff)
+        .map((filing) => filing.periodEnd),
+    ),
+  ]
+    .toSorted()
+    .slice(-5);
   const flows = [...annual("dividendsPaid"), ...annual("shareRepurchases")];
-  const window = new Set(
-    [...new Set([...annual("netIncome"), ...flows].map((fact) => fact.periodEnd))]
-      .toSorted()
-      .slice(-5),
-  );
-  const rendered = flows.some((fact) => window.has(fact.periodEnd));
+  const rendered = flows.some((fact) => window.includes(fact.periodEnd));
   expect(result.markdown.includes("### Capital Return History"), "capital return history").toBe(
     rendered,
   );
   if (rendered) {
     expect(result.markdown).toContain(CAPITAL_RETURN_HISTORY_BASIS);
+    const table = result.markdown.slice(result.markdown.indexOf("### Capital Return History"));
+    const periods = [...table.matchAll(/^FY ending (\d{4}-\d{2}-\d{2})/gmu)].map((m) => m[1]);
+    expect(periods.slice(0, window.length), "capital return history window").toEqual(window);
   }
   const strength = (report.extras?.metricSections as MetricSectionsExtra | undefined)?.find(
     (section) => section.id === financialLensMetricSectionId("Financial Strength"),
@@ -654,7 +663,9 @@ function assertCapitalReturnHistory(result: RunFixtureResult, report: ResearchRe
     (cumulative.inputs ?? [])
       .filter((input) => input.series === series)
       .reduce((total, input) => total + Math.abs(Number(input.value)), 0);
-  expect(new Set((cumulative.inputs ?? []).map((input) => input.periodKey)).size).toBe(3);
+  expect(new Set((cumulative.inputs ?? []).map((input) => input.periodKey)).size).toBe(
+    cumulative.label === "Payout ratio (latest fiscal year)" ? 1 : 3,
+  );
   expectClose(cumulative.value, sum("dividendsPaid") / sum("netIncome"), "payoutRatio3y");
 }
 

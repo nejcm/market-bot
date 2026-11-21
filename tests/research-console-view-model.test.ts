@@ -2797,7 +2797,7 @@ describe("report artifact parsers", () => {
     ]);
   });
 
-  test("latest-year payout tile is badged only when the payout check fell back to it", () => {
+  test("only the deciding payout row is badged, and not when the check is not applicable", () => {
     expect(payoutTones(strengthReport({ status: "value", value: 1.989 }))).toEqual([
       { key: "payoutRatio", tone: "neutral", assessment: undefined },
       { key: "payoutRatio3y", tone: "weak", assessment: "Weak" },
@@ -2810,15 +2810,15 @@ describe("report artifact parsers", () => {
         }),
       )[0],
     ).toEqual({ key: "payoutRatio", tone: "neutral", assessment: undefined });
+    // FY2025 paid 150 and FY2026 paid 0 under 3 filed years: the latest annual year decides and paid nothing.
     expect(
       payoutTones(
-        strengthReport({
-          status: "missing",
-          reason: "fewer than 3 filed fiscal years",
-          cause: "insufficient-history",
-        }),
-      )[0],
-    ).toEqual({ key: "payoutRatio", tone: "strong", assessment: "Strong" });
+        strengthReport({ status: "value", value: 0, label: "Payout ratio (latest fiscal year)" }),
+      ),
+    ).toEqual([
+      { key: "payoutRatio", tone: "neutral", assessment: undefined },
+      { key: "payoutRatio3y", tone: "neutral", assessment: undefined },
+    ]);
   });
 
   test("parses Web Subject Profile from report extras before sidecar fallback", () => {

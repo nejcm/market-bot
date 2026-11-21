@@ -13,8 +13,7 @@ import {
 import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
 import { formatLensValue } from "../sources/extended-evidence/value-format";
 import { REIT_SIC } from "../sources/extended-evidence/industry-classification";
-import { payoutScope, payoutScopeAmbiguity } from "../sources/extended-evidence/payout-basis";
-import { formatRatioPercent } from "../sources/extended-evidence/percent-format";
+import { annualFilingCalendar, payoutScopeReason } from "../sources/extended-evidence/payout-basis";
 import { SPECIAL_DIVIDENDS_BASIS } from "../sources/extended-evidence/financial-statement-definitions";
 import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../config/shared";
 
@@ -473,26 +472,6 @@ function groupedNote(prefix: string, byReason: ReadonlyMap<string, readonly stri
   );
 }
 
-// A year whose parent and consolidated bounds display differently is withheld.
-function yearScope(
-  artifact: FinancialStatementsArtifact,
-  dividends: FinancialStatementFact,
-  income: FinancialStatementFact,
-): string | undefined {
-  const scope = payoutScope(artifact, dividends, income);
-  if (scope.status === "withheld") {
-    return scope.reason;
-  }
-  if (scope.status === "same" || income.value <= 0) {
-    return undefined;
-  }
-  const paid = Math.abs(dividends.value);
-  return scope.consolidated.value > 0 &&
-    formatRatioPercent(paid / income.value) === formatRatioPercent(paid / scope.consolidated.value)
-    ? undefined
-    : payoutScopeAmbiguity(dividends.concept);
-}
-
 // The window is the latest five filed fiscal years; a flow absent inside it is declared, not skipped.
 export function capitalReturnHistory(
   artifact: FinancialStatementsArtifact | undefined,
@@ -510,11 +489,8 @@ export function capitalReturnHistory(
   };
   const at = (key: keyof typeof facts, periodEnd: string) =>
     latestFinancialStatementFact(facts[key].filter((fact) => fact.periodEnd === periodEnd));
-  const periods = [
-    ...new Set(Object.values(facts).flatMap((series) => series.map((fact) => fact.periodEnd))),
-  ]
-    .toSorted()
-    .slice(-CAPITAL_RETURN_YEARS);
+  const calendar = annualFilingCalendar(artifact, cutoff).slice(-CAPITAL_RETURN_YEARS);
+  const periods = calendar.map((year) => year.periodEnd);
   if (
     !periods.some(
       (periodEnd) =>
@@ -525,17 +501,18 @@ export function capitalReturnHistory(
     return undefined;
   }
   const withheld = new Map<string, string[]>();
-  const rows = periods.map((periodEnd): EquityReaderCapitalReturnRow => {
+  const rows = calendar.map((year): EquityReaderCapitalReturnRow => {
+    const { periodEnd } = year;
     const dividends = at("dividendsPaid", periodEnd);
     const repurchases = at("shareRepurchases", periodEnd);
     const income = at("netIncome", periodEnd);
-    const { filedAt } = latestFinancialStatementFact(
+    const filedAt = latestFinancialStatementFact(
       [dividends, repurchases, income].filter((fact) => fact !== undefined),
-    )!;
+    )?.filedAt;
     const scope =
       dividends === undefined || income === undefined
         ? undefined
-        : yearScope(artifact, dividends, income);
+        : payoutScopeReason(artifact, [{ dividend: dividends, income }], year);
     if (scope !== undefined) {
       withheld.set(scope, [...(withheld.get(scope) ?? []), periodEnd]);
     }
@@ -549,7 +526,10 @@ export function capitalReturnHistory(
           : { status: "not-meaningful", reason: "net income is zero or negative" };
     }
     return {
-      period: periodLabel({ kind: "annual", periodEnd, filedAt }),
+      period:
+        filedAt === undefined
+          ? `FY ending ${periodEnd}`
+          : periodLabel({ kind: "annual", periodEnd, filedAt }),
       ...(dividends === undefined
         ? {}
         : { dividendsPaid: { ...statementValue(dividends), value: Math.abs(dividends.value) } }),

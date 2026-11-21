@@ -29,7 +29,7 @@ const TDG_REPURCHASES = { 2022: 912, 2023: 0, 2024: 0, 2025: 500, 2026: 2750 };
 
 type Values = Readonly<Record<number, number>>;
 interface Entry {
-  readonly start: string;
+  readonly start?: string;
   readonly end: string;
   readonly val: number;
   readonly accn: string;
@@ -58,6 +58,11 @@ function fiscalYearEntry(
     form,
     filed: filing.filed,
   };
+}
+
+function fiscalYearEnd(year: number, value: number): Entry {
+  const { start: _start, ...entry } = fiscalYearEntry(year, value);
+  return entry;
 }
 
 // A Q1 10-Q for the fiscal year ending in `year`.
@@ -329,7 +334,7 @@ describe("3y cumulative payout ratio", () => {
     expect(criterion).toBeUndefined();
   });
 
-  test("under three filed fiscal years falls back to the latest annual year, never an interim", () => {
+  test("under three filed fiscal years the latest annual year decides, even beside a newer interim", () => {
     const asOf = "2026-01-31T00:00:00.000Z";
     const FY2025_10K = { accn: "0001260221-25-000081", filed: "2025-11-12" };
     const short = (extra: readonly Entry[] = [], incomeExtra: readonly Entry[] = []) =>
@@ -348,14 +353,49 @@ describe("3y cumulative payout ratio", () => {
     const withQ1 = short([q1(2026, 2, "2026-01-30")], [q1(2026, 100, "2026-01-30")]);
 
     expect(annualOnly.payout("payoutRatio3y")).toMatchObject({
-      status: "missing",
-      cause: "insufficient-history",
-      reason:
-        "fewer than 3 filed fiscal years; the payout check reads the fiscal year ending 2025-09-30 alone",
+      status: "value",
+      value: 1.5,
+      label: "Payout ratio (latest fiscal year)",
+      periodEnd: "2025-09-30",
+      periodMonths: 12,
     });
     expect(annualOnly.criterion).toBe(false);
     expect(withQ1.payout("payoutRatio")).toMatchObject({ value: 0.02, periodMonths: 3 });
-    expect(withQ1.criterion).toBeUndefined();
+    expect(withQ1.payout("payoutRatio3y")).toMatchObject({ value: 1.5, periodEnd: "2025-09-30" });
+    expect(withQ1.criterion).toBe(false);
+  });
+
+  test("the window comes from the annual filing calendar, not from the payout inputs", () => {
+    // Sol: FY2026's 10-K tags revenue and operating cash flow only, so its payout inputs are missing.
+    const tail = statements({
+      PaymentsOfDividends: { 2021: 10, 2022: 20, 2023: 30, 2024: 40, 2025: 50 },
+      NetIncomeLoss: { 2021: 100, 2022: 100, 2023: 100, 2024: 100, 2025: 100 },
+      Revenues: { 2026: 900 },
+      NetCashProvidedByUsedInOperatingActivities: { 2026: 200 },
+    });
+    // Sol: FY2024 files operating cash flow only, so the issuer has three filed years, not two.
+    const middle = statements({
+      PaymentsOfDividends: { 2025: 150, 2026: 2 },
+      NetIncomeLoss: { 2025: 100, 2026: 100 },
+      NetCashProvidedByUsedInOperatingActivities: { 2024: 80, 2025: 90, 2026: 95 },
+    });
+
+    expect(strength(tail).payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      reason: "no annual dividends paid for the fiscal year ending 2026-09-30",
+      periodEnd: "2026-09-30",
+    });
+    expect(strength(tail).criterion).toBeUndefined();
+    const history = capitalReturnHistory(tail, AS_OF);
+    expect(history?.rows.map((row) => row.period.slice(0, 20))).toEqual(
+      [2022, 2023, 2024, 2025, 2026].map((year) => `FY ending ${String(year)}-09-30`),
+    );
+    expect(history?.notes.join(" ")).toContain("2026-09-30");
+    expect(strength(middle).payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      reason: "no annual dividends paid for the fiscal year ending 2024-09-30",
+    });
+    expect(strength(middle).criterion).toBeUndefined();
   });
 
   test("a window whose next annual filing is overdue is stale", () => {
@@ -389,69 +429,85 @@ describe("3y cumulative payout ratio", () => {
     expect(loss.criterion).toBeUndefined();
   });
 
-  test("TDG's 1M of NCI income leaves both scope bounds above 80%, so the check is assessed", () => {
-    // Saved run 62e6bd98: ProfitLoss exceeds NetIncomeLoss by the 1M NCI share in FY2024 and FY2026.
-    const artifact = tdg({ ProfitLoss: { 2024: 1715, 2025: 2074, 2026: 2108 } });
+  test("TDG reports NCI, so its generic dividend total is unproven and the check is withheld", () => {
+    // Saved run 62e6bd98: ProfitLoss exceeds NetIncomeLoss by 1M in FY2024 and FY2026; NCI equity is 6–8M every year.
+    const years = [2022, 2023, 2024, 2025, 2026];
+    const artifact = tdg({
+      ProfitLoss: { 2024: 1715, 2025: 2074, 2026: 2108 },
+      StockholdersEquity: years.map((year) => fiscalYearEnd(year, -6000)),
+      MinorityInterest: years.map((year) => fiscalYearEnd(year, 7)),
+    });
     const { payout, criterion } = strength(artifact);
-    const cumulative = payout("payoutRatio3y");
 
-    expect(cumulative?.status).toBe("value");
-    expect(cumulative?.value).toBeCloseTo(11_726 / 5895, 6);
-    expect(cumulative?.basis).toContain(
-      "dividends as filed under PaymentsOfDividends, which may include distributions to noncontrolling interests; 198.8% against consolidated net income",
-    );
-    expect(criterion).toBe(false);
-    const history = capitalReturnHistory(artifact, AS_OF);
-    expect(history?.rows.slice(-3).map((row) => row.payout)).toEqual([
-      { status: "withheld" },
-      { status: "value", value: 9629 / 2074 },
-      { status: "value", value: 59 / 2107 },
-    ]);
-    expect(history?.notes).toContain(
-      "Payout withheld for the fiscal years ending 2024-09-30: noncontrolling interests earned income and PaymentsOfDividends can include distributions to them; dividends and parent net income are not proven to share one scope.",
-    );
-  });
-
-  test("scope bounds that straddle 80% withhold the check, in the window and in the fallback", () => {
-    // 85 paid; parent earns 100, consolidated 110: 85% vs 77.3%.
-    const straddle = {
-      PaymentsOfDividends: { 2024: 85, 2025: 85, 2026: 85 },
-      NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
-      ProfitLoss: { 2024: 110, 2025: 110, 2026: 110 },
-    };
-    const reason =
-      "fiscal year ending 2026-09-30: noncontrolling interests earned income and PaymentsOfDividends can include distributions to them; dividends and parent net income are not proven to share one scope";
-
-    expect(strength(tdg(straddle)).payout("payoutRatio3y")).toMatchObject({
+    expect(payout("payoutRatio3y")).toMatchObject({
       status: "missing",
-      reason,
-    });
-    expect(strength(tdg(straddle)).criterion).toBeUndefined();
-
-    const young = (consolidated: number) =>
-      strength(
-        statements({
-          PaymentsOfDividends: { 2025: 85, 2026: 85 },
-          NetIncomeLoss: { 2025: 100, 2026: 100 },
-          ProfitLoss: { 2026: consolidated },
-        }),
-      );
-    expect(young(110).payout("payoutRatio3y")).toMatchObject({
-      status: "missing",
-      reason: `fewer than 3 filed fiscal years; ${reason}`,
-    });
-    expect(young(110).criterion).toBeUndefined();
-    expect(young(101).payout("payoutRatio3y")).toMatchObject({
-      status: "missing",
-      cause: "insufficient-history",
       reason:
-        "fewer than 3 filed fiscal years; the payout check reads the fiscal year ending 2026-09-30 alone; dividends as filed under PaymentsOfDividends, which may include distributions to noncontrolling interests; 84.2% against consolidated net income",
+        "PaymentsOfDividends is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven",
     });
-    expect(young(101).criterion).toBe(false);
+    expect(criterion).toBeUndefined();
+    const history = capitalReturnHistory(artifact, AS_OF);
+    expect(history?.rows.map((row) => row.payout?.status)).toEqual(years.map(() => "withheld"));
+    expect(history?.rows.at(-1)?.dividendsPaid?.value).toBe(59 * M);
+    expect(history?.rows.at(-1)?.shareRepurchases?.value).toBe(2750 * M);
   });
 
-  test("a generic dividend total beside noncontrolling income is withheld; a common-stock tag is not", () => {
-    // Sol's case: 95 paid in total, 35 of it to NCI; parent earns 100 and NCI 50 each year (95% vs 63.3%).
+  test("NCI income withholds a generic dividend total whatever the ratios (Sol's cases)", () => {
+    const generic = (concepts: Readonly<Record<string, Values>>) =>
+      strength(statements({ PaymentsOfDividends: { 2024: 95, 2025: 95, 2026: 95 }, ...concepts }));
+    // 90 paid, 30 of it to NCI; parent 100, consolidated 105.
+    const agreeing = strength(
+      statements({
+        PaymentsOfDividends: { 2024: 90, 2025: 90, 2026: 90 },
+        NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
+        ProfitLoss: { 2024: 105, 2025: 105, 2026: 105 },
+      }),
+    );
+    // NCI income tagged but no consolidated ProfitLoss: the normalizer only leaves omission notes.
+    const untagged = generic({
+      NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
+      NetIncomeLossAttributableToNoncontrollingInterest: { 2024: 50, 2025: 50, 2026: 50 },
+    });
+    const continuing = generic({
+      NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
+      IncomeLossFromContinuingOperations: { 2024: 100, 2025: 100, 2026: 100 },
+      NetIncomeLossAttributableToNoncontrollingInterest: { 2024: 50, 2025: 50, 2026: 50 },
+    });
+
+    for (const outcome of [agreeing, untagged, continuing]) {
+      expect(outcome.payout("payoutRatio3y")).toMatchObject({
+        status: "missing",
+        reason:
+          "PaymentsOfDividends is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven",
+      });
+      expect(outcome.criterion).toBeUndefined();
+    }
+    const young = strength(
+      statements({
+        PaymentsOfDividends: { 2025: 85, 2026: 85 },
+        NetIncomeLoss: { 2025: 100, 2026: 100 },
+        ProfitLoss: { 2026: 101 },
+      }),
+    );
+    expect(young.payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      reason:
+        "fewer than 3 filed fiscal years; PaymentsOfDividends is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven",
+    });
+    expect(young.criterion).toBeUndefined();
+  });
+
+  test("NCI equity alone withholds a generic dividend total", () => {
+    const artifact = tdg({
+      StockholdersEquity: [2024, 2025, 2026].map((year) => fiscalYearEnd(year, -6000)),
+      MinorityInterest: [2024, 2025, 2026].map((year) => fiscalYearEnd(year, 7)),
+    });
+
+    expect(artifact.equityStack?.minorityInterest.length).toBeGreaterThan(0);
+    expect(strength(artifact).payout("payoutRatio3y")?.status).toBe("missing");
+  });
+
+  test("a holder-class dividend tag is proven parent scope; a generic total without NCI is labelled all classes", () => {
+    // Sol's case: 95 paid in total, 35 of it to NCI; parent earns 100 and NCI 50 each year.
     const nci = {
       NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
       ProfitLoss: { 2024: 150, 2025: 150, 2026: 150 },
@@ -460,16 +516,22 @@ describe("3y cumulative payout ratio", () => {
     const common = strength(
       statements({ ...nci, PaymentsOfDividendsCommonStock: { 2024: 60, 2025: 60, 2026: 60 } }),
     );
-    const reason =
-      "fiscal year ending 2026-09-30: noncontrolling interests earned income and PaymentsOfDividends can include distributions to them; dividends and parent net income are not proven to share one scope";
 
-    expect(total.payout("payoutRatio3y")).toMatchObject({ status: "missing", reason });
+    expect(total.payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      reason:
+        "PaymentsOfDividends is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven",
+    });
     expect(total.criterion).toBeUndefined();
     expect(common.payout("payoutRatio3y")?.value).toBeCloseTo(0.6, 6);
+    expect(common.payout("payoutRatio3y")?.basis).not.toContain("all parent equity classes");
+    expect(strength(tdg()).payout("payoutRatio3y")?.basis).toContain(
+      "dividends paid cover all parent equity classes, as filed",
+    );
     expect(
       capitalReturnHistory(tdg({ ...nci, PaymentsOfDividends: { 2026: 95 } }), AS_OF)?.notes,
     ).toContain(
-      "Payout withheld for the fiscal years ending 2026-09-30: noncontrolling interests earned income and PaymentsOfDividends can include distributions to them; dividends and parent net income are not proven to share one scope.",
+      "Payout withheld for the fiscal years ending 2026-09-30: PaymentsOfDividends is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven.",
     );
   });
 
@@ -486,7 +548,7 @@ describe("3y cumulative payout ratio", () => {
     expect(payout("payoutRatio3y")).toMatchObject({
       status: "missing",
       reason:
-        "fiscal year ending 2026-09-30: net income is IFRS ProfitLoss, which includes noncontrolling interests; profit attributable to the parent is not in the statements",
+        "net income is IFRS ProfitLoss, which includes noncontrolling interests; profit attributable to the parent is not in the statements",
     });
     expect(criterion).toBeUndefined();
     expect(

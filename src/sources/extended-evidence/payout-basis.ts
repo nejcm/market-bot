@@ -1,77 +1,121 @@
-import { COMMON_DIVIDENDS_PAID_CONCEPTS } from "./financial-statement-definitions";
+import {
+  COMMON_DIVIDENDS_PAID_CONCEPTS,
+  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
+} from "./financial-statement-definitions";
 import {
   financialStatementFacts,
   financialStatementSeriesByKey,
-  latestFinancialStatementFact,
 } from "./financial-statement-selection";
 import type {
   FinancialStatementFact,
+  FinancialStatementNote,
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 
 export const PAYOUT_CEILING = 0.8;
 
-// "bounded": generic dividends beside NCI earnings, so the same-scope ratio lies between the parent and consolidated bases.
-export type PayoutScope =
-  | { readonly status: "same"; readonly consolidated?: FinancialStatementFact }
-  | { readonly status: "withheld"; readonly reason: string }
-  | { readonly status: "bounded"; readonly consolidated: FinancialStatementFact };
+const ALL_PARENT_CLASSES_BASIS = "dividends paid cover all parent equity classes, as filed";
 
-export function payoutScopeAmbiguity(dividendsConcept: string): string {
-  return `noncontrolling interests earned income and ${dividendsConcept} can include distributions to them; dividends and parent net income are not proven to share one scope`;
+interface FiscalYear {
+  readonly periodStart: string;
+  readonly periodEnd: string;
 }
 
-// Payout divides by parent net income, so the dividend total must not carry NCI distributions (Accounting Scope).
-export function payoutScope(
+// The years an annual report was filed for, independent of which payout inputs survived normalization.
+export function annualFilingCalendar(
   artifact: FinancialStatementsArtifact,
-  dividends: FinancialStatementFact,
-  income: FinancialStatementFact,
-): PayoutScope {
-  // US GAAP netIncome is NetIncomeLoss, or ProfitLoss only where no NCI income was proven; IFRS ProfitLoss includes NCI.
-  if (income.taxonomy !== "us-gaap") {
-    return {
-      status: "withheld",
-      reason: `net income is IFRS ${income.concept}, which includes noncontrolling interests; profit attributable to the parent is not in the statements`,
-    };
-  }
-  if (COMMON_DIVIDENDS_PAID_CONCEPTS.has(dividends.concept)) {
-    return { status: "same" };
-  }
-  const series = financialStatementSeriesByKey(artifact, "consolidatedNetIncome");
-  const consolidated = latestFinancialStatementFact(
-    (series === undefined ? [] : financialStatementFacts(series)).filter(
-      (fact) => fact.periodKey === income.periodKey,
-    ),
+  cutoff: string,
+): readonly FiscalYear[] {
+  const day = cutoff.slice(0, 10);
+  const filed =
+    artifact.firstAnnualReports ??
+    FINANCIAL_STATEMENT_SERIES_DEFINITIONS.flatMap(({ key }) => {
+      const series = financialStatementSeriesByKey(artifact, key);
+      return (series === undefined ? [] : financialStatementFacts(series)).flatMap((fact) =>
+        fact.periodType === "annual" && fact.periodStart !== undefined
+          ? [{ periodStart: fact.periodStart, periodEnd: fact.periodEnd, filedAt: fact.filedAt }]
+          : [],
+      );
+    });
+  const byEnd = new Map(
+    filed
+      .filter((report) => report.filedAt.slice(0, 10) <= day)
+      .map((report) => [
+        report.periodEnd,
+        { periodStart: report.periodStart, periodEnd: report.periodEnd },
+      ]),
   );
-  if (consolidated !== undefined) {
-    return consolidated.value === income.value
-      ? { status: "same", consolidated }
-      : { status: "bounded", consolidated };
-  }
-  return artifact.validationNotes.some(
-    (note) => note.seriesKey === "consolidatedNetIncome" && note.periodKey === income.periodKey,
-  )
-    ? { status: "withheld", reason: payoutScopeAmbiguity(dividends.concept) }
-    : { status: "same" };
+  return [...byEnd.values()].toSorted((left, right) =>
+    left.periodEnd.localeCompare(right.periodEnd),
+  );
 }
 
-interface PayoutRow {
-  readonly id?: string;
-  readonly status?: string;
-  readonly cause?: string;
-  readonly periodEnd?: string;
-  readonly periodMonths?: number;
+const NONCONTROLLING_NOTE_SERIES = new Set([
+  "consolidatedNetIncome",
+  "consolidatedContinuingIncome",
+]);
+
+function noteEnds(note: FinancialStatementNote): readonly string[] {
+  return [
+    ...(note.periodKey === undefined ? [] : [note.periodKey.split("|").at(-1) ?? ""]),
+    ...(note.periods ?? []).map((period) => period.end),
+  ];
 }
 
-// The latest-year payout decides the check only for an issuer with under 3 filed fiscal years, and only as that annual year.
-export function payoutFallbackApplies(rows: readonly PayoutRow[]): boolean {
-  const cumulative = rows.find((row) => row.id === "payoutRatio3y");
-  const latest = rows.find((row) => row.id === "payoutRatio");
-  return (
-    cumulative?.status === "missing" &&
-    cumulative.cause === "insufficient-history" &&
-    latest?.status === "value" &&
-    latest.periodMonths === 12 &&
-    latest.periodEnd === cumulative.periodEnd
+function noncontrollingReported(
+  artifact: FinancialStatementsArtifact,
+  start: string,
+  end: string,
+): boolean {
+  const within = (date: string) => date >= start && date <= end;
+  const facts = (key: "netIncome" | "consolidatedNetIncome") => {
+    const series = financialStatementSeriesByKey(artifact, key);
+    return series === undefined ? [] : financialStatementFacts(series);
+  };
+  const parent = new Map(facts("netIncome").map((fact) => [fact.periodKey, fact.value]));
+  const income = facts("consolidatedNetIncome").some(
+    (fact) =>
+      within(fact.periodEnd) &&
+      parent.has(fact.periodKey) &&
+      parent.get(fact.periodKey) !== fact.value,
   );
+  const withheld = [...artifact.validationNotes, ...artifact.omissionNotes].some(
+    (note) =>
+      note.code === "withheld-derivation" &&
+      note.seriesKey !== undefined &&
+      NONCONTROLLING_NOTE_SERIES.has(note.seriesKey) &&
+      noteEnds(note).some(within),
+  );
+  const equity = [
+    ...(artifact.equityStack?.minorityInterest ?? []),
+    ...(artifact.enterpriseValueBridge?.noncontrollingInterest ?? []),
+  ].some((fact) => fact.value !== 0 && within(fact.periodEnd));
+  return income || withheld || equity;
+}
+
+// Dividends are parent-scope only when filed by holder class or when the issuer reports no NCI in the span (Accounting Scope).
+export function payoutScopeReason(
+  artifact: FinancialStatementsArtifact,
+  years: readonly {
+    readonly dividend: FinancialStatementFact;
+    readonly income: FinancialStatementFact;
+  }[],
+  span: FiscalYear,
+): string | undefined {
+  const ifrs = years.find(({ income }) => income.taxonomy !== "us-gaap");
+  if (ifrs !== undefined) {
+    return `net income is IFRS ${ifrs.income.concept}, which includes noncontrolling interests; profit attributable to the parent is not in the statements`;
+  }
+  const total = years.find(({ dividend }) => !COMMON_DIVIDENDS_PAID_CONCEPTS.has(dividend.concept));
+  return total !== undefined && noncontrollingReported(artifact, span.periodStart, span.periodEnd)
+    ? `${total.dividend.concept} is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven`
+    : undefined;
+}
+
+export function dividendClassBasis(
+  dividends: readonly FinancialStatementFact[],
+): string | undefined {
+  return dividends.some((fact) => !COMMON_DIVIDENDS_PAID_CONCEPTS.has(fact.concept))
+    ? ALL_PARENT_CLASSES_BASIS
+    : undefined;
 }

@@ -2462,6 +2462,31 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     ).toContain("Operating cash flow (trailing) missing");
   });
 
+  test("a REIT's summary-only payout is not assessed on net income", () => {
+    const result = addFinancialLensEvidence(
+      command,
+      [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
+      {
+        instrument: { symbol: "AAPL", assetClass: "equity" },
+        items: [
+          secEvidenceWithRatios({
+            ...DATED_ANNUAL_CASH_FLOW,
+            dividendsPaid: -150,
+            netIncome: 100,
+            sic: "6798",
+          }),
+          valuationEvidence(),
+        ],
+        gaps: [],
+      },
+      verifiedSnapshot(),
+      "2026-06-22T00:00:00.000Z",
+    );
+
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")?.value).toBe(1.5);
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+  });
+
   test("SEC payout > 0.8 does not support Financial Strength", () => {
     const result = addFinancialLensEvidence(
       command,

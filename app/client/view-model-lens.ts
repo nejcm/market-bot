@@ -15,7 +15,6 @@ import {
   financialLensNameFromSectionId,
 } from "../../src/sources/extended-evidence/financial-lens-contract";
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
-import { payoutFallbackApplies } from "../../src/sources/extended-evidence/payout-basis";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
 import { readRecord } from "./view-model-format";
 
@@ -199,7 +198,11 @@ function assessment(
   return { tone: "weak", assessment: "Weak" };
 }
 
+// A deciding window that paid nothing makes the payout check not applicable, so it earns no badge.
 function payoutAssessment(value: number): Pick<FinancialLensStatTile, "tone" | "assessment"> {
+  if (value === 0) {
+    return { tone: "neutral" };
+  }
   return assessment(
     value,
     (v) => v >= 0 && v <= 0.6,
@@ -417,16 +420,6 @@ export function financialLensStatTiles(
   );
 }
 
-// The latest-year payout carries a badge only when it is the fiscal year the payout check fell back to.
-function sectionPayoutAssessment(
-  metrics: Parameters<typeof payoutFallbackApplies>[0],
-  value: unknown,
-): Pick<FinancialLensStatTile, "tone" | "assessment"> {
-  return typeof value === "number" && Number.isFinite(value) && payoutFallbackApplies(metrics)
-    ? payoutAssessment(value)
-    : { tone: "neutral" };
-}
-
 // The tiles the report itself renders: the frozen Metric Sections, not the artifact's own rows.
 export function financialLensSectionTiles(
   report: Record<string, unknown> | undefined,
@@ -467,7 +460,7 @@ export function financialLensSectionTiles(
           label: metric.label,
           value,
           ...(metric.id === "payoutRatio"
-            ? sectionPayoutAssessment(section.metrics, metric.value)
+            ? { tone: "neutral" as const }
             : assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" })),
           ...(caption === "" ? {} : { caption }),
         },

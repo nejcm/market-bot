@@ -13,7 +13,8 @@ import {
 } from "./metric-engine";
 import { type LensValueUnit } from "./value-format";
 import { readNumberMetric } from "./utils";
-import { PAYOUT_CEILING, payoutFallbackApplies } from "./payout-basis";
+import { PAYOUT_CEILING } from "./payout-basis";
+import { REIT_SIC } from "./industry-classification";
 import {
   type MetricPeriod,
   periodEndInput,
@@ -201,11 +202,14 @@ function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
 
 const withinPayoutCeiling = (value: number) => value <= PAYOUT_CEILING;
 
-// The 3y window decides; a non-payer is one whose deciding window paid nothing.
+// The 3y window (or, under 3 filed years, the latest annual year) decides; a non-payer is one whose deciding window paid nothing.
 export function payoutCriterion(
   ctx: MetricContext,
   section: readonly MetricResult[] | undefined,
 ): PostureCriterion {
+  if (ctx.secIssuer?.sic === REIT_SIC) {
+    return "not-applicable";
+  }
   if (ctx.statements === undefined) {
     const dividend = readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid");
     const payout = section?.find((metric) => metric.id === "payoutRatio");
@@ -219,20 +223,9 @@ export function payoutCriterion(
   if (eligibleFacts(ctx, "dividendsPaid").every((fact) => fact.value === 0)) {
     return "not-applicable";
   }
-  const rows = section ?? [];
-  const cumulative = rows.find((metric) => metric.id === "payoutRatio3y");
-  const decidingId =
-    cumulative !== undefined && cumulative.status !== "missing"
-      ? "payoutRatio3y"
-      : payoutFallbackApplies(rows)
-        ? "payoutRatio"
-        : undefined;
-  if (decidingId === undefined) {
-    return undefined;
-  }
-  return valueOf(section, decidingId) === 0
+  return valueOf(section, "payoutRatio3y") === 0
     ? "not-applicable"
-    : criterionOf(section, decidingId, withinPayoutCeiling);
+    : criterionOf(section, "payoutRatio3y", withinPayoutCeiling);
 }
 
 function strengthPosture(

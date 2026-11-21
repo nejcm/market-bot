@@ -3778,7 +3778,10 @@ type WorkbenchValues = Readonly<
   >
 >;
 const MISSING_WORKBENCH_PRICE = { status: "missing", reason: "price-history-unavailable" } as const;
-const IFRS_WORKBENCH_EV = { status: "missing", reason: "ev-bridge-incomplete" } as const;
+const INCOMPLETE_WORKBENCH_EV_BRIDGE = {
+  status: "missing",
+  reason: "ev-bridge-incomplete",
+} as const;
 const MISSING_WORKBENCH_DEBT = { status: "missing", reason: "debt-unavailable" } as const;
 const MISSING_WORKBENCH_CASH = { status: "missing", reason: "cash-unavailable" } as const;
 const DE_MINIMIS_WORKBENCH_REVENUE = {
@@ -3955,7 +3958,7 @@ const AMD_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2017-12-30|2018-02-27": [
     MISSING_WORKBENCH_PRICE,
     MISSING_WORKBENCH_PRICE,
-    IFRS_WORKBENCH_EV,
+    INCOMPLETE_WORKBENCH_EV_BRIDGE,
     MISSING_WORKBENCH_PRICE,
   ],
   "annual|2018-12-29|2019-02-08": [
@@ -4063,7 +4066,7 @@ const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
   "annual|2023-12-31|2024-02-28": [
     9.227_360_190_683_706,
     2.524_265_197_258_961_4,
-    IFRS_WORKBENCH_EV,
+    INCOMPLETE_WORKBENCH_EV_BRIDGE,
     12.924_237_809_965_883,
   ],
   "annual|2024-12-31|2025-02-27": [
@@ -4072,25 +4075,25 @@ const EBAY_WORKBENCH_VALUES: WorkbenchValues = {
   "ttm|2025-09-30|2025-10-30": [
     { status: "missing", reason: "earnings-unavailable" },
     MISSING_WORKBENCH_SHARES,
-    IFRS_WORKBENCH_EV,
+    INCOMPLETE_WORKBENCH_EV_BRIDGE,
     MISSING_WORKBENCH_SHARES,
   ],
   "annual|2025-12-31|2026-02-19": [
     19.527_649_769_585_253,
     3.573_243_243_243_243,
-    IFRS_WORKBENCH_EV,
+    INCOMPLETE_WORKBENCH_EV_BRIDGE,
     26.727_088_948_787_063,
   ],
   "ttm|2026-03-31|2026-04-29": [
     23.535_147_599_892_82,
     4.087_558_636_538_779_5,
-    IFRS_WORKBENCH_EV,
+    INCOMPLETE_WORKBENCH_EV_BRIDGE,
     27.291_156_742_460_3,
   ],
   "ttm|2026-06-30|2026-08-06": [
     22.709_278_224_669_78,
     4.173_359_403_921_555,
-    IFRS_WORKBENCH_EV,
+    INCOMPLETE_WORKBENCH_EV_BRIDGE,
     20.005_468_951_013_988,
   ],
   "ttm|2026-09-30|2026-10-29": [
@@ -4170,13 +4173,13 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2023-12-31|2025-04-30": [
       34.969_230_064_978_966,
       RESTATED_WORKBENCH_INPUT,
-      IFRS_WORKBENCH_EV,
+      INCOMPLETE_WORKBENCH_EV_BRIDGE,
       RESTATED_WORKBENCH_INPUT,
     ],
     "annual|2024-12-31|2025-04-30": [
       NEGATIVE_WORKBENCH_DENOMINATOR,
       RESTATED_WORKBENCH_INPUT,
-      IFRS_WORKBENCH_EV,
+      INCOMPLETE_WORKBENCH_EV_BRIDGE,
       RESTATED_WORKBENCH_INPUT,
     ],
     "ttm|2025-12-31|2026-04-30": [
@@ -4217,19 +4220,19 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2023-12-31|2024-03-15": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_SHARES,
-      IFRS_WORKBENCH_EV,
+      INCOMPLETE_WORKBENCH_EV_BRIDGE,
       MISSING_WORKBENCH_SHARES,
     ],
     "annual|2024-12-31|2025-03-15": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_SHARES,
-      IFRS_WORKBENCH_EV,
+      INCOMPLETE_WORKBENCH_EV_BRIDGE,
       MISSING_WORKBENCH_SHARES,
     ],
     "ttm|2025-12-31|2026-03-15": [
       14.314_666_666_666_666,
       MISSING_WORKBENCH_SHARES,
-      IFRS_WORKBENCH_EV,
+      INCOMPLETE_WORKBENCH_EV_BRIDGE,
       MISSING_WORKBENCH_SHARES,
     ],
   },
@@ -4265,7 +4268,7 @@ const EXPECTED_WORKBENCH_VALUES: Readonly<Record<string, WorkbenchValues>> = {
     "annual|2020-12-31|2021-02-23": [
       MISSING_WORKBENCH_PRICE,
       MISSING_WORKBENCH_PRICE,
-      IFRS_WORKBENCH_EV,
+      INCOMPLETE_WORKBENCH_EV_BRIDGE,
       REIT_WORKBENCH_FCF,
     ],
     "annual|2021-12-31|2022-02-23": [

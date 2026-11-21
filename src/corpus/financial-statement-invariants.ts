@@ -1,3 +1,4 @@
+import { OTHER_CURRENCY_BRIDGE_KEYS } from "../sources/extended-evidence/enterprise-value-bridge";
 import { ZERO_BORROWINGS_EXTRACTION_METHOD } from "../sources/extended-evidence/financial-statements-contract";
 import type {
   FinancialStatementFact,
@@ -457,20 +458,25 @@ export function assertCompositeFactIntegrity(
   }
 }
 
-// A9: EV bridge facts are reporting-currency instants or withhold theirs in the filed currency; combined < cash is the resolver's job.
+// A9: EV bridge facts are reporting-currency instants, or additive ones withheld in their filed currency; combined < cash is the resolver's job.
 function assertEnterpriseValueBridge(
   artifact: FinancialStatementsArtifact,
   check: FinancialInvariantCheck,
 ): void {
-  for (const fact of Object.values(artifact.enterpriseValueBridge ?? {}).flat()) {
-    check(
-      fact.periodKey.startsWith("instant|") &&
-        (fact.currency === artifact.reportingCurrency ||
-          (fact.shortTermInvestmentsWithheld !== undefined && fact.currency === fact.unit)),
-      "A9",
-      `EV bridge ${fact.concept} is not a reporting-currency instant`,
-      fact.periodEnd,
-    );
+  for (const [key, facts] of Object.entries(artifact.enterpriseValueBridge ?? {})) {
+    const withholdable = (OTHER_CURRENCY_BRIDGE_KEYS as readonly string[]).includes(key);
+    for (const fact of facts) {
+      check(
+        fact.periodKey.startsWith("instant|") &&
+          (fact.currency === artifact.reportingCurrency ||
+            (withholdable &&
+              fact.shortTermInvestmentsWithheld !== undefined &&
+              fact.currency === fact.unit)),
+        "A9",
+        `EV bridge ${fact.concept} is not a reporting-currency instant`,
+        fact.periodEnd,
+      );
+    }
   }
 }
 

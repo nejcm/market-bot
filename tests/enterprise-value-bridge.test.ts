@@ -202,6 +202,97 @@ describe("enterprise value bridge on both SEC producers", () => {
     },
   );
 
+  test.each([
+    ["legacy", "PreferredStockValue", "preferredStock"],
+    ["canonical", "PreferredStockValue", "preferredStock"],
+    ["legacy", "TemporaryEquityCarryingAmountAttributableToParent", "temporaryEquity"],
+    ["canonical", "TemporaryEquityCarryingAmountAttributableToParent", "temporaryEquity"],
+  ] as const)(
+    "AMD %s withholds EV but keeps net debt −1,860M when %s is filed only in EUR",
+    (path, concept, key) => {
+      const { metrics, gaps } = payloadValuations(withEur(amdWithoutSti, { [concept]: amdAt(25) }))[
+        path
+      ];
+      expect(metrics?.netDebt).toBe(-1860 * M);
+      expect(metrics?.enterpriseValue).toBeUndefined();
+      expect(metrics?.[`${key}IncompleteReason`]).toBe(
+        `${concept} at 2026-06-27 is filed in EUR, not reporting currency USD`,
+      );
+      expect(bridgeGaps(gaps)).toHaveLength(1);
+    },
+  );
+
+  test.each(["legacy", "canonical"] as const)(
+    "AMD %s: a later EUR-only EquitySecuritiesFvNiCurrent withholds beside an earlier EUR generic line",
+    (path) => {
+      const { metrics, gaps } = payloadValuations(
+        withEur(amdWithoutSti, {
+          EquitySecuritiesFvNi: amdAt(1200),
+          EquitySecuritiesFvNiCurrent: amdAt(1200, "2026-09-15", "amd-10q-a"),
+        }),
+      )[path];
+      expect(metrics?.netDebt).toBeUndefined();
+      expect(metrics?.enterpriseValue).toBeUndefined();
+      expect(metrics?.shortTermInvestmentsIncompleteReason).toBe(
+        "EquitySecuritiesFvNiCurrent at 2026-06-27 is filed in EUR, not reporting currency USD",
+      );
+      expect(bridgeGaps(gaps)).toHaveLength(1);
+    },
+  );
+
+  // Q1 instant 2026-03-28: the 10-Q (2026-05-04) and a later filing (2026-06-15) disagree on short-term investments.
+  const q1 = (value: number, filed: string) => [
+    fact(value, "2026-03-28", filed, `amd-q1-${filed}`),
+  ];
+
+  test.each(["legacy", "canonical"] as const)(
+    "AMD %s: EUR-only short-term investments amended from 0 to 50M at the prior quarter keep continuity",
+    (path) => {
+      const { metrics, gaps } = payloadValuations(
+        withEur(amdWithoutSti, {
+          ShortTermInvestments: [...q1(0, "2026-05-04"), ...q1(50 * M, "2026-06-15")],
+        }),
+      )[path];
+      expect(metrics?.netDebt).toBeUndefined();
+      expect(metrics?.shortTermInvestmentsIncompleteReason).toBe(
+        "short-term investments (ShortTermInvestments) reported nonzero at 2026-03-28 but not tagged at 2026-06-27",
+      );
+      expect(bridgeGaps(gaps)).toHaveLength(1);
+    },
+  );
+
+  test.each(["legacy", "canonical"] as const)(
+    "AMD %s: a USD zero superseding EUR 50M at the prior quarter breaks continuity",
+    (path) => {
+      const { metrics, gaps } = payloadValuations(
+        withEur(
+          { ...amdWithoutSti, ShortTermInvestments: q1(0, "2026-06-15") },
+          { ShortTermInvestments: q1(50 * M, "2026-05-04") },
+        ),
+      )[path];
+      expect(metrics).toMatchObject({ netDebt: -1860 * M, shortTermInvestments: 0 });
+      expect(bridgeGaps(gaps)).toHaveLength(0);
+    },
+  );
+
+  test("a same-filing EUR translation never reads as foreign-only at a cutoff before a USD restatement", () => {
+    const { artifact } = payloadValuations(
+      withEur(
+        {
+          ...amdWithoutSti,
+          ShortTermInvestments: [...amdAt(8025), ...amdAt(8055, "2026-09-15", "amd-10q-a")],
+        },
+        { ShortTermInvestments: amdAt(7300) },
+      ),
+    );
+    const part = resolveEnterpriseValueBridge(
+      artifact.enterpriseValueBridge,
+      { value: 5086 * M, periodEnd: "2026-06-27" },
+      "2026-09-01",
+    ).shortTermInvestments;
+    expect(part).not.toMatchObject({ reason: expect.stringContaining("filed in EUR") });
+  });
+
   test.each(["legacy", "canonical"] as const)(
     "AMD %s withholds net debt when EquitySecuritiesFvNiCurrent is filed only in EUR",
     (path) => {

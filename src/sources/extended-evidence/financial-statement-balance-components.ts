@@ -1,5 +1,6 @@
 import {
   ENTERPRISE_VALUE_BRIDGE_CONCEPTS,
+  OTHER_CURRENCY_BRIDGE_KEYS,
   TEMPORARY_EQUITY_CONCEPT_PRIORITY,
   trimToMezzaninePeriods,
 } from "./enterprise-value-bridge";
@@ -233,49 +234,42 @@ function otherCurrencyInstants(
   concepts: readonly string[],
   reportingCurrency: string,
   input: FinancialStatementsDeriveInput,
-  tagged: readonly FinancialStatementFact[],
 ): readonly FinancialStatementFact[] {
+  const rows = concepts
+    .flatMap((concept) => unitFacts("us-gaap", root, concept))
+    .filter((fact) => fact.periodStart === undefined && isObservable(fact, input.analysisAsOf))
+    .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
+  // A translation filed with or after the same concept in the reporting currency adds nothing.
+  const reported = (fact: ParsedFact) =>
+    rows.some(
+      (row) =>
+        row.unit === reportingCurrency &&
+        row.concept === fact.concept &&
+        row.periodEnd === fact.periodEnd &&
+        row.filedAt <= fact.filedAt,
+    );
   const earliest = new Map<string, ParsedFact>();
-  for (const fact of concepts.flatMap((concept) => unitFacts("us-gaap", root, concept))) {
-    const first = earliest.get(fact.periodEnd);
+  for (const fact of rows) {
+    const key = [fact.periodEnd, fact.concept, fact.unit, fact.value].join("|");
     if (
-      fact.periodStart === undefined &&
       fact.unit !== reportingCurrency &&
       currencyForUnit(fact.unit) === fact.unit &&
-      isObservable(fact, input.analysisAsOf) &&
-      (first === undefined || fact.filedAt < first.filedAt)
+      !earliest.has(key) &&
+      !reported(fact)
     ) {
-      earliest.set(fact.periodEnd, fact);
+      earliest.set(key, fact);
     }
   }
-  return [...earliest.values()]
-    .filter(
-      (fact) =>
-        !tagged.some(
-          (filed) =>
-            filed.periodEnd === fact.periodEnd &&
-            (filed.firstPublicAt ?? filed.filedAt) <= fact.filedAt,
-        ),
-    )
-    .map((fact) => ({
-      ...toSelectedFact(
-        { ...fact, firstPublicAt: fact.filedAt },
-        INSTANT_DEFINITION,
-        fact.unit,
-        input.sourceId,
-      ),
-      shortTermInvestmentsWithheld: `${fact.concept} at ${fact.periodEnd} is filed in ${fact.unit}, not reporting currency ${reportingCurrency}`,
-    }));
+  return [...earliest.values()].map((fact) => ({
+    ...toSelectedFact(
+      { ...fact, firstPublicAt: fact.filedAt },
+      INSTANT_DEFINITION,
+      fact.unit,
+      input.sourceId,
+    ),
+    shortTermInvestmentsWithheld: `${fact.concept} at ${fact.periodEnd} is filed in ${fact.unit}, not reporting currency ${reportingCurrency}`,
+  }));
 }
-
-const OTHER_CURRENCY_BRIDGE_KEYS = [
-  "shortTermInvestments",
-  "cashAndShortTermInvestments",
-  "currentEquitySecurities",
-  "noncontrollingInterest",
-  "preferredStock",
-  "temporaryEquity",
-] as const;
 
 export function selectEnterpriseValueBridge(
   payload: unknown,
@@ -319,7 +313,6 @@ export function selectEnterpriseValueBridge(
             ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
             reportingCurrency,
             input,
-            lists[key],
           ),
         ].toSorted(chronological),
       ]),

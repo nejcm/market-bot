@@ -229,6 +229,28 @@ describe("live financial invariant negative controls", () => {
     expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
   });
 
+  test("A9 fires on a withheld other-currency fact in an identity list", () => {
+    const artifact = results
+      .map((result) => result.deepEquityEvidenceBundle?.derived.financialStatements)
+      .find((candidate) => (candidate?.enterpriseValueBridge?.assets.length ?? 0) > 0);
+    const bridge = artifact?.enterpriseValueBridge;
+    const [first] = bridge?.assets ?? [];
+    if (artifact === undefined || bridge === undefined || first === undefined) {
+      throw new Error("No fixture carries bridge assets");
+    }
+    const injected = {
+      ...artifact,
+      enterpriseValueBridge: {
+        ...bridge,
+        assets: [
+          { ...first, currency: "EUR", unit: "EUR", shortTermInvestmentsWithheld: "filed in EUR" },
+        ],
+      },
+    };
+
+    expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
+  });
+
   test("A2 fires when a flow fact carries no start", () => {
     const artifact = financialStatements(fixtureResult(results, 0));
     const { revenue } = artifact.statements.incomeStatement;

@@ -43,6 +43,16 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
   otherAssetsCurrent: ["PrepaidExpenseAndOtherAssetsCurrent", "OtherAssetsCurrent"],
 } as const;
 
+// Additive lists whose resolver honours a withheld other-currency fact; identity lists never carry one.
+export const OTHER_CURRENCY_BRIDGE_KEYS = [
+  "shortTermInvestments",
+  "cashAndShortTermInvestments",
+  "currentEquitySecurities",
+  "noncontrollingInterest",
+  "preferredStock",
+  "temporaryEquity",
+] as const satisfies readonly (keyof typeof ENTERPRISE_VALUE_BRIDGE_CONCEPTS)[];
+
 const MEZZANINE_IDENTITY_KEYS = [
   "assets",
   "liabilities",
@@ -154,10 +164,24 @@ function withinContinuity(periodEnd: string, instant: string): boolean {
   return days > 0 && days <= CONTINUITY_DAYS;
 }
 
-// A filed reporting-currency fact outranks a withheld one at the same instant.
-function factAt<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
+// A filed reporting-currency fact outranks withheld ones at the same instant.
+function effectiveAt<F extends BridgeFact>(facts: readonly F[], instant: string): readonly F[] {
   const at = facts.filter((fact) => fact.periodEnd === instant);
-  return at.findLast((fact) => fact.shortTermInvestmentsWithheld === undefined) ?? at.at(-1);
+  const filed = at.filter((fact) => fact.shortTermInvestmentsWithheld === undefined);
+  return filed.length > 0 ? filed.slice(-1) : at;
+}
+
+function factAt<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
+  return effectiveAt(facts, instant).at(-1);
+}
+
+function priorNonzero<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
+  return facts.findLast(
+    (fact) =>
+      fact.value !== 0 &&
+      withinContinuity(fact.periodEnd, instant) &&
+      effectiveAt(facts, fact.periodEnd).includes(fact),
+  );
 }
 
 function component<F extends BridgeFact>(
@@ -176,9 +200,7 @@ function component<F extends BridgeFact>(
   if (derived !== undefined) {
     return derived;
   }
-  const prior = facts.findLast(
-    (fact) => fact.value !== 0 && withinContinuity(fact.periodEnd, instant),
-  );
+  const prior = priorNonzero(facts, instant);
   return prior === undefined
     ? { status: "untagged" }
     : {
@@ -282,9 +304,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
     cash.periodEnd,
   );
   if (equity === undefined) {
-    const prior = explicit.findLast(
-      (fact) => fact.value !== 0 && withinContinuity(fact.periodEnd, cash.periodEnd),
-    );
+    const prior = priorNonzero(explicit, cash.periodEnd);
     return prior === undefined
       ? part
       : {

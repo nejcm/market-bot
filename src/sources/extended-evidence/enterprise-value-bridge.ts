@@ -24,6 +24,7 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
     "AvailableForSaleSecuritiesCurrent",
     "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
     "OtherShortTermInvestments",
+    "AvailableForSaleSecuritiesEquitySecuritiesCurrent",
     "HeldToMaturitySecuritiesCurrent",
   ],
   cashAndShortTermInvestments: ["CashCashEquivalentsAndShortTermInvestments"],
@@ -123,19 +124,16 @@ const COMBINED_CONCEPT = "CashCashEquivalentsAndShortTermInvestments";
 const CURRENT_EQUITY_CONCEPT = "EquitySecuritiesFvNiCurrent";
 const TOTAL_SHORT_TERM_CONCEPT = "ShortTermInvestments";
 const AFS_EXCLUDING_INTEREST = "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent";
+const DEBT_AFS = ["AvailableForSaleSecuritiesDebtSecuritiesCurrent", AFS_EXCLUDING_INTEREST];
 const BROAD_AFS = "AvailableForSaleSecuritiesCurrent";
 const HTM_CURRENT = "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent";
 const GROSS_HTM_CURRENT = "HeldToMaturitySecuritiesCurrent";
-// Lines a pick may contain or equal (AAPL: AFS inside MSC; VKTX: broad AFS = debt AFS); one larger than the pick withholds.
+// Lines a pick may contain (AAPL: AFS inside MSC); one larger, in another unit, or an unusable broad AFS withholds.
 const SHORT_TERM_COVERS: Readonly<Record<string, readonly string[]>> = {
-  MarketableSecuritiesCurrent: [
-    "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
-    AFS_EXCLUDING_INTEREST,
-    BROAD_AFS,
-  ],
-  AvailableForSaleSecuritiesDebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, BROAD_AFS],
-  DebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, BROAD_AFS, HTM_CURRENT],
-  [AFS_EXCLUDING_INTEREST]: [BROAD_AFS],
+  MarketableSecuritiesCurrent: [...DEBT_AFS, BROAD_AFS],
+  AvailableForSaleSecuritiesDebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST],
+  DebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, HTM_CURRENT],
+  [BROAD_AFS]: ["AvailableForSaleSecuritiesEquitySecuritiesCurrent"],
 };
 const DEBT_ONLY_SHORT_TERM: ReadonlySet<string> = new Set([
   "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
@@ -286,6 +284,10 @@ function withCombinedCheck<F extends BridgeFact>(
     : part;
 }
 
+function usable(fact: BridgeFact): boolean {
+  return fact.shortTermInvestmentsWithheld === undefined;
+}
+
 // A separate line the pick does not cover (Allot deposits, MMI HTM beside AFS) may sit beside it or inside it: never summed.
 function withUncoveredShortTermLine<F extends BridgeFact>(
   part: BridgeComponent<F>,
@@ -302,13 +304,25 @@ function withUncoveredShortTermLine<F extends BridgeFact>(
     };
   }
   const covered = SHORT_TERM_COVERS[part.concept] ?? [];
-  const other = facts.find(
+  const lines = facts.filter(
     (fact) =>
       fact.periodEnd === instant &&
-      fact.concept !== part.concept &&
-      (!covered.includes(fact.concept) || fact.value > part.value) &&
-      (fact.value !== 0 || fact.shortTermInvestmentsWithheld !== undefined) &&
       facts.findLast((row) => row.periodEnd === instant && row.concept === fact.concept) === fact,
+  );
+  // Broad AFS also holds equity; only an equal usable AFS debt line proves it holds none (VKTX FY2019).
+  const debtOnlyBroadAfs = (fact: F) =>
+    fact.concept === BROAD_AFS &&
+    usable(fact) &&
+    lines.some((row) => DEBT_AFS.includes(row.concept) && usable(row) && row.value === fact.value);
+  const other = lines.find(
+    (fact) =>
+      fact.concept !== part.concept &&
+      (fact.value !== 0 || !usable(fact)) &&
+      !debtOnlyBroadAfs(fact) &&
+      (!covered.includes(fact.concept) ||
+        fact.value > part.value ||
+        fact.unit !== part.fact.unit ||
+        (fact.concept === BROAD_AFS && !usable(fact))),
   );
   return other === undefined
     ? part
@@ -387,9 +401,9 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const outsideIdentity =
     withoutEquity !== undefined && withoutEquity <= tolerance && (withEquity ?? 0) > tolerance;
   const additive = debtOnly && (closesIdentity || (explicitLine && !outsideIdentity));
-  // A withheld generic line withholds only where its as-filed value would add; otherwise it proves nothing, like no line.
+  // A withheld generic line withholds where its as-filed value would add or withhold; otherwise it proves nothing.
   if (withheld !== undefined) {
-    return additive && equity.unit === total?.unit
+    return closesIdentity && equity.unit === total?.unit
       ? { status: "incomplete", reason: withheld }
       : unproven();
   }

@@ -418,8 +418,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   resolver serves the legacy summary, the canonical artifact, peers, lenses, reverse DCF and the Workbench
   (point-in-time at `publicAt`). Each component is read at the cash instant from priority alternatives,
   never summed (`ShortTermInvestments` > `MarketableSecuritiesCurrent` >
-  `AvailableForSaleSecuritiesDebtSecuritiesCurrent` > `DebtSecuritiesCurrent`, else
-  `CashCashEquivalentsAndShortTermInvestments` − cash; current equity securities add to a debt-only pick:
+  `AvailableForSaleSecuritiesDebtSecuritiesCurrent` > `DebtSecuritiesCurrent` >
+  `DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent` > `AvailableForSaleSecuritiesCurrent` >
+  `DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent` >
+  `HeldToMaturitySecuritiesCurrent` > `OtherShortTermInvestments`, else
+  `CashCashEquivalentsAndShortTermInvestments` − cash; a nonzero or withheld `OtherShortTermInvestments` beside
+  any pick but the `ShortTermInvestments` total is incomplete, since it may be a separate face line (Allot 6-K
+  0001178913-25-002876: 11,050K beside 11,518K AFS) or inside the pick; current equity securities add to a debt-only pick:
   `EquitySecuritiesFvNiCurrent` unless current assets already sum without it, and the generic
   `EquitySecuritiesFvNi` only when it closes the current-asset identity with receivables, inventory and other
   current assets all tagged (NVDA FY2027 Q2: 42,783M; usually it is a noncurrent holding, META, MRK); explicit

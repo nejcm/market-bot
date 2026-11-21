@@ -20,6 +20,11 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
     "MarketableSecuritiesCurrent",
     "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
     "DebtSecuritiesCurrent",
+    "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+    "AvailableForSaleSecuritiesCurrent",
+    "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
+    "HeldToMaturitySecuritiesCurrent",
+    "OtherShortTermInvestments",
   ],
   cashAndShortTermInvestments: ["CashCashEquivalentsAndShortTermInvestments"],
   // Added to debt-only short-term lines; the generic concept counts only where current assets prove it current (NVDA).
@@ -116,6 +121,7 @@ const CONTINUITY_DAYS = 400;
 const NONE_TAGGED = "none tagged";
 const COMBINED_CONCEPT = "CashCashEquivalentsAndShortTermInvestments";
 const CURRENT_EQUITY_CONCEPT = "EquitySecuritiesFvNiCurrent";
+const OTHER_SHORT_TERM_CONCEPT = "OtherShortTermInvestments";
 const DEBT_ONLY_SHORT_TERM: ReadonlySet<string> = new Set([
   "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
   "DebtSecuritiesCurrent",
@@ -261,6 +267,31 @@ function withCombinedCheck<F extends BridgeFact>(
         reason: `${COMBINED_CONCEPT} − cash (${String(residual)}) does not equal ${part.concept} (${String(part.value)}) at ${cash.periodEnd}; the difference is not classified`,
       }
     : part;
+}
+
+// Beside a non-total pick the other line may be its own face line (Allot) or inside the pick, so it is neither summed nor dropped.
+function withOtherShortTermInvestments<F extends BridgeFact>(
+  part: BridgeComponent<F>,
+  facts: readonly F[],
+  instant: string,
+): BridgeComponent<F> {
+  if (
+    part.status !== "tagged" ||
+    part.concept === "ShortTermInvestments" ||
+    part.concept === OTHER_SHORT_TERM_CONCEPT
+  ) {
+    return part;
+  }
+  const other = facts.findLast(
+    (fact) => fact.periodEnd === instant && fact.concept === OTHER_SHORT_TERM_CONCEPT,
+  );
+  return other === undefined ||
+    (other.value === 0 && other.shortTermInvestmentsWithheld === undefined)
+    ? part
+    : {
+        status: "incomplete",
+        reason: `${OTHER_SHORT_TERM_CONCEPT} (${String(other.value)}) beside ${part.concept} (${String(part.value)}) at ${instant}; whether it is a separate balance-sheet line is not proven`,
+      };
 }
 
 function valueAt<F extends BridgeFact>(facts: readonly F[], instant: string): number | undefined {
@@ -464,11 +495,15 @@ export function resolveEnterpriseValueBridge<F extends BridgeFact>(
   return {
     shortTermInvestments: withCombinedCheck(
       withCurrentEquitySecurities(
-        component(
-          "shortTermInvestments",
+        withOtherShortTermInvestments(
+          component(
+            "shortTermInvestments",
+            shown.shortTermInvestments,
+            cash.periodEnd,
+            combinedShortTermInvestments(shown.cashAndShortTermInvestments, cash),
+          ),
           shown.shortTermInvestments,
           cash.periodEnd,
-          combinedShortTermInvestments(shown.cashAndShortTermInvestments, cash),
         ),
         shown,
         cash,

@@ -1848,3 +1848,158 @@ describe("extension short-term investments proven from the filing's XBRL instanc
     expect(sti).toMatchObject({ value: 700 * M, concept: "ShortTermInvestments" });
   });
 });
+
+describe("current short-term investment concepts beside the face-line list", () => {
+  const asOf = "2026-11-21T00:00:00.000Z";
+  const resolvedAt = (gaap: Facts, periodEnd: string, publicAt?: string) =>
+    resolveEnterpriseValueBridge(
+      deriveFinancialStatements(companyFacts(gaap), {
+        symbol: "TEST",
+        generatedAt: asOf,
+        analysisAsOf: asOf,
+        sourceId: "extended-sec-edgar-test-fundamentals",
+      }).enterpriseValueBridge,
+      { value: 1, periodEnd },
+      publicAt,
+    ).shortTermInvestments;
+
+  // FTNT 10-Q 0001262039-26-000021 (2026-07-30): cash 2,934.9 + OtherSTI 1,134.7 + 2,138.7 other lines = AssetsCurrent 6,208.3M.
+  const ftnt = (value: number) => [
+    fact(value * M, "2026-06-30", "2026-07-30", "0001262039-26-000021"),
+  ];
+  test.each(["legacy", "canonical"] as const)(
+    "FTNT %s 2026-06-30 net debt subtracts OtherShortTermInvestments 1,134.7M: 496.9 − 2,934.9 − 1,134.7 = −3,572.7M",
+    (path) => {
+      const { metrics, gaps } = valuations({
+        CashAndCashEquivalentsAtCarryingValue: ftnt(2934.9),
+        OtherShortTermInvestments: ftnt(1134.7),
+        LongTermDebtNoncurrent: ftnt(496.9),
+        LongTermDebtCurrent: ftnt(0),
+      })[path];
+      expect(metrics).toMatchObject({
+        shortTermInvestments: 1134.7 * M,
+        shortTermInvestmentsConcept: "OtherShortTermInvestments",
+      });
+      expect(metrics?.netDebt).toBeCloseTo(-3572.7 * M, 0);
+      expect(metrics?.enterpriseValue).toBeCloseTo(400_000 * M - 3572.7 * M, 0);
+      expect(bridgeGaps(gaps)).toHaveLength(0);
+    },
+  );
+
+  test.each([
+    // ZS FY2026 10-K 0001713683-26-000157 (2026-09-03): AFS debt current at fair value excluding accrued interest.
+    [
+      "ZS",
+      "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+      2545.797,
+      "2026-07-31",
+      "2026-09-03",
+      "0001713683-26-000157",
+    ],
+    // VRT 10-Q 0001628280-26-067893 (2026-10-28): held-to-maturity current at amortized cost after allowance.
+    [
+      "VRT",
+      "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
+      198.8,
+      "2026-09-30",
+      "2026-10-28",
+      "0001628280-26-067893",
+    ],
+  ] as const)("%s %s %dM at %s is tagged", (_issuer, concept, value, end, filed, accn) => {
+    expect(resolvedAt({ [concept]: [fact(value * M, end, filed, accn)] }, end)).toMatchObject({
+      status: "tagged",
+      value: value * M,
+      concept,
+    });
+  });
+
+  // ALLT 6-K 0001178913-25-002876 (2025-08-14): cash 26,943 + OtherSTI 11,050 + AFS 11,518 + other lines = AssetsCurrent 87,293K,
+  // So both lines sit on the face; 6-K 0001178913-25-003436 (2025-09-30) adds MSC 33,190K, the total incl. noncurrent AFS.
+  const allot = (thousands: number, filed = "2025-08-14", accn = "0001178913-25-002876") =>
+    fact(thousands * 1000, "2025-06-30", filed, accn, "6-K");
+  const allotFacts: Facts = {
+    CashAndCashEquivalentsAtCarryingValue: [allot(26_943)],
+    AvailableForSaleSecuritiesDebtSecuritiesCurrent: [allot(11_518)],
+    OtherShortTermInvestments: [allot(11_050)],
+    MarketableSecuritiesCurrent: [allot(33_190, "2025-09-30", "0001178913-25-003436")],
+  };
+  test.each([
+    ["2025-08-14", "AvailableForSaleSecuritiesDebtSecuritiesCurrent (11518000)"],
+    ["none", "MarketableSecuritiesCurrent (33190000)"],
+  ] as const)(
+    "ALLT 2025-06-30 at publicAt %s withholds short-term investments beside OtherShortTermInvestments 11.05M",
+    (publicAt, pick) => {
+      expect(
+        resolvedAt(allotFacts, "2025-06-30", publicAt === "none" ? undefined : publicAt),
+      ).toEqual({
+        status: "incomplete",
+        reason: `OtherShortTermInvestments (11050000) beside ${pick} at 2025-06-30; whether it is a separate balance-sheet line is not proven`,
+      });
+    },
+  );
+
+  // The legacy summary reads no 6-K, so only the canonical producer carries Allot.
+  test("ALLT canonical withholds net debt and EV with one SEC EV bridge incomplete gap", () => {
+    const { metrics, gaps } = valuations({ ...allotFacts, LongTermDebt: [allot(0)] }).canonical;
+    expect(metrics?.shortTermInvestmentsIncompleteReason).toContain("OtherShortTermInvestments");
+    expect(metrics?.debt).toBe(0);
+    expect(metrics?.netDebt).toBeUndefined();
+    expect(metrics?.enterpriseValue).toBeUndefined();
+    expect(bridgeGaps(gaps)).toHaveLength(1);
+  });
+
+  test("a switch from the legacy AFS concept to the excluding-accrued-interest concept keeps continuity", () => {
+    expect(
+      resolvedAt(
+        {
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: [
+            fact(2400 * M, "2026-04-30", "2026-06-01", "q3"),
+          ],
+          DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent: [
+            fact(2500 * M, "2026-07-31", "2026-09-03", "fy"),
+          ],
+        },
+        "2026-07-31",
+      ),
+    ).toMatchObject({ status: "tagged", value: 2500 * M });
+  });
+
+  // BA 10-Q 0001628280-26-067508 (2026-10-27): OtherSTI 10,660M sits inside the ShortTermInvestments total 11,216M.
+  test("BA 2026-09-30 keeps the ShortTermInvestments total 11,216M beside OtherShortTermInvestments 10,660M", () => {
+    const ba = (value: number) => [
+      fact(value * M, "2026-09-30", "2026-10-27", "0001628280-26-067508"),
+    ];
+    expect(
+      resolvedAt(
+        { ShortTermInvestments: ba(11_216), OtherShortTermInvestments: ba(10_660) },
+        "2026-09-30",
+      ),
+    ).toMatchObject({ status: "tagged", value: 11_216 * M, concept: "ShortTermInvestments" });
+  });
+
+  test("OtherShortTermInvestments tagged 0 beside MarketableSecuritiesCurrent keeps the pick", () => {
+    const at = (value: number) => [fact(value * M, "2026-06-30", "2026-08-01", "q2")];
+    expect(
+      resolvedAt(
+        { MarketableSecuritiesCurrent: at(300), OtherShortTermInvestments: at(0) },
+        "2026-06-30",
+      ),
+    ).toMatchObject({ status: "tagged", value: 300 * M, concept: "MarketableSecuritiesCurrent" });
+  });
+
+  test("OtherShortTermInvestments filed only in EUR is withheld, never read as 0", () => {
+    const part = resolveEnterpriseValueBridge(
+      payloadValuations(
+        withEur(
+          {},
+          { OtherShortTermInvestments: [fact(50 * M, "2026-06-30", "2026-08-01", "q2")] },
+        ),
+      ).artifact.enterpriseValueBridge,
+      { value: 1, periodEnd: "2026-06-30" },
+    ).shortTermInvestments;
+    expect(part).toEqual({
+      status: "incomplete",
+      reason: "OtherShortTermInvestments at 2026-06-30 is filed in EUR, not reporting currency USD",
+    });
+  });
+});

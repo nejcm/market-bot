@@ -63,7 +63,7 @@ export interface ParsedFact {
   readonly lineScope?: true;
   readonly sourceIds?: readonly string[];
   readonly proofSourceIds?: readonly string[];
-  // Filing date of the face that proves the fact, which is public no earlier.
+  // Earliest complete proof of the amount at its instant, annual or interim, which dates the fact.
   readonly proofPublicAt?: string;
   readonly faceLeases?: readonly string[];
   readonly zeroBorrowingsProof?: string;
@@ -685,10 +685,7 @@ export function withFirstPublicAt(
     winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [datingPeers]);
   return {
     ...winner,
-    firstPublicAt:
-      winner.proofPublicAt !== undefined && winner.proofPublicAt > firstPublicAt
-        ? winner.proofPublicAt
-        : firstPublicAt,
+    firstPublicAt: winner.proofPublicAt ?? firstPublicAt,
     ...(restatedFrom === undefined ? {} : { restatedFrom }),
   };
 }

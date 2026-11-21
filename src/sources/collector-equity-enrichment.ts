@@ -712,7 +712,10 @@ async function withDebtFaces(
   readonly faces?: EvidenceRequestToolOutput;
 }> {
   const statements = derive([]);
-  const instants = context.secUserAgent === undefined ? [] : debtInstantsNeedingFace(statements);
+  const instants =
+    context.secUserAgent === undefined
+      ? []
+      : debtInstantsNeedingFace(statements, facts.submissionsPayload);
   if (instants.length === 0) {
     return { statements };
   }

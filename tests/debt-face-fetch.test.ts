@@ -556,6 +556,457 @@ describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", (
   });
 });
 
+type ColumnRow = readonly [label: string, concept: string, ...thousands: (number | undefined)[]];
+const columnsFace = (
+  ends: readonly string[],
+  rows: readonly ColumnRow[],
+  placements: readonly (readonly [lease: string, line: string])[] = [],
+) =>
+  `${ends
+    .map(
+      (end, index) =>
+        `<xbrli:context id="k${String(index)}"><xbrli:entity></xbrli:entity><xbrli:period><xbrli:instant>${end}</xbrli:instant></xbrli:period></xbrli:context>${placements
+          .map(
+            ([lease, line]) =>
+              `<ix:nonNumeric contextRef="k${String(index)}" name="us-gaap:${lease}StatementOfFinancialPositionExtensibleList">http://fasb.org/us-gaap/2025#${line}</ix:nonNumeric>`,
+          )
+          .join("")}`,
+    )
+    .join("")}<table>${rows
+    .map(
+      ([label, concept, ...values]) =>
+        `<tr><td>${label}</td>${values
+          .map((value, index) =>
+            value === undefined
+              ? "<td>—</td>"
+              : `<td><ix:nonFraction name="${concept}" contextRef="k${String(index)}" unitRef="usd" scale="3">${value.toLocaleString("en-US")}</ix:nonFraction></td>`,
+          )
+          .join("")}</tr>`,
+    )
+    .join("")}</table>`;
+const filedFace = (accessionNumber: string, reportDate: string, filingDate: string, html: string) =>
+  ({
+    sourceIds: [`face-${accessionNumber}`],
+    metrics: {
+      accessionNumber,
+      reportDate,
+      filingDate,
+      ...secBalanceSheetFaceMetrics(html, reportDate),
+    },
+  }) as unknown as ExtendedEvidenceItem;
+interface TaggedFiling {
+  readonly accn: string;
+  readonly filed: string;
+  readonly form: "10-K" | "10-Q";
+  readonly fp: string;
+  readonly end: string;
+  readonly thousands: Readonly<Record<string, number>>;
+}
+const companyFacts = (filings: readonly TaggedFiling[]) => {
+  const gaap: Record<string, Record<string, unknown>[]> = {};
+  for (const { accn, filed, form, fp, end, thousands } of filings) {
+    for (const [concept, value] of Object.entries(thousands)) {
+      gaap[concept] = [
+        ...(gaap[concept] ?? []),
+        { val: value * 1000, end, filed, accn, form, fy: 2027, fp },
+      ];
+    }
+  }
+  return gaap;
+};
+const debtAt = (artifact: ReturnType<typeof deriveItems>, end: string) =>
+  financialStatementFacts(artifact.statements.balanceSheet.debt)
+    .filter(({ periodEnd }) => periodEnd === end)
+    .map(({ periodType, value, firstPublicAt }) => [periodType, value, firstPublicAt]);
+
+// TDG FY2024 10-K 0001260221-24-000083 own face (report date 2024-09-30), companyfacts values.
+test("TDG 2024-09-30 is public from the FY2024 10-K whose own face proves 24,618M, not the FY2025 comparative", async () => {
+  const k24Face = filedFace(
+    TDG_K24,
+    "2024-09-30",
+    "2024-11-07",
+    columnsFace(
+      ["2024-09-30"],
+      TDG_ROWS.map(([label, concept, , fy2024]): ColumnRow => [label, concept, fy2024 * 1000]),
+      [
+        ["FinanceLeaseLiabilityCurrent", "LongTermDebtCurrent"],
+        ["FinanceLeaseLiabilityNoncurrent", "LongTermDebtAndCapitalLeaseObligations"],
+      ],
+    ),
+  );
+  const { out } = await tdgFaces();
+  const artifact = deriveItems(TDG_GAAP, [...out.items, k24Face]);
+  expect(debtAt(artifact, "2024-09-30")).toEqual([["annual", 24_618e6, "2024-11-07"]]);
+  const row = valuationPeriodInputs(artifact).periods.find(
+    ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-09-30",
+  );
+  expect(row?.debt).toMatchObject({ value: 24_618e6, publicAt: "2024-11-07" });
+  expect(row?.debt?.sourceIds).toContain(`face-${TDG_K24}`);
+});
+
+const fy2025Row = (artifact: ReturnType<typeof deriveItems>) =>
+  valuationPeriodInputs(artifact).periods.find(
+    ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2025-03-31",
+  );
+
+// VSAT FY2025 10-K 0000950170-25-077138 and FY2026 10-K 0001193125-26-248290 (its 2025-03-31 comparative).
+// Debt in thousands: 503,825 + 3,652,882 senior notes tagged CommercialPaperNoncurrent + 2,879,402 - 158,473 finance lease.
+describe("VSAT 2025-03-31 debt proved by its original 10-K and the next 10-K's comparative", () => {
+  const K25 = "0000950170-25-077138";
+  const K26 = "0001193125-26-248290";
+  const tags = {
+    LongTermDebtCurrent: 503_825,
+    CommercialPaperNoncurrent: 3_652_882,
+    LongTermDebtAndCapitalLeaseObligations: 6_532_284,
+    LongTermDebtAndCapitalLeaseObligationsCurrent: 503_825,
+    LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: 7_204_275,
+    DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: 168_166,
+    FinanceLeaseLiability: 158_473,
+    OperatingLeaseLiabilityCurrent: 65_310,
+    OperatingLeaseLiabilityNoncurrent: 414_133,
+    AccountsPayableCurrent: 264_300,
+    OtherLiabilitiesNoncurrent: 2_181_153,
+    LiabilitiesCurrent: 1_676_654,
+    Liabilities: 10_804_224,
+  };
+  const gaap = {
+    ...companyFacts([
+      {
+        accn: K25,
+        filed: "2025-05-27",
+        form: "10-K",
+        fp: "FY",
+        end: "2025-03-31",
+        thousands: tags,
+      },
+      {
+        accn: K26,
+        filed: "2026-05-29",
+        form: "10-K",
+        fp: "FY",
+        end: "2025-03-31",
+        thousands: tags,
+      },
+    ]),
+    Revenues: [
+      {
+        val: 4_520_656e3,
+        start: "2024-04-01",
+        end: "2025-03-31",
+        filed: "2025-05-27",
+        accn: K25,
+        form: "10-K",
+        fy: 2025,
+        fp: "FY",
+      },
+      {
+        val: 4_520_656e3,
+        start: "2024-04-01",
+        end: "2025-03-31",
+        filed: "2026-05-29",
+        accn: K26,
+        form: "10-K",
+        fy: 2026,
+        fp: "FY",
+      },
+      {
+        val: 4_600_000e3,
+        start: "2025-04-01",
+        end: "2026-03-31",
+        filed: "2026-05-29",
+        accn: K26,
+        form: "10-K",
+        fy: 2026,
+        fp: "FY",
+      },
+    ],
+  };
+  // Balance-sheet liability rows; the FY2026 face carries the 2026-03-31 column first.
+  const ROWS: readonly ColumnRow[] = [
+    ["Total assets", "us-gaap:Assets", 15_226_596, 15_448_784],
+    ["Accounts payable", "us-gaap:AccountsPayableCurrent", 288_154, 264_300],
+    ["Accrued and other liabilities", "vsat:AccruedAndOtherLiabilitiesCurrent", 951_192, 908_529],
+    ["Current portion of long-term debt", "us-gaap:LongTermDebtCurrent", 57_753, 503_825],
+    ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 1_297_099, 1_676_654],
+    ["Senior notes", "us-gaap:CommercialPaperNoncurrent", 3_664_848, 3_652_882],
+    [
+      "Other long-term debt",
+      "vsat:LongTermDebtOtherThanLongTermCommercialPaperNoncurrent",
+      2_726_004,
+      2_879_402,
+    ],
+    [
+      "Non-current operating lease liabilities",
+      "us-gaap:OperatingLeaseLiabilityNoncurrent",
+      430_082,
+      414_133,
+    ],
+    ["Other liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 2_379_301, 2_181_153],
+    ["Total liabilities", "us-gaap:Liabilities", 10_497_334, 10_804_224],
+  ];
+  const k26Face = filedFace(
+    K26,
+    "2026-03-31",
+    "2026-05-29",
+    columnsFace(["2026-03-31", "2025-03-31"], ROWS),
+  );
+  const k25Face = filedFace(
+    K25,
+    "2025-03-31",
+    "2025-05-27",
+    columnsFace(
+      ["2025-03-31"],
+      ROWS.map(([label, concept, , fy2025]): ColumnRow => [label, concept, fy2025]),
+    ),
+  );
+
+  test("the FY2026 comparative alone publishes 6,877.636M from 2026-05-29 and asks for the original face", () => {
+    const artifact = deriveItems(gaap, [k26Face]);
+    expect(debtAt(artifact, "2025-03-31")).toEqual([["annual", 6_877_636e3, "2026-05-29"]]);
+    expect(fy2025Row(artifact)?.debt).toBeUndefined();
+    const submissionsPayload = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-K"],
+          filingDate: ["2026-05-29", "2025-05-27"],
+          reportDate: ["2026-03-31", "2025-03-31"],
+          accessionNumber: [K26, K25],
+          primaryDocument: ["vsat-20260331.htm", "vsat-20250331.htm"],
+        },
+      },
+    };
+    expect(debtInstantsNeedingFace(artifact, submissionsPayload)).toEqual([
+      { periodEnd: "2025-03-31", accessionNumber: K25 },
+    ]);
+    expect(debtInstantsNeedingFace(artifact)).toEqual([]);
+  });
+
+  test("with the original face it is public 2025-05-27 and the FY2025 valuation row uses it", () => {
+    const artifact = deriveItems(gaap, [k26Face, k25Face]);
+    expect(debtAt(artifact, "2025-03-31")).toEqual([["annual", 6_877_636e3, "2025-05-27"]]);
+    expect(fy2025Row(artifact)?.debt).toMatchObject({ value: 6_877_636e3, publicAt: "2025-05-27" });
+    expect(fy2025Row(artifact)?.debt?.sourceIds).toEqual(
+      expect.arrayContaining([`face-${K25}`, `face-${K26}`]),
+    );
+  });
+});
+
+// CORZ FY2025 10-K 0001628280-26-013305 own face and Q2 10-Q 0001839341-26-000014's 2025-12-31 comparative.
+test("CORZ interim 2025-12-31 1,060.325M is public from the 10-K's own-face proof on 2026-03-02", () => {
+  const shared = {
+    Liabilities: 3_310_384,
+    LiabilitiesCurrent: 781_401,
+    AccruedLiabilitiesCurrent: 511_957,
+    OtherLiabilitiesCurrent: 15_777,
+    OtherLiabilitiesNoncurrent: 104_261,
+    FinanceLeaseLiabilityNoncurrent: 844,
+  };
+  const gaap = companyFacts([
+    {
+      accn: "0001628280-26-013305",
+      filed: "2026-03-02",
+      form: "10-K",
+      fp: "FY",
+      end: "2025-12-31",
+      thousands: {
+        ...shared,
+        LongTermNotesPayable: 1_060_325,
+        FinanceLeaseLiability: 844,
+        FinanceLeaseLiabilityCurrent: 0,
+      },
+    },
+    {
+      accn: "0001628280-26-031396",
+      filed: "2026-05-06",
+      form: "10-Q",
+      fp: "Q1",
+      end: "2025-12-31",
+      thousands: {
+        ...shared,
+        DebtCurrent: 0,
+        LongTermDebtNoncurrent: 1_060_325,
+        DebtLongtermAndShorttermCombinedAmount: 1_060_325,
+        FinanceLeaseLiabilityCurrent: 0,
+        DerivativeLiabilitiesCurrent: 0,
+      },
+    },
+    {
+      accn: "0001839341-26-000014",
+      filed: "2026-07-28",
+      form: "10-Q",
+      fp: "Q2",
+      end: "2025-12-31",
+      thousands: {
+        ...shared,
+        LongTermDebt: 1_060_325,
+        LongTermDebtNoncurrent: 1_060_325,
+        DebtInstrumentCarryingAmount: 1_085_000,
+        DerivativeLiabilitiesCurrent: 0,
+      },
+    },
+  ]);
+  const placements = [["FinanceLeaseLiabilityNoncurrent", "OtherLiabilitiesNoncurrent"]] as const;
+  const annualFace = filedFace(
+    "0001628280-26-013305",
+    "2025-12-31",
+    "2026-03-02",
+    columnsFace(
+      ["2025-12-31", "2024-12-31"],
+      [
+        ["Total Assets", "us-gaap:Assets", 2_347_644, 1_475_946],
+        ["Accounts payable", "us-gaap:AccountsPayableCurrent", 126_106, 19_265],
+        ["Accrued expenses", "us-gaap:AccruedLiabilitiesCurrent", 511_957, 64_670],
+        ["Deferred revenue", "us-gaap:DeferredRevenueCurrent", 127_561, 18_134],
+        ["Other current liabilities", "us-gaap:OtherLiabilitiesCurrent", 15_777, 32_493],
+        ["Total Current Liabilities", "us-gaap:LiabilitiesCurrent", 781_401, 134_562],
+        [
+          "Convertible and other notes payable, net of current portion",
+          "us-gaap:LongTermNotesPayable",
+          1_060_325,
+          1_073_990,
+        ],
+        ["Warrant liabilities", "us-gaap:DerivativeLiabilitiesNoncurrent", 936_107, 1_097_285],
+        [
+          "Deferred revenue, net of current portion",
+          "us-gaap:DeferredRevenueNoncurrent",
+          428_290,
+          undefined,
+        ],
+        ["Other noncurrent liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 104_261, 113_158],
+        ["Total Liabilities", "us-gaap:Liabilities", 3_310_384, 2_418_995],
+      ],
+      placements,
+    ),
+  );
+  const q2Face = filedFace(
+    "0001839341-26-000014",
+    "2026-06-30",
+    "2026-07-28",
+    columnsFace(
+      ["2026-06-30", "2025-12-31"],
+      [
+        ["Total Assets", "us-gaap:Assets", 5_257_493, 2_347_644],
+        ["Accounts payable", "us-gaap:AccountsPayableCurrent", 112_374, 126_106],
+        ["Accrued expenses", "us-gaap:AccruedLiabilitiesCurrent", 509_189, 511_957],
+        ["Deferred revenue", "us-gaap:DeferredRevenueCurrent", 287_201, 127_561],
+        [
+          "Warrant liabilities, current portion",
+          "us-gaap:DerivativeLiabilitiesCurrent",
+          1_811_587,
+          undefined,
+        ],
+        ["Other current liabilities", "us-gaap:OtherLiabilitiesCurrent", 17_443, 15_777],
+        ["Total Current Liabilities", "us-gaap:LiabilitiesCurrent", 2_737_794, 781_401],
+        ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 4_297_967, 1_060_325],
+        [
+          "Warrant liabilities, net of current portion",
+          "us-gaap:DerivativeLiabilitiesNoncurrent",
+          163_683,
+          936_107,
+        ],
+        [
+          "Deferred revenue, net of current portion",
+          "us-gaap:DeferredRevenueNoncurrent",
+          367_242,
+          428_290,
+        ],
+        ["Other noncurrent liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 110_163, 104_261],
+        ["Total Liabilities", "us-gaap:Liabilities", 7_676_849, 3_310_384],
+      ],
+      placements,
+    ),
+  );
+  expect(debtAt(deriveItems(gaap, [annualFace, q2Face]), "2025-12-31")).toEqual([
+    ["annual", 1_060_325e3, "2026-03-02"],
+    ["interim", 1_060_325e3, "2026-03-02"],
+  ]);
+});
+
+// CLSK 10-Qs 0001193125-26-039538 (Q1) and 0001193125-26-338382 (Q3), each with its 2025-09-30 comparative column;
+// The FY2025 10-K tags LoansPayable 835,213 and stays unresolved.
+test("CLSK interim 2025-09-30 821.156M is public from the Q1 10-Q face on 2026-02-05, not the Q3 one", () => {
+  const Q1 = "0001193125-26-039538";
+  const Q3 = "0001193125-26-338382";
+  const shared = {
+    LoansPayableCurrent: 176_570,
+    LongTermLoansPayable: 644_586,
+    LongTermDebt: 644_586,
+    DebtInstrumentCarryingAmount: 821_156,
+    AccruedLiabilitiesCurrent: 117_544,
+    OtherLiabilitiesCurrent: 6096,
+    OtherLiabilitiesNoncurrent: 3281,
+    DeferredIncomeTaxesAndOtherLiabilitiesNoncurrent: 44_872,
+    LiabilitiesCurrent: 315_765,
+    Liabilities: 1_008_504,
+  };
+  const gaap = companyFacts([
+    {
+      accn: "0001193125-25-297510",
+      filed: "2025-11-25",
+      form: "10-K",
+      fp: "FY",
+      end: "2025-09-30",
+      thousands: { ...shared, LoansPayable: 835_213 },
+    },
+    { accn: Q1, filed: "2026-02-05", form: "10-Q", fp: "Q1", end: "2025-09-30", thousands: shared },
+    { accn: Q3, filed: "2026-08-06", form: "10-Q", fp: "Q3", end: "2025-09-30", thousands: shared },
+  ]);
+  const face = (current: string, values: readonly number[]) =>
+    columnsFace(
+      [current, "2025-09-30"],
+      (
+        [
+          ["Total assets", "us-gaap:Assets", 3_183_631],
+          ["Accounts payable", "us-gaap:AccountsPayableCurrent", 15_159],
+          ["Accrued liabilities", "us-gaap:AccruedLiabilitiesCurrent", 117_544],
+          ["Other current liabilities", "us-gaap:OtherLiabilitiesCurrent", 6096],
+          ["Current portion of debt", "us-gaap:LoansPayableCurrent", 176_570],
+          ["Dividends payable", "us-gaap:DividendsPayableCurrent", 396],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 315_765],
+          ["Long-term debt, net of current portion", "us-gaap:LongTermLoansPayable", 644_586],
+          [
+            "Deferred income taxes",
+            "us-gaap:DeferredIncomeTaxesAndOtherLiabilitiesNoncurrent",
+            44_872,
+          ],
+          ["Other long-term liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 3281],
+          ["Total liabilities", "us-gaap:Liabilities", 1_008_504],
+        ] as const
+      ).map(
+        ([label, concept, prior], index): ColumnRow => [
+          label,
+          concept,
+          values[index] === 0 ? undefined : values[index],
+          prior,
+        ],
+      ),
+    );
+  const q1Face = filedFace(
+    Q1,
+    "2025-12-31",
+    "2026-02-05",
+    face(
+      "2025-12-31",
+      [3_326_179, 22_116, 103_689, 11_160, 2532, 0, 139_497, 1_786_759, 13_457, 4210, 1_943_923],
+    ),
+  );
+  const q3Face = filedFace(
+    Q3,
+    "2026-06-30",
+    "2026-08-06",
+    face(
+      "2026-06-30",
+      [2_702_199, 11_230, 131_342, 10_827, 2353, 0, 155_752, 1_780_011, 597, 4556, 1_940_916],
+    ),
+  );
+  expect(debtAt(deriveItems(gaap, [q3Face]), "2025-09-30")).toEqual([
+    ["interim", 821_156e3, "2026-08-06"],
+  ]);
+  expect(debtAt(deriveItems(gaap, [q3Face, q1Face]), "2025-09-30")).toEqual([
+    ["interim", 821_156e3, "2026-02-05"],
+  ]);
+});
+
 const Q_ACCN = "0001171843-26-000700";
 const K_ACCN = "0001171843-25-005000";
 const dec = (value: number, accn = Q_ACCN) => ({

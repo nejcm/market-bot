@@ -3055,6 +3055,7 @@ describe("run workspace view", () => {
     expect(advanced?.extendedItems).toHaveLength(report.extendedEvidence.items.length);
     expect(advanced?.capitalReturnHistory).toEqual({
       reportingCurrency: "USD",
+      dividendsLabel: "Dividends paid",
       basis:
         "dividends paid includes any special dividends and dividend equivalents as filed; regular vs special not distinguished",
       sourceIds: ["extended-sec-edgar-aapl-fundamentals"],

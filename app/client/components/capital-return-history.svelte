@@ -29,7 +29,7 @@
       <thead class="bg-secondary text-[9px] uppercase tracking-wider text-muted-foreground">
         <tr>
           <th class="px-2.5 py-2 font-semibold">Period</th>
-          <th class="px-2.5 py-2 text-right font-semibold">Dividends paid</th>
+          <th class="px-2.5 py-2 text-right font-semibold">{history.dividendsLabel}</th>
           <th class="px-2.5 py-2 text-right font-semibold">Share repurchases</th>
           <th class="px-2.5 py-2 text-right font-semibold">Dividends / net income</th>
         </tr>

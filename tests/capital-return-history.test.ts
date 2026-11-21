@@ -120,6 +120,10 @@ function tdg(overrides: Readonly<Record<string, Values | readonly Entry[]>> = {}
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function onlyYear(all: Values, only?: number): Values {
   return only === undefined ? all : { [only]: all[only]! };
 }
@@ -629,6 +633,58 @@ describe("3y cumulative payout ratio", () => {
       });
       expect(outcome.criterion).toBeUndefined();
     }
+  });
+
+  test("zero dividends over a zero or negative earnings year are not meaningful, never 0.0%", () => {
+    const window = strength(
+      statements({
+        PaymentsOfDividends: { 2024: 0, 2025: 0, 2026: 0 },
+        NetIncomeLoss: { 2024: 100, 2025: -20, 2026: 100 },
+      }),
+    );
+    const young = strength(
+      statements({ PaymentsOfDividends: { 2026: 0 }, NetIncomeLoss: { 2026: 0 } }),
+    );
+
+    expect(window.payout("payoutRatio3y")).toMatchObject({
+      status: "not-meaningful",
+      reason: "net income is zero or negative for the fiscal year ending 2025-09-30",
+    });
+    expect(young.payout("payoutRatio3y")).toMatchObject({
+      status: "not-meaningful",
+      label: "Payout ratio (latest fiscal year)",
+    });
+    expect([window.criterion, young.criterion]).toEqual(["not-applicable", "not-applicable"]);
+  });
+
+  test("the dividends column names a holder class only when every year files that class", () => {
+    // The normalizer elects one concept per series; a hand-mixed artifact guards older or merged inputs.
+    const commonArtifact = statements({
+      PaymentsOfDividendsCommonStock: { 2025: 60, 2026: 60 },
+      NetIncomeLoss: { 2025: 100, 2026: 100 },
+    });
+    const mixed = capitalReturnHistory(
+      JSON.parse(JSON.stringify(commonArtifact), (_key, value: unknown) =>
+        isRecord(value) &&
+        value.periodEnd === "2026-09-30" &&
+        value.concept === "PaymentsOfDividendsCommonStock"
+          ? { ...value, concept: "PaymentsOfDividends" }
+          : value,
+      ) as typeof commonArtifact,
+      AS_OF,
+    );
+
+    expect(capitalReturnHistory(commonArtifact, AS_OF)?.dividendsLabel).toBe(
+      "Common-stock dividends paid",
+    );
+    expect(capitalReturnHistory(tdg(), AS_OF)?.dividendsLabel).toBe("Dividends paid");
+    expect(mixed?.dividendsLabel).toBe("Dividends paid");
+    expect(mixed?.notes).toEqual(
+      expect.arrayContaining([
+        "Dividends paid are filed for the fiscal years ending 2025-09-30: PaymentsOfDividendsCommonStock.",
+        "Dividends paid are filed for the fiscal years ending 2026-09-30: PaymentsOfDividends.",
+      ]),
+    );
   });
 
   test("a zero dividend window with NCI is withheld, and the check stays not applicable", () => {

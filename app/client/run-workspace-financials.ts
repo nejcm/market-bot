@@ -119,6 +119,7 @@ interface RunWorkspaceCapitalReturnHistoryRow {
 
 export interface RunWorkspaceCapitalReturnHistoryView {
   readonly reportingCurrency?: string;
+  readonly dividendsLabel: string;
   readonly basis: string;
   readonly sourceIds: readonly string[];
   readonly notes: readonly string[];
@@ -393,6 +394,7 @@ export function capitalReturnHistoryFromProjection(
       ? {}
       : { reportingCurrency: history.reportingCurrency }),
     basis: CAPITAL_RETURN_HISTORY_BASIS,
+    dividendsLabel: history.dividendsLabel,
     sourceIds: history.sourceIds,
     notes: history.notes,
     rows: history.rows.map((row) => ({

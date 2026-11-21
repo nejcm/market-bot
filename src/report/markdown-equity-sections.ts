@@ -224,7 +224,7 @@ export function renderCapitalReturnHistory(
     "",
     `Dividends paid and share repurchases${history.reportingCurrency === undefined ? "" : ` in ${markdownText(history.reportingCurrency)}`}, ${CAPITAL_RETURN_HISTORY_BASIS}. Payout is dividends paid / net income attributable to the parent of the same fiscal year.${refs === "" ? "" : ` ${refs}`}`,
     "",
-    "Period | Dividends paid | Share repurchases | Dividends / net income",
+    `Period | ${history.dividendsLabel} | Share repurchases | Dividends / net income`,
     "--- | ---: | ---: | ---:",
     ...history.rows.map((row) =>
       [

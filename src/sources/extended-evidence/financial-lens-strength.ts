@@ -749,9 +749,6 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
   if (scope !== undefined) {
     return missing(scope);
   }
-  if (paid === 0) {
-    return { status: "value", value: 0, ...period, inputs, ...label };
-  }
   const loss = filed.find(({ income }) => income.value <= 0);
   if (loss !== undefined) {
     return {
@@ -761,6 +758,9 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
       inputs,
       ...label,
     };
+  }
+  if (paid === 0) {
+    return { status: "value", value: 0, ...period, inputs, ...label };
   }
   const earned = filed.reduce((sum, { income }) => sum + income.value, 0);
   return {

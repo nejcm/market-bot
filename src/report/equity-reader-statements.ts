@@ -14,7 +14,10 @@ import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/se
 import { formatLensValue } from "../sources/extended-evidence/value-format";
 import { REIT_SIC } from "../sources/extended-evidence/industry-classification";
 import { annualFilingCalendar, payoutScopeReason } from "../sources/extended-evidence/payout-basis";
-import { SPECIAL_DIVIDENDS_BASIS } from "../sources/extended-evidence/financial-statement-definitions";
+import {
+  COMMON_DIVIDENDS_PAID_CONCEPTS,
+  SPECIAL_DIVIDENDS_BASIS,
+} from "../sources/extended-evidence/financial-statement-definitions";
 import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../config/shared";
 
 export interface LabeledPeriod {
@@ -63,6 +66,7 @@ interface EquityReaderCapitalReturnRow {
 
 export interface EquityReaderCapitalReturnHistory {
   readonly reportingCurrency?: string;
+  readonly dividendsLabel: string;
   readonly sourceIds: readonly string[];
   readonly notes: readonly string[];
   readonly rows: readonly EquityReaderCapitalReturnRow[];
@@ -547,6 +551,16 @@ export function capitalReturnHistory(
       ...(payout === undefined ? {} : { payout }),
     };
   });
+  const concepts = new Map<string, string[]>();
+  for (const periodEnd of periods) {
+    const concept = at("dividendsPaid", periodEnd)?.concept;
+    if (concept !== undefined) {
+      concepts.set(concept, [...(concepts.get(concept) ?? []), periodEnd]);
+    }
+  }
+  const commonOnly = [...concepts.keys()].every((concept) =>
+    COMMON_DIVIDENDS_PAID_CONCEPTS.has(concept),
+  );
   const missing = (key: keyof typeof facts, candidates: readonly string[]) =>
     candidates.filter((periodEnd) => at(key, periodEnd) === undefined);
   const paidPeriods = periods.filter((periodEnd) => at("dividendsPaid", periodEnd) !== undefined);
@@ -554,6 +568,8 @@ export function capitalReturnHistory(
     ...(artifact.reportingCurrency === undefined
       ? {}
       : { reportingCurrency: artifact.reportingCurrency }),
+    dividendsLabel:
+      concepts.size > 0 && commonOnly ? "Common-stock dividends paid" : "Dividends paid",
     sourceIds: uniqueSourceIds([
       artifact.sourceId,
       ...rows.flatMap((row) => [
@@ -566,6 +582,7 @@ export function capitalReturnHistory(
       ...missingYearsNote("dividendsPaid", missing("dividendsPaid", periods), periods.length),
       ...missingYearsNote("shareRepurchases", missing("shareRepurchases", periods), periods.length),
       ...missingYearsNote("netIncome", missing("netIncome", paidPeriods), periods.length),
+      ...(concepts.size > 1 ? groupedNote("Dividends paid are filed", concepts) : []),
       ...groupedNote("Payout withheld", withheld),
       ...(issuerSic === REIT_SIC && rows.some((row) => row.payout?.status === "value")
         ? [

@@ -449,6 +449,31 @@ describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", (
     ]);
   });
 
+  test("with its own 10-K read, withheld 2024-09-30 asks for the earliest comparative, not the latest", () => {
+    const q1 = "0001260221-25-000014";
+    const k24Submissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q", "10-K"],
+          filingDate: ["2025-11-12", "2025-02-04", "2024-11-07"],
+          reportDate: ["2025-09-30", "2024-12-28", "2024-09-30"],
+          accessionNumber: [TDG_K25, q1, TDG_K24],
+          primaryDocument: ["tdg-20250930.htm", "tdg-20241228.htm", "tdg-20240930.htm"],
+        },
+      },
+    };
+    const artifact = deriveItems(TDG_GAAP, []);
+    const ownK24 = { metrics: { accessionNumber: TDG_K24 } } as unknown as ExtendedEvidenceItem;
+    expect(debtInstantsNeedingFace(artifact, k24Submissions)).toContainEqual({
+      periodEnd: "2024-09-30",
+      accessionNumber: TDG_K24,
+    });
+    expect(debtInstantsNeedingFace(artifact, k24Submissions, [ownK24])).toContainEqual({
+      periodEnd: "2024-09-30",
+      accessionNumber: q1,
+    });
+  });
+
   test("one read, one source, publishes 2025-09-30 29,731M and 2024-09-30 24,618M", async () => {
     const { urls, out } = await tdgFaces();
     expect(urls).toEqual([

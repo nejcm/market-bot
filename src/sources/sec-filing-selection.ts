@@ -143,16 +143,31 @@ export function selectOriginalPeriodicFiling(
   );
 }
 
-export function selectInstantOriginalFiling(
-  payload: unknown,
-  instant: string,
-): SecFiling | undefined {
-  return recentSecFilingRows(payload).find(
-    (filing) =>
-      filing.reportDate === instant &&
-      filing.amended !== true &&
-      (filing.form === "10-K" || filing.form === "10-Q"),
+// The instant's own 10-K/10-Q, then in filing order each later face holding it as a comparative:
+// Interim and annual balance sheets compare to the preceding fiscal year-end (Reg S-X 10-01(c), 3-01).
+export function selectInstantFaceFilings(payload: unknown, instant: string): readonly SecFiling[] {
+  const periodic = recentSecFilingRows(payload)
+    .filter(
+      (filing) =>
+        filing.reportDate !== undefined &&
+        filing.reportDate >= instant &&
+        filing.amended !== true &&
+        (filing.form === "10-K" || filing.form === "10-Q"),
+    )
+    .toSorted((left, right) => left.filingDate.localeCompare(right.filingDate));
+  const original = periodic.find((filing) => filing.reportDate === instant);
+  const nextAnnual = periodic.find(
+    (filing) => filing.form === "10-K" && filing.reportDate !== instant,
   );
+  return original === undefined
+    ? []
+    : periodic.filter(
+        (filing) =>
+          filing === original ||
+          (original.form === "10-K" &&
+            (nextAnnual === undefined ||
+              (filing.reportDate ?? "") <= (nextAnnual.reportDate ?? ""))),
+      );
 }
 
 function filingBasisDate(filing: SecFiling): string {

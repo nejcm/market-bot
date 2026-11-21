@@ -51,7 +51,7 @@ import {
   unsupersededDebtResolutions,
 } from "./sec-debt-resolution";
 import type { ParsedFact, SelectedSeries } from "./financial-statement-facts";
-import { selectInstantOriginalFiling } from "../sec-filing-selection";
+import { selectInstantFaceFilings } from "../sec-filing-selection";
 
 export interface DebtFactReader {
   readonly root: (taxonomy: FinancialStatementTaxonomy) => Record<string, unknown> | undefined;
@@ -187,26 +187,30 @@ export function debtScopeUnprovenNotes(
 export function debtInstantsNeedingFace(
   artifact: FinancialStatementsArtifact,
   submissionsPayload?: unknown,
+  secFilings: readonly ExtendedEvidenceItem[] = [],
 ): readonly { readonly periodEnd: string; readonly accessionNumber: string }[] {
   const revenue = financialStatementSeriesByKey(artifact, "revenue");
   const joined = new Set(
     revenue === undefined ? [] : financialStatementFacts(revenue).map((fact) => fact.periodEnd),
   );
   const debt = financialStatementSeriesByKey(artifact, "debt");
+  const read = new Set(secFilings.map(({ metrics }) => metrics?.accessionNumber));
+  const earliestUnreadFace = (periodEnd: string, before = "\uFFFF") =>
+    selectInstantFaceFilings(submissionsPayload, periodEnd).find(
+      ({ accessionNumber, filingDate }) => !read.has(accessionNumber) && filingDate < before,
+    )?.accessionNumber;
   const withheld = (artifact.omissionNotes ?? []).flatMap((note) => {
     const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
     return note.faceAccession === undefined || periodEnd === undefined || !isWithheldDebtNote(note)
       ? []
-      : [{ periodEnd, accessionNumber: note.faceAccession }];
+      : [{ periodEnd, accessionNumber: earliestUnreadFace(periodEnd) ?? note.faceAccession }];
   });
-  // A filing-proved instant public only after its own 10-K/10-Q asks for that filing's face, which may date it earlier.
+  // A filing-proved instant public only after an unread face that holds it asks for that face, which may date it earlier.
   const late = (debt === undefined ? [] : financialStatementFacts(debt)).flatMap((fact) => {
-    const original = fact.sourceIds.some((id) => id !== artifact.sourceId)
-      ? selectInstantOriginalFiling(submissionsPayload, fact.periodEnd)
+    const accessionNumber = fact.sourceIds.some((id) => id !== artifact.sourceId)
+      ? earliestUnreadFace(fact.periodEnd, fact.firstPublicAt)
       : undefined;
-    return original === undefined || original.filingDate >= fact.firstPublicAt
-      ? []
-      : [{ periodEnd: fact.periodEnd, accessionNumber: original.accessionNumber }];
+    return accessionNumber === undefined ? [] : [{ periodEnd: fact.periodEnd, accessionNumber }];
   });
   return [...withheld, ...late]
     .filter(
@@ -611,13 +615,14 @@ interface ProvenAmount {
 function provenAmount(
   value: number,
   filedAts: readonly string[],
-  proofSourceIds: readonly string[] = [],
+  proofSourceIds: readonly string[] | undefined,
   filings: readonly ExtendedEvidenceItem[],
 ): ProvenAmount {
+  const sourceIds = proofSourceIds ?? [];
   return {
     value,
-    at: [...filedAts, proofFiledAt(filings, proofSourceIds) ?? ""].toSorted().at(-1) ?? "",
-    sourceIds: proofSourceIds,
+    at: [...filedAts, proofFiledAt(filings, sourceIds) ?? ""].toSorted().at(-1) ?? "",
+    sourceIds,
   };
 }
 

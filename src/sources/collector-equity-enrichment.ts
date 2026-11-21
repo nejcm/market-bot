@@ -217,6 +217,7 @@ export async function collectEquityEnrichment(
         submissionsPayload: input.secTargetPacket?.submissions?.payload,
       },
       derive,
+      input.secTargetPacket?.filingEvidence?.items ?? [],
     );
     financialStatements = withFaces.statements;
     periodicFilings = withFaces.faces;
@@ -687,7 +688,12 @@ export async function collectFinancialStatements(
         : {}),
       secFilings: [...(periodicFilings?.items ?? []), ...faces],
     });
-  const { statements, faces } = await withDebtFaces(context, facts, derive);
+  const { statements, faces } = await withDebtFaces(
+    context,
+    facts,
+    derive,
+    periodicFilings?.items ?? [],
+  );
   const filings =
     periodicFilings === undefined || faces === undefined
       ? periodicFilings
@@ -707,6 +713,7 @@ async function withDebtFaces(
   context: CollectContext,
   facts: Pick<SecCompanyFactsResult, "cik" | "symbol" | "submissionsPayload">,
   derive: (faces: readonly ExtendedEvidenceItem[]) => FinancialStatementsArtifact,
+  secFilings: readonly ExtendedEvidenceItem[],
 ): Promise<{
   readonly statements: FinancialStatementsArtifact;
   readonly faces?: EvidenceRequestToolOutput;
@@ -715,7 +722,7 @@ async function withDebtFaces(
   const instants =
     context.secUserAgent === undefined
       ? []
-      : debtInstantsNeedingFace(statements, facts.submissionsPayload);
+      : debtInstantsNeedingFace(statements, facts.submissionsPayload, secFilings);
   if (instants.length === 0) {
     return { statements };
   }

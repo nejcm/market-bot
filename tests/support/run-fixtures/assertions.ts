@@ -21,6 +21,8 @@ import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { RenderedMetric, ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
+import { CAPITAL_RETURN_HISTORY_BASIS } from "../../../src/report/equity-reader-statements";
+import { financialLensMetricSectionId } from "../../../src/sources/extended-evidence/financial-lens-contract";
 import { readGapTriage } from "../../../src/report/gap-triage";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import { renderMarkdownReport } from "../../../src/report/markdown";
@@ -75,6 +77,7 @@ import {
   financialStatementFacts,
   financialStatementSeriesByKey,
   financialStatementPeriodMonths,
+  isYearAlignedFact,
 } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import { formatMetricValue } from "../../../src/sources/extended-evidence/value-format";
@@ -516,6 +519,7 @@ export async function assertInvariants(
   assertSafeReportLanguage(report);
   assertValuationWorkbenchInvariants(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);
+  assertCapitalReturnHistory(result, report);
   expect(
     reportInvariantViolations(
       (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? [],
@@ -606,6 +610,63 @@ export async function assertInvariants(
     }
   }
   await assertFinancialRunInvariants(result, meta);
+}
+
+// Multi-year dividends are shown, and the 3y payout is the plain sum over its own inputs.
+function assertCapitalReturnHistory(result: RunFixtureResult, report: ResearchReport): void {
+  const statements = result.collectedSources.financialStatements;
+  if (statements === undefined || report.jobType !== "equity") {
+    return;
+  }
+  const annual = (key: "netIncome" | "dividendsPaid" | "shareRepurchases") => {
+    const series = financialStatementSeriesByKey(statements, key);
+    return (series === undefined ? [] : financialStatementFacts(series)).filter(
+      (fact) => fact.periodType === "annual" && isYearAlignedFact(key, fact),
+    );
+  };
+  // The window is the issuer's annual-report calendar, whatever flows survived normalization.
+  const cutoff = report.generatedAt.slice(0, 10);
+  const window = [
+    ...new Set(
+      (statements.firstAnnualReports ?? [])
+        .filter((filing) => filing.filedAt.slice(0, 10) <= cutoff)
+        .map((filing) => filing.periodEnd),
+    ),
+  ]
+    .toSorted()
+    .slice(-5);
+  const flows = [...annual("dividendsPaid"), ...annual("shareRepurchases")];
+  const rendered = flows.some((fact) => window.includes(fact.periodEnd));
+  expect(result.markdown.includes("### Capital Return History"), "capital return history").toBe(
+    rendered,
+  );
+  if (rendered) {
+    expect(result.markdown).toContain(CAPITAL_RETURN_HISTORY_BASIS);
+    const table = result.markdown.slice(result.markdown.indexOf("### Capital Return History"));
+    const periods = [...table.matchAll(/^FY ending (\d{4}-\d{2}-\d{2})/gmu)].map((m) => m[1]);
+    expect(periods.slice(0, window.length), "capital return history window").toEqual(window);
+  }
+  const strength = (report.extras?.metricSections as MetricSectionsExtra | undefined)?.find(
+    (section) => section.id === financialLensMetricSectionId("Financial Strength"),
+  );
+  const cumulative = strength?.metrics.find((metric) => metric.id === "payoutRatio3y");
+  if (cumulative?.status !== "value") {
+    return;
+  }
+  const lens = result.collectedSources.extendedEvidence?.items.find(
+    (item) => item.category === "financial-lens",
+  );
+  if (typeof cumulative.value === "number" && cumulative.value > 0.8) {
+    expect(lens?.metrics?.financialStrengthPosture).not.toBe("criteria-supported");
+  }
+  const sum = (series: string) =>
+    (cumulative.inputs ?? [])
+      .filter((input) => input.series === series)
+      .reduce((total, input) => total + Math.abs(Number(input.value)), 0);
+  expect(new Set((cumulative.inputs ?? []).map((input) => input.periodKey)).size).toBe(
+    cumulative.label === "Payout ratio (latest fiscal year)" ? 1 : 3,
+  );
+  expectClose(cumulative.value, sum("dividendsPaid") / sum("netIncome"), "payoutRatio3y");
 }
 
 const DAY_MS = 86_400_000;

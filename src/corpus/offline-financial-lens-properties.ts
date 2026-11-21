@@ -622,9 +622,12 @@ function verifyLensPosture(
       "Offline financial-lens posture assertion: Financial Strength unexpectedly received valuation input",
     );
   }
-  const forbidden = ["netDebtToMarketCap", "debtToMarketCap", "payoutRatio"].filter((key) =>
-    Object.hasOwn(metrics, key),
-  );
+  const forbidden = [
+    "netDebtToMarketCap",
+    "debtToMarketCap",
+    "payoutRatio",
+    "payoutRatio3y",
+  ].filter((key) => Object.hasOwn(metrics, key));
   if (forbidden.length > 0) {
     throw new Error(
       `Offline financial-lens posture assertion: Financial Strength projected metrics unexpectedly contain ${forbidden.join(", ")}`,

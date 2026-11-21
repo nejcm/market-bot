@@ -297,6 +297,13 @@ function balanceSheetAnnualFacts(values: readonly number[]) {
   });
 }
 
+function annualFlowFacts(values: readonly number[]) {
+  return balanceSheetAnnualFacts(values).map((fact) => ({
+    ...fact,
+    start: `${String(fact.fy)}-01-01`,
+  }));
+}
+
 function balanceSheetHistoryFixture() {
   return deriveFinancialStatements(
     {
@@ -316,6 +323,8 @@ function balanceSheetHistoryFixture() {
               })),
             },
           },
+          PaymentsOfDividends: { units: { USD: annualFlowFacts([0, 15_000_000_000]) } },
+          NetIncomeLoss: { units: { USD: annualFlowFacts([-1_000_000_000, 60_000_000_000]) } },
         },
       },
     },
@@ -982,6 +991,7 @@ describe("run workspace view", () => {
       "financialLensStats",
       "fundamentalHistory",
       "balanceSheetHistory",
+      "capitalReturnHistory",
       "analystEstimateDistributions",
       "extendedEvidence",
       "webSubjectProfile",
@@ -996,7 +1006,7 @@ describe("run workspace view", () => {
       ...Array.from({ length: 9 }, () => false),
       ...Array.from({ length: 4 }, () => true),
       false,
-      ...Array.from({ length: 11 }, () => true),
+      ...Array.from({ length: 12 }, () => true),
       false,
       true,
     ]);
@@ -1161,6 +1171,7 @@ describe("run workspace view", () => {
       financialLensStats: "Financial Lens stats",
       fundamentalHistory: "Fundamental history",
       balanceSheetHistory: "Balance sheet & share count",
+      capitalReturnHistory: "Capital return history",
       valuationWorkbench: "Valuation workbench",
       reverseDcf: "Reverse DCF input sensitivity",
       peerImpliedRange: "peer-implied price reference range",
@@ -3042,6 +3053,28 @@ describe("run workspace view", () => {
     expect(advanced?.reverseDcf).toBeDefined();
     expect(advanced?.peerImpliedRange).toBeDefined();
     expect(advanced?.extendedItems).toHaveLength(report.extendedEvidence.items.length);
+    expect(advanced?.capitalReturnHistory).toEqual({
+      reportingCurrency: "USD",
+      dividendsLabel: "Dividends paid",
+      basis:
+        "dividends paid includes any special dividends and dividend equivalents as filed; regular vs special not distinguished",
+      sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
+      notes: ["No year-aligned annual share repurchases filed for these fiscal years."],
+      rows: [
+        {
+          period: "FY ending 2023-12-31 (latest filed 2024-02-01)",
+          dividendsPaid: "$0",
+          shareRepurchases: "—",
+          payout: "not meaningful, net income is zero or negative",
+        },
+        {
+          period: "FY ending 2024-12-31 (latest filed 2025-02-01)",
+          dividendsPaid: "$15.0B",
+          shareRepurchases: "—",
+          payout: "25.0%",
+        },
+      ],
+    });
     expect(advanced?.balanceSheetHistory?.rows).toEqual([
       {
         period: "FY ending 2023-12-31 (latest filed 2024-02-01)",
@@ -3699,6 +3732,7 @@ describe("run workspace view", () => {
     expect(readerSource).not.toContain("equityPresentation.advanced.");
     expect(advancedSource).toContain("equityPresentation.advanced.financialLensDrivers");
     expect(advancedSource).toContain("equityPresentation.advanced.balanceSheetHistory");
+    expect(advancedSource).toContain("equityPresentation.advanced.capitalReturnHistory");
     expect(advancedSource).toContain("valuationWorkbench.excludedPeerRows");
     expect(advancedSource).not.toContain("equityPresentation.defaultView.");
   });

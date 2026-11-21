@@ -796,6 +796,19 @@ describe("static equity run fixtures", () => {
             inputs: [],
           });
         }
+        expect(row("payoutRatio3y")).toMatchObject({
+          status: "not-applicable",
+          reason:
+            "REIT issuer (SIC 6798): payout is measured against FFO/AFFO, not net income; not assessed",
+        });
+        expect(result.markdown).toContain("### Capital Return History");
+        // FY2024 is $2,691.719M of PaymentsOfDividendsCommonStock, beside separately tagged preferred and NCI amounts.
+        expect(result.markdown).toContain(
+          "Period | Common-stock dividends paid | Share repurchases | Dividends / net income",
+        );
+        expect(result.markdown).toContain(
+          "FY ending 2024-12-31 (latest filed 2026-02-25) | 2.7B |",
+        );
         expect(JSON.stringify(sections)).not.toContain("capital expenditure not filed");
         expect(result.markdown).toContain(`| not applicable (${reitCapex})\n`);
         expect(result.markdown).not.toContain("free-cash-flow-unavailable");

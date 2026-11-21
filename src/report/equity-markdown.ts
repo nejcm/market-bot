@@ -53,6 +53,9 @@ export interface EquityMarkdownSections {
     typeof equityProjectionRendererFactory
   >["completeness"];
   readonly renderBalanceSheet: ReturnType<typeof equityProjectionRendererFactory>["balanceSheet"];
+  readonly renderCapitalReturnHistory: ReturnType<
+    typeof equityProjectionRendererFactory
+  >["capitalReturn"];
   readonly renderScenarios: (scenarios: readonly Scenario[]) => string;
   readonly renderBusinessFramework: (report: ResearchReport) => string;
   readonly renderMetricSections: (report: ResearchReport) => string;
@@ -88,6 +91,10 @@ function equityProjectionRendererFactory() {
     balanceSheet: (
       _report: ResearchReport,
       _value: typeof projection.appendix.balanceSheetHistory,
+    ) => "",
+    capitalReturn: (
+      _report: ResearchReport,
+      _value: NonNullable<typeof projection.appendix.capitalReturnHistory>,
     ) => "",
     analystDistributions: (
       _report: ResearchReport,
@@ -128,6 +135,7 @@ export function renderEquityMarkdownReport(
     ...projection.defaultView.companyDescription.sourceIds,
     ...(projection.defaultView.financialTrends?.sourceIds ?? []),
     ...(projection.appendix.balanceSheetHistory?.sourceIds ?? []),
+    ...(projection.appendix.capitalReturnHistory?.sourceIds ?? []),
     ...projection.defaultView.valuationContext.sourceIds,
     ...(projection.defaultView.earningsBasis?.sourceIds ?? []),
     ...projection.defaultView.earningsConsensus.flatMap((item) => item.sourceIds),
@@ -194,6 +202,9 @@ export function renderEquityMarkdownReport(
       sections.renderCompletenessAppendix(projection.appendix.completeness),
     ),
     sections.renderBalanceSheet(report, projection.appendix.balanceSheetHistory),
+    ...(projection.appendix.capitalReturnHistory === undefined
+      ? []
+      : [sections.renderCapitalReturnHistory(report, projection.appendix.capitalReturnHistory)]),
     sections.renderAppendixSection(sections.renderFindings("Bull Case", report.bullCase)),
     sections.renderAppendixSection(sections.renderFindings("Bear Case", report.bearCase)),
     sections.renderAppendixSection(sections.renderScenarios(report.scenarios)),

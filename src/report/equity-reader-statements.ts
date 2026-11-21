@@ -7,9 +7,17 @@ import type {
 import {
   financialStatementFacts,
   financialStatementSeriesByKey,
+  isYearAlignedFact,
   latestFinancialStatementFact,
 } from "../sources/extended-evidence/financial-statement-selection";
 import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
+import { formatLensValue } from "../sources/extended-evidence/value-format";
+import { REIT_SIC } from "../sources/extended-evidence/industry-classification";
+import { annualFilingCalendar, payoutScopeReason } from "../sources/extended-evidence/payout-basis";
+import {
+  COMMON_DIVIDENDS_PAID_CONCEPTS,
+  SPECIAL_DIVIDENDS_BASIS,
+} from "../sources/extended-evidence/financial-statement-definitions";
 import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../config/shared";
 
 export interface LabeledPeriod {
@@ -39,6 +47,29 @@ export interface EquityReaderBalanceSheetHistory {
   readonly sourceIds: readonly string[];
   readonly notes?: readonly FinancialStatementNote[];
   readonly rows: readonly EquityReaderBalanceSheetRow[];
+}
+
+export const CAPITAL_RETURN_HISTORY_BASIS = `dividends paid ${SPECIAL_DIVIDENDS_BASIS}`;
+
+type EquityReaderPayout =
+  | { readonly status: "value"; readonly value: number }
+  | { readonly status: "not-meaningful"; readonly reason: string }
+  | { readonly status: "withheld" };
+
+interface EquityReaderCapitalReturnRow {
+  readonly period: string;
+  readonly dividendsPaid?: EquityReaderStatementValue;
+  readonly shareRepurchases?: EquityReaderStatementValue;
+  readonly netIncome?: EquityReaderStatementValue;
+  readonly payout?: EquityReaderPayout;
+}
+
+export interface EquityReaderCapitalReturnHistory {
+  readonly reportingCurrency?: string;
+  readonly dividendsLabel: string;
+  readonly sourceIds: readonly string[];
+  readonly notes: readonly string[];
+  readonly rows: readonly EquityReaderCapitalReturnRow[];
 }
 
 interface EquityReaderFinancialPositionValue extends EquityReaderStatementValue {
@@ -383,6 +414,182 @@ export function balanceSheetHistory(
       ]),
     ]),
     ...(notes === undefined ? {} : { notes }),
+    rows,
+  };
+}
+
+export function capitalReturnPayoutCell(payout: EquityReaderPayout | undefined): string {
+  if (payout === undefined) {
+    return "—";
+  }
+  if (payout.status === "withheld") {
+    return "withheld";
+  }
+  return payout.status === "value"
+    ? formatLensValue(payout.value, "ratio-percent")
+    : `not meaningful, ${payout.reason}`;
+}
+
+const CAPITAL_RETURN_YEARS = 5;
+const CAPITAL_RETURN_LABELS = {
+  dividendsPaid: "dividends paid",
+  shareRepurchases: "share repurchases",
+  netIncome: "net income",
+} as const;
+
+function annualFlowFacts(
+  artifact: FinancialStatementsArtifact,
+  key: keyof typeof CAPITAL_RETURN_LABELS,
+  cutoff: string,
+): readonly FinancialStatementFact[] {
+  const series = financialStatementSeriesByKey(artifact, key);
+  return series === undefined
+    ? []
+    : financialStatementFacts(series).filter(
+        (fact) =>
+          fact.periodType === "annual" &&
+          isYearAlignedFact(key, fact) &&
+          observableStatementFact(fact, cutoff),
+      );
+}
+
+function missingYearsNote(
+  key: keyof typeof CAPITAL_RETURN_LABELS,
+  periodEnds: readonly string[],
+  rowCount: number,
+): readonly string[] {
+  if (periodEnds.length === 0) {
+    return [];
+  }
+  const label = CAPITAL_RETURN_LABELS[key];
+  return [
+    periodEnds.length === rowCount && key !== "netIncome"
+      ? `No year-aligned annual ${label} filed for these fiscal years.`
+      : `No year-aligned annual ${label} for the fiscal years ending ${periodEnds.join(", ")}.`,
+  ];
+}
+
+function groupedNote(prefix: string, byReason: ReadonlyMap<string, readonly string[]>): string[] {
+  return [...byReason].map(
+    ([reason, periodEnds]) =>
+      `${prefix} for the fiscal years ending ${periodEnds.join(", ")}: ${reason}.`,
+  );
+}
+
+// The window is the latest five filed fiscal years; a flow absent inside it is declared, not skipped.
+export function capitalReturnHistory(
+  artifact: FinancialStatementsArtifact | undefined,
+  reportGeneratedAt: string | undefined,
+  issuerSic?: string,
+): EquityReaderCapitalReturnHistory | undefined {
+  if (artifact === undefined) {
+    return undefined;
+  }
+  const cutoff = (reportGeneratedAt ?? artifact.analysisAsOf).slice(0, 10);
+  const facts = {
+    dividendsPaid: annualFlowFacts(artifact, "dividendsPaid", cutoff),
+    shareRepurchases: annualFlowFacts(artifact, "shareRepurchases", cutoff),
+    netIncome: annualFlowFacts(artifact, "netIncome", cutoff),
+  };
+  const at = (key: keyof typeof facts, periodEnd: string) =>
+    latestFinancialStatementFact(facts[key].filter((fact) => fact.periodEnd === periodEnd));
+  const calendar = annualFilingCalendar(artifact, cutoff).slice(-CAPITAL_RETURN_YEARS);
+  const periods = calendar.map((year) => year.periodEnd);
+  if (
+    !periods.some(
+      (periodEnd) =>
+        at("dividendsPaid", periodEnd) !== undefined ||
+        at("shareRepurchases", periodEnd) !== undefined,
+    )
+  ) {
+    return undefined;
+  }
+  const withheld = new Map<string, string[]>();
+  const rows = calendar.map((year): EquityReaderCapitalReturnRow => {
+    const { periodEnd } = year;
+    const dividends = at("dividendsPaid", periodEnd);
+    const repurchases = at("shareRepurchases", periodEnd);
+    const income = at("netIncome", periodEnd);
+    const filedAt = latestFinancialStatementFact(
+      [dividends, repurchases, income].filter((fact) => fact !== undefined),
+    )?.filedAt;
+    const scope =
+      dividends === undefined || income === undefined
+        ? undefined
+        : payoutScopeReason(artifact, [{ dividend: dividends, income }], year);
+    if (scope !== undefined) {
+      withheld.set(scope, [...(withheld.get(scope) ?? []), periodEnd]);
+    }
+    let payout: EquityReaderPayout | undefined;
+    if (scope !== undefined) {
+      payout = { status: "withheld" };
+    } else if (dividends !== undefined && income !== undefined) {
+      payout =
+        income.value > 0
+          ? { status: "value", value: Math.abs(dividends.value) / income.value }
+          : { status: "not-meaningful", reason: "net income is zero or negative" };
+    }
+    return {
+      period:
+        filedAt === undefined
+          ? `FY ending ${periodEnd}`
+          : periodLabel({ kind: "annual", periodEnd, filedAt }),
+      ...(dividends === undefined
+        ? {}
+        : { dividendsPaid: { ...statementValue(dividends), value: Math.abs(dividends.value) } }),
+      ...(repurchases === undefined
+        ? {}
+        : {
+            shareRepurchases: {
+              ...statementValue(repurchases),
+              value: Math.abs(repurchases.value),
+            },
+          }),
+      ...(income === undefined || dividends === undefined
+        ? {}
+        : { netIncome: statementValue(income) }),
+      ...(payout === undefined ? {} : { payout }),
+    };
+  });
+  const concepts = new Map<string, string[]>();
+  for (const periodEnd of periods) {
+    const concept = at("dividendsPaid", periodEnd)?.concept;
+    if (concept !== undefined) {
+      concepts.set(concept, [...(concepts.get(concept) ?? []), periodEnd]);
+    }
+  }
+  const commonOnly = [...concepts.keys()].every((concept) =>
+    COMMON_DIVIDENDS_PAID_CONCEPTS.has(concept),
+  );
+  const missing = (key: keyof typeof facts, candidates: readonly string[]) =>
+    candidates.filter((periodEnd) => at(key, periodEnd) === undefined);
+  const paidPeriods = periods.filter((periodEnd) => at("dividendsPaid", periodEnd) !== undefined);
+  return {
+    ...(artifact.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: artifact.reportingCurrency }),
+    dividendsLabel:
+      concepts.size > 0 && commonOnly ? "Common-stock dividends paid" : "Dividends paid",
+    sourceIds: uniqueSourceIds([
+      artifact.sourceId,
+      ...rows.flatMap((row) => [
+        ...(row.dividendsPaid?.sourceIds ?? []),
+        ...(row.shareRepurchases?.sourceIds ?? []),
+        ...(row.netIncome?.sourceIds ?? []),
+      ]),
+    ]),
+    notes: [
+      ...missingYearsNote("dividendsPaid", missing("dividendsPaid", periods), periods.length),
+      ...missingYearsNote("shareRepurchases", missing("shareRepurchases", periods), periods.length),
+      ...missingYearsNote("netIncome", missing("netIncome", paidPeriods), periods.length),
+      ...(concepts.size > 1 ? groupedNote("Dividends paid are filed", concepts) : []),
+      ...groupedNote("Payout withheld", withheld),
+      ...(issuerSic === REIT_SIC && rows.some((row) => row.payout?.status === "value")
+        ? [
+            "Payout is against net income, not the FFO/AFFO basis REIT distributions are usually measured on.",
+          ]
+        : []),
+    ],
     rows,
   };
 }

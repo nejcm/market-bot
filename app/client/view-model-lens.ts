@@ -198,6 +198,19 @@ function assessment(
   return { tone: "weak", assessment: "Weak" };
 }
 
+// A deciding window that paid nothing makes the payout check not applicable, so it earns no badge.
+function payoutAssessment(value: number): Pick<FinancialLensStatTile, "tone" | "assessment"> {
+  if (value === 0) {
+    return { tone: "neutral" };
+  }
+  return assessment(
+    value,
+    (v) => v >= 0 && v <= 0.6,
+    (v) => v >= 0 && v <= 0.75,
+    (v) => v >= 0 && v <= 0.8,
+  );
+}
+
 function assessFinancialLensMetric(
   metric: Pick<FinancialLensMetric, "key" | "value">,
 ): Pick<FinancialLensStatTile, "tone" | "assessment"> {
@@ -282,13 +295,8 @@ function assessFinancialLensMetric(
         (v) => v >= 1 && v <= 4,
       );
     }
-    case "payoutRatio": {
-      return assessment(
-        rawValue,
-        (v) => v >= 0 && v <= 0.6,
-        (v) => v >= 0 && v <= 0.75,
-        (v) => v >= 0 && v <= 0.8,
-      );
+    case "payoutRatio3y": {
+      return payoutAssessment(rawValue);
     }
     case "rsi14": {
       return assessment(
@@ -451,7 +459,9 @@ export function financialLensSectionTiles(
           lens,
           label: metric.label,
           value,
-          ...assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" }),
+          ...(metric.id === "payoutRatio"
+            ? { tone: "neutral" as const }
+            : assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" })),
           ...(caption === "" ? {} : { caption }),
         },
       ];

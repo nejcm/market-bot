@@ -11,6 +11,7 @@ import {
   type LensSeries,
   SERIES_LABELS,
   latestFact,
+  eligibleFacts,
   samePeriodFact,
   factInput,
   periodOf,
@@ -37,7 +38,17 @@ import {
   annualizeSummary,
 } from "./financial-lens-inputs";
 import { operatingCashFlowScope } from "./financial-lens-quality";
-import { conceptScope, isContinuingScope, scopedLabel } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  isContinuingScope,
+  scopedLabel,
+  SPECIAL_DIVIDENDS_BASIS,
+} from "./financial-statement-definitions";
+import { isYearAligned, latestFinancialStatementFact } from "./financial-statement-selection";
+import type { FinancialStatementFact } from "./financial-statements-contract";
+import { staleAnchor } from "./capital-return";
+import { REIT_SIC } from "./industry-classification";
+import { ALL_PARENT_CLASSES_BASIS, annualFilingCalendar, payoutScopeReason } from "./payout-basis";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -658,12 +669,136 @@ export function marketLeverageDefinition(
   };
 }
 
+const PAYOUT_WINDOW_YEARS = 3;
+
+function annualFacts(ctx: MetricContext, key: "dividendsPaid" | "netIncome") {
+  return eligibleFacts(ctx, key).filter((fact) => fact.periodType === "annual");
+}
+
+function factAt(facts: readonly FinancialStatementFact[], periodEnd: string) {
+  return latestFinancialStatementFact(facts.filter((fact) => fact.periodEnd === periodEnd));
+}
+
+const LATEST_YEAR_PAYOUT_LABEL = "Payout ratio (latest fiscal year)";
+
+// The window is the latest filed fiscal year on the annual filing calendar and the two before it; a missing input is a gap.
+function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
+  const { statements } = ctx;
+  if (statements === undefined || eligibleFacts(ctx, "dividendsPaid").length === 0) {
+    return noFact(ctx, "dividendsPaid");
+  }
+  const calendar = annualFilingCalendar(statements, statements.analysisAsOf);
+  const anchor = calendar.at(-1);
+  if (anchor === undefined) {
+    return { status: "missing", reason: "no annual report filed" };
+  }
+  const shortHistory = calendar.length < PAYOUT_WINDOW_YEARS;
+  const windowYears = shortHistory ? 1 : PAYOUT_WINDOW_YEARS;
+  const window = [anchor];
+  for (let later = anchor; window.length < windowYears; ) {
+    const prior = calendar.findLast((year) => isYearAligned(year.periodEnd, later.periodEnd));
+    if (prior === undefined) {
+      break;
+    }
+    window.push(prior);
+    later = prior;
+  }
+  const dividends = annualFacts(ctx, "dividendsPaid");
+  const incomes = annualFacts(ctx, "netIncome");
+  const years = window.map(({ periodEnd }) => ({
+    periodEnd,
+    dividend: factAt(dividends, periodEnd),
+    income: factAt(incomes, periodEnd),
+  }));
+  const inputs = years.flatMap(({ dividend, income }) => [
+    ...(dividend === undefined ? [] : [factInput(dividend, "dividendsPaid")]),
+    ...(income === undefined ? [] : [factInput(income, "netIncome")]),
+  ]);
+  const period = { periodEnd: anchor.periodEnd, periodMonths: 12 };
+  const label = shortHistory ? { label: LATEST_YEAR_PAYOUT_LABEL } : {};
+  const missing = (reason: string): MetricOutcome => ({
+    status: "missing",
+    reason: shortHistory
+      ? `fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years; ${reason}`
+      : reason,
+    ...period,
+    inputs,
+    ...label,
+  });
+  const stale = staleAnchor(ctx, "fiscal year", anchor.periodEnd);
+  if (stale !== undefined) {
+    return missing(stale);
+  }
+  if (window.length < windowYears) {
+    return missing(`no annual report for the fiscal year before ${window.at(-1)!.periodEnd}`);
+  }
+  const gap =
+    years.find(({ dividend }) => dividend === undefined) ??
+    years.find(({ income }) => income === undefined);
+  if (gap !== undefined) {
+    return missing(
+      gap.dividend === undefined
+        ? `no annual dividends paid for the fiscal year ending ${gap.periodEnd}`
+        : `no same-period net income for the fiscal year ending ${gap.periodEnd}`,
+    );
+  }
+  const filed = years.map(({ dividend, income }) => ({ dividend: dividend!, income: income! }));
+  const paid = filed.reduce((sum, { dividend }) => sum + Math.abs(dividend.value), 0);
+  const span = { periodStart: window.at(-1)!.periodStart, periodEnd: anchor.periodEnd };
+  const scope = payoutScopeReason(statements, filed, span);
+  if (scope !== undefined) {
+    return missing(scope);
+  }
+  const loss = filed.find(({ income }) => income.value <= 0);
+  if (loss !== undefined) {
+    return {
+      status: "not-meaningful",
+      reason: `net income is zero or negative for the fiscal year ending ${loss.income.periodEnd}`,
+      ...period,
+      inputs,
+      ...label,
+    };
+  }
+  if (paid === 0) {
+    return { status: "value", value: 0, ...period, inputs, ...label };
+  }
+  const earned = filed.reduce((sum, { income }) => sum + income.value, 0);
+  return {
+    status: "value",
+    value: paid / earned,
+    ...period,
+    inputs,
+    ...label,
+    ...(shortHistory ? { basis: LATEST_YEAR_PAYOUT_BASIS } : {}),
+  };
+}
+
+const PAYOUT_SCOPE_BASIS = `dividends paid ${SPECIAL_DIVIDENDS_BASIS}; ${ALL_PARENT_CLASSES_BASIS}; withheld unless dividends are a filed total and the issuer reports no noncontrolling interests`;
+
+const CUMULATIVE_PAYOUT_BASIS = `sum of dividends paid / sum of net income attributable to the parent over the ${String(PAYOUT_WINDOW_YEARS)} year-aligned fiscal years ending with the latest annual report; ${PAYOUT_SCOPE_BASIS}`;
+
+const LATEST_YEAR_PAYOUT_BASIS = `dividends paid / net income attributable to the parent for the latest annual report alone, as fewer than ${String(PAYOUT_WINDOW_YEARS)} fiscal years are filed; ${PAYOUT_SCOPE_BASIS}`;
+
+export function cumulativePayoutRatioDefinition(): MetricDefinition {
+  return {
+    id: "payoutRatio3y",
+    label: "Payout ratio (3y cumulative)",
+    unit: "ratio-percent",
+    basis: CUMULATIVE_PAYOUT_BASIS,
+    applicable: (ctx) =>
+      ctx.secIssuer?.sic === REIT_SIC
+        ? `REIT issuer (SIC ${REIT_SIC}): payout is measured against FFO/AFFO, not net income; not assessed`
+        : undefined,
+    compute: cumulativePayoutOutcome,
+  };
+}
+
 export function payoutRatioDefinition(): MetricDefinition {
   return {
     id: "payoutRatio",
     label: "Payout ratio",
     unit: "ratio-percent",
-    basis: "dividends paid / net income of the same period, or a Yahoo fallback",
+    basis: `dividends paid / net income of the same period, or a Yahoo fallback; ${SPECIAL_DIVIDENDS_BASIS}`,
     compute: (ctx) => {
       const yahoo = yahooItem(ctx);
       const yahooRate = readNumberMetric(yahoo?.metrics, "trailingAnnualDividendRate");

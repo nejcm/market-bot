@@ -13,7 +13,8 @@ import {
 } from "./metric-engine";
 import { type LensValueUnit } from "./value-format";
 import { readNumberMetric } from "./utils";
-import { latestFinancialStatementFact } from "./financial-statement-selection";
+import { PAYOUT_CEILING } from "./payout-basis";
+import { REIT_SIC } from "./industry-classification";
 import {
   type MetricPeriod,
   periodEndInput,
@@ -50,6 +51,7 @@ import {
   debtToEquityDefinition,
   marketLeverageDefinition,
   payoutRatioDefinition,
+  cumulativePayoutRatioDefinition,
   dividendYieldDefinition,
   financingCurrentnessDefinitions,
 } from "./financial-lens-strength";
@@ -198,22 +200,26 @@ function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
   return meets(evidenceDisplayNetDebt(ctx), (value) => value <= 0);
 }
 
-// Payout applies once the issuer filed a dividend, stale or not; only a current filed ratio assesses it.
-function payoutCriterion(
+const withinPayoutCeiling = (value: number) => value <= PAYOUT_CEILING;
+
+// The 3y window (or, under 3 filed years, the latest annual year) decides; a non-payer is one whose deciding window paid nothing.
+export function payoutCriterion(
   ctx: MetricContext,
   section: readonly MetricResult[] | undefined,
 ): PostureCriterion {
-  const dividend =
-    ctx.statements === undefined
-      ? readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid")
-      : latestFinancialStatementFact(eligibleFacts(ctx, "dividendsPaid"))?.value;
-  if (dividend === undefined || dividend === 0) {
+  if (ctx.secIssuer?.sic === REIT_SIC) {
     return "not-applicable";
   }
-  const payout = section?.find((metric) => metric.id === "payoutRatio");
-  return payout !== undefined && filedInput(payout)
-    ? criterionOf(section, "payoutRatio", (value) => value <= 0.8)
-    : undefined;
+  if (ctx.statements === undefined) {
+    const dividend = readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid");
+    return dividend === undefined || dividend === 0 ? "not-applicable" : undefined;
+  }
+  if (eligibleFacts(ctx, "dividendsPaid").every((fact) => fact.value === 0)) {
+    return "not-applicable";
+  }
+  return valueOf(section, "payoutRatio3y") === 0
+    ? "not-applicable"
+    : criterionOf(section, "payoutRatio3y", withinPayoutCeiling);
 }
 
 function strengthPosture(
@@ -300,6 +306,7 @@ function lensDefinitions(
       currentRatioDefinition(),
       withCompleteDebt(debtToEquityDefinition()),
       payoutRatioDefinition(),
+      cumulativePayoutRatioDefinition(),
       dividendYieldDefinition(),
       ...financingCurrentnessDefinitions(ctx),
     ],
@@ -341,9 +348,11 @@ export function financialLensMetrics(ctx: MetricContext): {
   };
   const strength = lensMetrics["Financial Strength"];
   const symbol = ctx.symbol.toUpperCase();
-  const displayOnlyPayout =
+  const latestPayout = strength.find((metric) => metric.id === "payoutRatio");
+  const unassessedPayout =
     payoutCriterion(ctx, strength) === undefined &&
-    strength.find((metric) => metric.id === "payoutRatio")?.status === "value";
+    latestPayout?.status === "value" &&
+    (ctx.statements === undefined || !filedInput(latestPayout));
   return {
     sections,
     lensMetrics,
@@ -360,11 +369,11 @@ export function financialLensMetrics(ctx: MetricContext): {
               (ctx.statements !== undefined || secItem(ctx) !== undefined)),
         )
         .flatMap(([, { sourceGaps }]) => sourceGaps),
-      ...(displayOnlyPayout
+      ...(unassessedPayout
         ? [
             sourceGap({
               source: financialLensMetricSectionId("Financial Strength"),
-              message: `Financial Lens: Financial Strength payout criterion for ${symbol} not assessed: no current same-period filed payout ratio; the Yahoo-derived ratio is display-only`,
+              message: `Financial Lens: Financial Strength payout criterion for ${symbol} not assessed: ${filedInput(latestPayout) ? "the SEC summary payout ratio does not prove the annual window or the parent scope of dividends paid; it is display-only" : "no current same-period filed payout ratio; the Yahoo-derived ratio is display-only"}`,
               symbol,
               provider: "market-bot",
               capability: "extended-evidence",

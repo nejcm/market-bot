@@ -2386,7 +2386,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     expect(debtToEquity).toMatchObject({ unit: "ratio", value: 20 / 50 });
   });
 
-  test("SEC payout <= 0.8 supports Financial Strength; dividendsPaid sign handled via abs()", () => {
+  test("an SEC summary payout is displayed, sign handled via abs(), but not assessed", () => {
     // DividendsPaid -5 (XBRL outflow), netIncome 18 -> payout = 5/18 = 0.278 (<= 0.8).
     const result = addFinancialLensEvidence(
       command,
@@ -2406,7 +2406,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       value: Math.abs(-5) / 18,
       sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
     });
-    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
   });
 
   test.each([
@@ -2462,38 +2462,50 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
     ).toContain("Operating cash flow (trailing) missing");
   });
 
-  test("SEC payout > 0.8 does not support Financial Strength", () => {
+  test("a REIT's summary-only payout is not assessed on net income", () => {
     const result = addFinancialLensEvidence(
       command,
       [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
-        items: [secEvidenceWithRatios({ dividendsPaid: -20, netIncome: 20 }), valuationEvidence()],
+        items: [
+          secEvidenceWithRatios({
+            ...DATED_ANNUAL_CASH_FLOW,
+            dividendsPaid: -150,
+            netIncome: 100,
+            sic: "6798",
+          }),
+          valuationEvidence(),
+        ],
         gaps: [],
       },
       verifiedSnapshot(),
       "2026-06-22T00:00:00.000Z",
     );
 
-    // Payout = 20/20 = 1.0 (> 0.8). Existing strength criteria all support, so the
-    // Payout criterion flips the lens to criteria-mixed.
-    expect(metricByKey(result, "Financial Strength", "payoutRatio")?.value).toBe(1);
-    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-mixed");
+    expect(metricByKey(result, "Financial Strength", "payoutRatio")?.value).toBe(1.5);
+    expect(lensByName(result, "Financial Strength")?.posture).toBe("criteria-supported");
   });
 
   test.each([
-    ["aligned", "2026-03-28", "criteria-mixed"],
-    ["mismatched", "2025-12-31", "insufficient-data"],
+    ["3-month 2.0%", 3, -2, 0.02],
+    ["annual 95.0%", 12, -95, 0.95],
   ] as const)(
-    "a filed dividend keeps payout a Strength criterion when its period is %s",
-    (_label, dividendsPaidPeriodEnd, posture) => {
+    "a non-REIT SEC summary payout (%s) stays descriptive and leaves the check unassessed",
+    (_label, months, dividendsPaid, value) => {
       const result = addFinancialLensEvidence(
         command,
         [marketSnapshot({ sourceId: "market-yahoo-equity-aapl", marketCap: 1000 })],
         {
           instrument: { symbol: "AAPL", assetClass: "equity" },
           items: [
-            secEvidenceWithRatios({ dividendsPaid: 20, dividendsPaidPeriodEnd }),
+            secEvidenceWithRatios({
+              ...DATED_ANNUAL_CASH_FLOW,
+              dividendsPaid,
+              dividendsPaidPeriodMonths: months,
+              netIncome: 100,
+              netIncomePeriodMonths: months,
+            }),
             valuationEvidence(),
           ],
           gaps: [],
@@ -2501,7 +2513,12 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
         verifiedSnapshot(),
         "2026-06-22T00:00:00.000Z",
       );
-      expect(lensByName(result, "Financial Strength")?.posture).toBe(posture);
+
+      expect(metricByKey(result, "Financial Strength", "payoutRatio")?.value).toBeCloseTo(value);
+      expect(lensByName(result, "Financial Strength")?.posture).toBe("insufficient-data");
+      expect(result.metricSectionGaps?.map(({ message }) => message)).toContainEqual(
+        expect.stringContaining("SEC summary payout ratio does not prove"),
+      );
     },
   );
 
@@ -2786,7 +2803,7 @@ describe("addFinancialLensEvidence — Forbes ratio expansion", () => {
       {
         instrument: { symbol: "AAPL", assetClass: "equity" },
         items: [
-          secEvidenceWithRatios(DATED_ANNUAL_CASH_FLOW),
+          secEvidenceWithRatios({ ...DATED_ANNUAL_CASH_FLOW, dividendsPaid: 0 }),
           valuationEvidence(),
           yahooFundamentalsEvidence(),
         ],

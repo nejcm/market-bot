@@ -71,12 +71,14 @@ import {
 import {
   analystEstimateDistributionsFromProjection,
   balanceSheetHistoryFromProjection,
+  capitalReturnHistoryFromProjection,
   earningsConsensusFromProjection,
   financialPositionFromProjection,
   financialTrendFromProjection,
   fundamentalHistoryView,
   type RunWorkspaceAnalystEstimateDistribution,
   type RunWorkspaceBalanceSheetHistoryView,
+  type RunWorkspaceCapitalReturnHistoryView,
   type RunWorkspaceEarningsConsensusView,
   type RunWorkspaceFinancialPositionView,
   type RunWorkspaceFinancialTrendView,
@@ -123,6 +125,7 @@ export {
 export type {
   RunWorkspaceAnalystEstimateDistribution,
   RunWorkspaceBalanceSheetHistoryView,
+  RunWorkspaceCapitalReturnHistoryView,
   RunWorkspaceFundamentalHistoryView,
   RunWorkspaceSparklineGeometry,
 } from "./run-workspace-financials";
@@ -205,6 +208,7 @@ export type RunWorkspaceSectionKey =
   | "earningsConsensus"
   | "equityMetrics"
   | "balanceSheetHistory"
+  | "capitalReturnHistory"
   | "analystEstimateDistributions"
   | "equityCompleteness"
   | "rawMarkdown";
@@ -259,6 +263,7 @@ export interface RunWorkspaceEquityPresentationView {
     readonly extendedItems: readonly ExtendedEvidenceItemView[];
     readonly diagnosticGaps: readonly string[];
     readonly balanceSheetHistory?: RunWorkspaceBalanceSheetHistoryView;
+    readonly capitalReturnHistory?: RunWorkspaceCapitalReturnHistoryView;
     readonly scenarios: readonly ScenarioView[];
   };
 }
@@ -404,6 +409,9 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
   const balanceSheetHistory = balanceSheetHistoryFromProjection(
     readerProjection.appendix.balanceSheetHistory,
   );
+  const capitalReturnHistory = capitalReturnHistoryFromProjection(
+    readerProjection.appendix.capitalReturnHistory,
+  );
   const financialPosition = financialPositionFromProjection(
     readerProjection.defaultView.financialPosition,
   );
@@ -476,6 +484,7 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             extendedItems,
             diagnosticGaps,
             ...(balanceSheetHistory === undefined ? {} : { balanceSheetHistory }),
+            ...(capitalReturnHistory === undefined ? {} : { capitalReturnHistory }),
             scenarios: scenarioItems,
           },
         };
@@ -661,6 +670,12 @@ export function buildRunWorkspaceView(detail: RunDetail): RunWorkspaceView {
             key: "balanceSheetHistory",
             label: "Balance sheet & share count",
             visible: balanceSheetHistory !== undefined,
+            advancedOnly: true,
+          },
+          {
+            key: "capitalReturnHistory",
+            label: "Capital return history",
+            visible: capitalReturnHistory !== undefined,
             advancedOnly: true,
           },
           {

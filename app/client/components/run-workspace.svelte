@@ -26,6 +26,7 @@
   import FinancialLensStats from "./financial-lens-stats.svelte";
   import FundamentalHistory from "./fundamental-history.svelte";
   import BalanceSheetHistory from "./balance-sheet-history.svelte";
+  import CapitalReturnHistory from "./capital-return-history.svelte";
   import ValuationWorkbench from "./valuation-workbench.svelte";
   import ReverseDcf from "./reverse-dcf.svelte";
   import PeerImpliedRange from "./peer-implied-range.svelte";
@@ -704,6 +705,15 @@
             <BalanceSheetHistory
               history={equityPresentation.advanced.balanceSheetHistory}
               sectionKey="balanceSheetHistory"
+              {citeChips}
+              {bindSection}
+            />
+          {/if}
+
+          {#if equityPresentation?.advanced.capitalReturnHistory !== undefined}
+            <CapitalReturnHistory
+              history={equityPresentation.advanced.capitalReturnHistory}
+              sectionKey="capitalReturnHistory"
               {citeChips}
               {bindSection}
             />

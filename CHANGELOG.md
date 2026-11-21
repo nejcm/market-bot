@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.62](https://github.com/nejcm/market-bot/compare/v1.19.61...v1.19.62) (2026-11-21)
+
+### Bug Fixes
+
+- **ev-bridge:** withhold bridge lines filed only in another currency (#287) ([678b06e](https://github.com/nejcm/market-bot/commit/678b06e058f32d7c3d0aed404b433399f5ba0677))
+
 ## [1.19.61](https://github.com/nejcm/market-bot/compare/v1.19.60...v1.19.61) (2026-11-20)
 
 ### Bug Fixes

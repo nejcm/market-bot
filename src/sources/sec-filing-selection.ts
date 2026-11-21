@@ -173,7 +173,7 @@ export function selectInstantFaceFilings(payload: unknown, instant: string): rea
 }
 
 // The face parser reads inline XBRL tags, so a filing SEC marks as not inline cannot foot.
-function nonInlineXbrlAccessions(payload: unknown): ReadonlySet<string> {
+export function nonInlineXbrlAccessions(payload: unknown): ReadonlySet<string> {
   const recent =
     isRecord(payload) && isRecord(payload.filings) && isRecord(payload.filings.recent)
       ? payload.filings.recent

@@ -51,7 +51,7 @@ import {
   unsupersededDebtResolutions,
 } from "./sec-debt-resolution";
 import type { ParsedFact, SelectedSeries } from "./financial-statement-facts";
-import { selectInstantFaceFilings } from "../sec-filing-selection";
+import { nonInlineXbrlAccessions, selectInstantFaceFilings } from "../sec-filing-selection";
 
 export interface DebtFactReader {
   readonly root: (taxonomy: FinancialStatementTaxonomy) => Record<string, unknown> | undefined;
@@ -200,6 +200,7 @@ export function debtInstantsNeedingFace(
   );
   const debt = financialStatementSeriesByKey(artifact, "debt");
   const read = new Set(secFilings.map(({ metrics }) => metrics?.accessionNumber));
+  const unreadable = nonInlineXbrlAccessions(submissionsPayload);
   // The earliest comparative, else the instant's own face; its own face beside a comparative ranks second under the cap.
   const unreadFaces = (periodEnd: string, before = "\uFFFF") => {
     const unread = selectInstantFaceFilings(submissionsPayload, periodEnd).filter(
@@ -216,7 +217,10 @@ export function debtInstantsNeedingFace(
     if (note.faceAccession === undefined || periodEnd === undefined || !isWithheldDebtNote(note)) {
       return [];
     }
-    const [first = note.faceAccession, second] = unreadFaces(periodEnd);
+    const fallback = [note.faceAccession].find(
+      (accession) => !read.has(accession) && !unreadable.has(accession),
+    );
+    const [first = fallback, second] = unreadFaces(periodEnd);
     return requests(periodEnd, [first, second]);
   });
   // A filing-proved instant public only after an unread face that holds it asks for that face, which may date it earlier.
@@ -505,7 +509,7 @@ export function factsForDebt(
           ? []
           : [
               provenAmount(fact.value, [fact.filedAt], resolution.proofSourceIds, filings),
-              ...provenAmounts(instantFacts.get(instantKey) ?? [], tagged, filings, resolveWith),
+              ...provenAmounts(instantFacts.get(instantKey) ?? [], filings, resolveWith),
             ],
       incomplete,
       incompleteReason: resolution.incompleteReason,
@@ -1185,7 +1189,6 @@ function filingLines(
 // Each filing that alone resolves the instant completely is an independent proof of its amount.
 function provenAmounts(
   facts: readonly ParsedFact[],
-  tagged: ReadonlyMap<string, ParsedFact>,
   filings: readonly ExtendedEvidenceItem[],
   resolve: (lines: ReadonlyMap<string, ParsedFact>, filing: Filing) => DebtResolution<ParsedFact>,
 ): readonly ProvenAmount[] {
@@ -1193,8 +1196,15 @@ function provenAmounts(
   return filingIds.length < 2
     ? []
     : filingIds.flatMap((filing) => {
-        const lines = filingLines(filing, facts, tagged);
         const filedAt = facts.find((fact) => filingOf(fact) === filing)?.filedAt ?? "";
+        // A zero filed later can neither complete nor delay this filing's proof.
+        const zeros = new Map<string, ParsedFact>();
+        for (const fact of facts) {
+          if (fact.value === 0 && fact.filedAt <= filedAt && !zeros.has(fact.concept)) {
+            zeros.set(fact.concept, fact);
+          }
+        }
+        const lines = filingLines(filing, facts, zeros);
         const alone = resolve(lines, { id: filing, filedAt });
         const [anchor] = alone.contributors;
         return alone.incompleteReason !== undefined || anchor === undefined
@@ -1257,6 +1267,7 @@ function withFaceStatementDebt(
       new Map(
         [...tagged].filter(([concept]) => recognized.has(concept) || !face.standard.has(concept)),
       ),
+      face,
     );
     const gross = proven.contributors.filter(({ subtract }) => subtract !== true);
     const [anchor] = gross;

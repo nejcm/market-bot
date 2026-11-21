@@ -638,7 +638,7 @@ export async function collectSecDebtFaceFilings(
         : [
             sourceGap({
               source: "sec-edgar",
-              message: `${command.symbol} debt stays withheld where no filing balance-sheet face proved it (${[...unread].map(([reason, periods]) => `${reason}: ${periods.join(", ")}`).join("; ")})`,
+              message: `${command.symbol} balance-sheet face requests for debt proof went unread (${[...unread].map(([reason, periods]) => `${reason}: ${periods.join(", ")}`).join("; ")})`,
               provider: "sec-edgar",
               capability: "evidence-request",
               cause: unread.has("fetch failed")

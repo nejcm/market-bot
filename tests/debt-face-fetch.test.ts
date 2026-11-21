@@ -488,6 +488,19 @@ describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", (
   });
 
   // TDG's FY2018 10-K 0001260221-18-000070 has isInlineXBRL 0, so its face cannot foot.
+  test("a fallback face that is not inline XBRL or already read is not requested, and the instant stays withheld", () => {
+    const artifact = deriveItems(TDG_GAAP, []);
+    const notInline = {
+      filings: { recent: { ...tdgSubmissions().filings.recent, isInlineXBRL: [0] } },
+    };
+    const k25 = { metrics: { accessionNumber: TDG_K25 } } as unknown as ExtendedEvidenceItem;
+    expect(debtInstantsNeedingFace(artifact, notInline)).toEqual([]);
+    expect(debtInstantsNeedingFace(artifact, undefined, [k25])).toEqual([]);
+    expect(artifact.omissionNotes?.map(({ periodKey }) => periodKey)).toEqual(
+      expect.arrayContaining(["instant|2025-09-30", "instant|2024-09-30"]),
+    );
+  });
+
   test("an own 10-K SEC marks as not inline XBRL is not requested, only the comparative", () => {
     expect(
       debtInstantsNeedingFace(deriveItems(TDG_GAAP, []), tdgK24Submissions(0)).filter(
@@ -666,9 +679,8 @@ const debtAt = (artifact: ReturnType<typeof deriveItems>, end: string) =>
     .filter(({ periodEnd }) => periodEnd === end)
     .map(({ periodType, value, firstPublicAt }) => [periodType, value, firstPublicAt]);
 
-// TDG FY2024 10-K 0001260221-24-000083 own face (report date 2024-09-30), companyfacts values.
-test("TDG 2024-09-30 is public from the FY2024 10-K whose own face proves 24,618M, not the FY2025 comparative", async () => {
-  const k24Face = filedFace(
+const tdgK24Face = () =>
+  filedFace(
     TDG_K24,
     "2024-09-30",
     "2024-11-07",
@@ -681,6 +693,9 @@ test("TDG 2024-09-30 is public from the FY2024 10-K whose own face proves 24,618
       ],
     ),
   );
+
+// TDG FY2024 10-K 0001260221-24-000083 own face (report date 2024-09-30), companyfacts values.
+test("TDG 2024-09-30 is public from the FY2024 10-K whose own face proves 24,618M, not the FY2025 comparative", async () => {
   expect(
     debtInstantsNeedingFace(deriveItems(TDG_GAAP, []), tdgSubmissionsWithK24()).filter(
       ({ periodEnd }) => periodEnd === "2024-09-30",
@@ -690,7 +705,23 @@ test("TDG 2024-09-30 is public from the FY2024 10-K whose own face proves 24,618
     { periodEnd: "2024-09-30", accessionNumber: TDG_K24 },
   ]);
   const { out } = await tdgFaces();
-  const artifact = deriveItems(TDG_GAAP, [...out.items, k24Face]);
+  const artifact = deriveItems(TDG_GAAP, [...out.items, tdgK24Face()]);
+  expect(debtAt(artifact, "2024-09-30")).toEqual([["annual", 24_618e6, "2024-11-07"]]);
+  const row = valuationPeriodInputs(artifact).periods.find(
+    ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-09-30",
+  );
+  expect(row?.debt).toMatchObject({ value: 24_618e6, publicAt: "2024-11-07" });
+  expect(row?.debt?.sourceIds).toContain(`face-${TDG_K24}`);
+});
+
+// A zero ConvertibleDebtNoncurrent in the FY2025 10-K's comparative note must not move the FY2024 face's proof.
+test("a later filing's zero at 2024-09-30 leaves 24,618M public 2024-11-07 from the FY2024 face", async () => {
+  const gaap = {
+    ...TDG_GAAP,
+    ConvertibleDebtNoncurrent: [tdgFact(0, "2024-09-30", TDG_K25, "2025-11-12")],
+  };
+  const { out } = await tdgFaces();
+  const artifact = deriveItems(gaap, [...out.items, tdgK24Face()]);
   expect(debtAt(artifact, "2024-09-30")).toEqual([["annual", 24_618e6, "2024-11-07"]]);
   const row = valuationPeriodInputs(artifact).periods.find(
     ({ basis, periodEnd }) => basis === "annual" && periodEnd === "2024-09-30",
@@ -843,6 +874,28 @@ describe("VSAT 2025-03-31 debt proved by its original 10-K and the next 10-K's c
     expect(fy2025Row(artifact)?.debt?.sourceIds).toEqual(
       expect.arrayContaining([`face-${K25}`, `face-${K26}`]),
     );
+  });
+
+  // Generic current maturities on the face, the lease split only in the notes: 5,000 current is unplaced.
+  test("a footed face withholds when a nonzero current finance lease is unplaced", () => {
+    const {
+      LongTermDebtAndCapitalLeaseObligationsCurrent: _current,
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: _total,
+      ...variant
+    } = tags;
+    const split = { FinanceLeaseLiabilityCurrent: 5000, FinanceLeaseLiabilityNoncurrent: 153_473 };
+    const filing = { form: "10-K", fp: "FY", end: "2025-03-31" } as const;
+    const artifact = deriveItems(
+      {
+        Revenues: gaap.Revenues,
+        ...companyFacts([
+          { ...filing, accn: K25, filed: "2025-05-27", thousands: variant },
+          { ...filing, accn: K26, filed: "2026-05-29", thousands: { ...variant, ...split } },
+        ]),
+      },
+      [k26Face],
+    );
+    expect(debtAt(artifact, "2025-03-31")).toEqual([]);
   });
 });
 

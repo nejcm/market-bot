@@ -212,13 +212,7 @@ export function payoutCriterion(
   }
   if (ctx.statements === undefined) {
     const dividend = readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid");
-    const payout = section?.find((metric) => metric.id === "payoutRatio");
-    if (dividend === undefined || dividend === 0) {
-      return "not-applicable";
-    }
-    return payout !== undefined && filedInput(payout)
-      ? criterionOf(section, "payoutRatio", withinPayoutCeiling)
-      : undefined;
+    return dividend === undefined || dividend === 0 ? "not-applicable" : undefined;
   }
   if (eligibleFacts(ctx, "dividendsPaid").every((fact) => fact.value === 0)) {
     return "not-applicable";
@@ -355,10 +349,10 @@ export function financialLensMetrics(ctx: MetricContext): {
   const strength = lensMetrics["Financial Strength"];
   const symbol = ctx.symbol.toUpperCase();
   const latestPayout = strength.find((metric) => metric.id === "payoutRatio");
-  const displayOnlyPayout =
+  const unassessedPayout =
     payoutCriterion(ctx, strength) === undefined &&
     latestPayout?.status === "value" &&
-    !filedInput(latestPayout);
+    (ctx.statements === undefined || !filedInput(latestPayout));
   return {
     sections,
     lensMetrics,
@@ -375,11 +369,11 @@ export function financialLensMetrics(ctx: MetricContext): {
               (ctx.statements !== undefined || secItem(ctx) !== undefined)),
         )
         .flatMap(([, { sourceGaps }]) => sourceGaps),
-      ...(displayOnlyPayout
+      ...(unassessedPayout
         ? [
             sourceGap({
               source: financialLensMetricSectionId("Financial Strength"),
-              message: `Financial Lens: Financial Strength payout criterion for ${symbol} not assessed: no current same-period filed payout ratio; the Yahoo-derived ratio is display-only`,
+              message: `Financial Lens: Financial Strength payout criterion for ${symbol} not assessed: ${filedInput(latestPayout) ? "the SEC summary payout ratio does not prove the annual window or the parent scope of dividends paid; it is display-only" : "no current same-period filed payout ratio; the Yahoo-derived ratio is display-only"}`,
               symbol,
               provider: "market-bot",
               capability: "extended-evidence",

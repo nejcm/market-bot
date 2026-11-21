@@ -48,7 +48,7 @@ import { isYearAligned, latestFinancialStatementFact } from "./financial-stateme
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import { staleAnchor } from "./capital-return";
 import { REIT_SIC } from "./industry-classification";
-import { annualFilingCalendar, dividendClassBasis, payoutScopeReason } from "./payout-basis";
+import { ALL_PARENT_CLASSES_BASIS, annualFilingCalendar, payoutScopeReason } from "./payout-basis";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -744,13 +744,13 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
   }
   const filed = years.map(({ dividend, income }) => ({ dividend: dividend!, income: income! }));
   const paid = filed.reduce((sum, { dividend }) => sum + Math.abs(dividend.value), 0);
-  if (paid === 0) {
-    return { status: "value", value: 0, ...period, inputs, ...label };
-  }
   const span = { periodStart: window.at(-1)!.periodStart, periodEnd: anchor.periodEnd };
   const scope = payoutScopeReason(statements, filed, span);
   if (scope !== undefined) {
     return missing(scope);
+  }
+  if (paid === 0) {
+    return { status: "value", value: 0, ...period, inputs, ...label };
   }
   const loss = filed.find(({ income }) => income.value <= 0);
   if (loss !== undefined) {
@@ -763,21 +763,17 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
     };
   }
   const earned = filed.reduce((sum, { income }) => sum + income.value, 0);
-  const classes = dividendClassBasis(filed.map(({ dividend }) => dividend));
-  const basis = shortHistory ? LATEST_YEAR_PAYOUT_BASIS : CUMULATIVE_PAYOUT_BASIS;
   return {
     status: "value",
     value: paid / earned,
     ...period,
     inputs,
     ...label,
-    ...(shortHistory || classes !== undefined
-      ? { basis: [basis, classes].filter((part) => part !== undefined).join("; ") }
-      : {}),
+    ...(shortHistory ? { basis: LATEST_YEAR_PAYOUT_BASIS } : {}),
   };
 }
 
-const PAYOUT_SCOPE_BASIS = `dividends paid ${SPECIAL_DIVIDENDS_BASIS}; withheld unless dividends are filed by holder class or the issuer reports no noncontrolling interests`;
+const PAYOUT_SCOPE_BASIS = `dividends paid ${SPECIAL_DIVIDENDS_BASIS}; ${ALL_PARENT_CLASSES_BASIS}; withheld unless dividends are a filed total and the issuer reports no noncontrolling interests`;
 
 const CUMULATIVE_PAYOUT_BASIS = `sum of dividends paid / sum of net income attributable to the parent over the ${String(PAYOUT_WINDOW_YEARS)} year-aligned fiscal years ending with the latest annual report; ${PAYOUT_SCOPE_BASIS}`;
 

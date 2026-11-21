@@ -1,7 +1,4 @@
-import {
-  COMMON_DIVIDENDS_PAID_CONCEPTS,
-  FINANCIAL_STATEMENT_SERIES_DEFINITIONS,
-} from "./financial-statement-definitions";
+import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
 import {
   financialStatementFacts,
   financialStatementSeriesByKey,
@@ -14,7 +11,13 @@ import type {
 
 export const PAYOUT_CEILING = 0.8;
 
-const ALL_PARENT_CLASSES_BASIS = "dividends paid cover all parent equity classes, as filed";
+export const ALL_PARENT_CLASSES_BASIS = "dividends paid cover all parent equity classes, as filed";
+
+const TOTAL_DIVIDENDS_PAID_CONCEPTS: ReadonlySet<string> = new Set([
+  "PaymentsOfDividends",
+  "PaymentsForDividends",
+  "DividendsPaid",
+]);
 
 interface FiscalYear {
   readonly periodStart: string;
@@ -62,23 +65,43 @@ function noteEnds(note: FinancialStatementNote): readonly string[] {
   ];
 }
 
+const byPeriod = (fact: FinancialStatementFact) => fact.periodKey;
+const byInstant = (fact: FinancialStatementFact) => fact.periodEnd;
+
+// Two filed figures for one period that differ by the NCI share.
+function divergent(
+  parent: readonly FinancialStatementFact[],
+  consolidated: readonly FinancialStatementFact[],
+  sameAs: (fact: FinancialStatementFact) => string,
+  within: (date: string) => boolean,
+): boolean {
+  const values = new Map(parent.map((fact) => [sameAs(fact), fact.value]));
+  return consolidated.some(
+    (fact) =>
+      within(fact.periodEnd) && values.has(sameAs(fact)) && values.get(sameAs(fact)) !== fact.value,
+  );
+}
+
 function noncontrollingReported(
   artifact: FinancialStatementsArtifact,
   start: string,
   end: string,
 ): boolean {
   const within = (date: string) => date >= start && date <= end;
-  const facts = (key: "netIncome" | "consolidatedNetIncome") => {
+  const facts = (
+    key:
+      | "netIncome"
+      | "consolidatedNetIncome"
+      | "continuingIncome"
+      | "consolidatedContinuingIncome",
+  ) => {
     const series = financialStatementSeriesByKey(artifact, key);
     return series === undefined ? [] : financialStatementFacts(series);
   };
-  const parent = new Map(facts("netIncome").map((fact) => [fact.periodKey, fact.value]));
-  const income = facts("consolidatedNetIncome").some(
-    (fact) =>
-      within(fact.periodEnd) &&
-      parent.has(fact.periodKey) &&
-      parent.get(fact.periodKey) !== fact.value,
-  );
+  const stack = artifact.equityStack;
+  const income =
+    divergent(facts("netIncome"), facts("consolidatedNetIncome"), byPeriod, within) ||
+    divergent(facts("continuingIncome"), facts("consolidatedContinuingIncome"), byPeriod, within);
   const withheld = [...artifact.validationNotes, ...artifact.omissionNotes].some(
     (note) =>
       note.code === "withheld-derivation" &&
@@ -86,14 +109,25 @@ function noncontrollingReported(
       NONCONTROLLING_NOTE_SERIES.has(note.seriesKey) &&
       noteEnds(note).some(within),
   );
-  const equity = [
-    ...(artifact.equityStack?.minorityInterest ?? []),
-    ...(artifact.enterpriseValueBridge?.noncontrollingInterest ?? []),
-  ].some((fact) => fact.value !== 0 && within(fact.periodEnd));
+  const equity =
+    [
+      ...(stack?.minorityInterest ?? []),
+      ...(artifact.enterpriseValueBridge?.noncontrollingInterest ?? []),
+      ...[
+        ...(stack?.temporaryEquity ?? []),
+        ...(artifact.enterpriseValueBridge?.temporaryEquity ?? []),
+      ].filter((fact) => fact.concept.startsWith("RedeemableNoncontrollingInterest")),
+    ].some((fact) => fact.value !== 0 && within(fact.periodEnd)) ||
+    divergent(
+      stack?.stockholdersEquity ?? [],
+      stack?.stockholdersEquityIncludingNoncontrollingInterest ?? [],
+      byInstant,
+      within,
+    );
   return income || withheld || equity;
 }
 
-// Dividends are parent-scope only when filed by holder class or when the issuer reports no NCI in the span (Accounting Scope).
+// Dividends are parent scope only as a filed total from an issuer that reports no NCI in the span (Accounting Scope).
 export function payoutScopeReason(
   artifact: FinancialStatementsArtifact,
   years: readonly {
@@ -106,16 +140,14 @@ export function payoutScopeReason(
   if (ifrs !== undefined) {
     return `net income is IFRS ${ifrs.income.concept}, which includes noncontrolling interests; profit attributable to the parent is not in the statements`;
   }
-  const total = years.find(({ dividend }) => !COMMON_DIVIDENDS_PAID_CONCEPTS.has(dividend.concept));
-  return total !== undefined && noncontrollingReported(artifact, span.periodStart, span.periodEnd)
-    ? `${total.dividend.concept} is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven`
-    : undefined;
-}
-
-export function dividendClassBasis(
-  dividends: readonly FinancialStatementFact[],
-): string | undefined {
-  return dividends.some((fact) => !COMMON_DIVIDENDS_PAID_CONCEPTS.has(fact.concept))
-    ? ALL_PARENT_CLASSES_BASIS
+  // A class-tagged series can be the elected component of a larger filed total (TDG FY2025: 159M common vs 9,629M).
+  const component = years.find(
+    ({ dividend }) => !TOTAL_DIVIDENDS_PAID_CONCEPTS.has(dividend.concept),
+  );
+  if (component !== undefined) {
+    return `dividends are filed only by holder class (${component.dividend.concept}); total distributions are not proven`;
+  }
+  return noncontrollingReported(artifact, span.periodStart, span.periodEnd)
+    ? `${years[0]!.dividend.concept} is a dividend total that may include distributions to noncontrolling interests, which the issuer reports; the parent-scope amount is not proven`
     : undefined;
 }

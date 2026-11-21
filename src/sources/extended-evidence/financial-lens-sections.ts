@@ -13,7 +13,7 @@ import {
 } from "./metric-engine";
 import { type LensValueUnit } from "./value-format";
 import { readNumberMetric } from "./utils";
-import { payoutFallbackApplies } from "./payout-basis";
+import { PAYOUT_CEILING, payoutFallbackApplies } from "./payout-basis";
 import {
   type MetricPeriod,
   periodEndInput,
@@ -199,7 +199,7 @@ function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
   return meets(evidenceDisplayNetDebt(ctx), (value) => value <= 0);
 }
 
-const withinPayoutCeiling = (value: number) => value <= 0.8;
+const withinPayoutCeiling = (value: number) => value <= PAYOUT_CEILING;
 
 // The 3y window decides; a non-payer is one whose deciding window paid nothing.
 export function payoutCriterion(

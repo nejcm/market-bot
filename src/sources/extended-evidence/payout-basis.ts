@@ -9,10 +9,34 @@ import type {
   FinancialStatementsArtifact,
 } from "./financial-statements-contract";
 
-function noncontrollingIncome(
+export const PAYOUT_CEILING = 0.8;
+
+// "bounded": generic dividends beside NCI earnings, so the same-scope ratio lies between the parent and consolidated bases.
+export type PayoutScope =
+  | { readonly status: "same"; readonly consolidated?: FinancialStatementFact }
+  | { readonly status: "withheld"; readonly reason: string }
+  | { readonly status: "bounded"; readonly consolidated: FinancialStatementFact };
+
+export function payoutScopeAmbiguity(dividendsConcept: string): string {
+  return `noncontrolling interests earned income and ${dividendsConcept} can include distributions to them; dividends and parent net income are not proven to share one scope`;
+}
+
+// Payout divides by parent net income, so the dividend total must not carry NCI distributions (Accounting Scope).
+export function payoutScope(
   artifact: FinancialStatementsArtifact,
+  dividends: FinancialStatementFact,
   income: FinancialStatementFact,
-): boolean {
+): PayoutScope {
+  // US GAAP netIncome is NetIncomeLoss, or ProfitLoss only where no NCI income was proven; IFRS ProfitLoss includes NCI.
+  if (income.taxonomy !== "us-gaap") {
+    return {
+      status: "withheld",
+      reason: `net income is IFRS ${income.concept}, which includes noncontrolling interests; profit attributable to the parent is not in the statements`,
+    };
+  }
+  if (COMMON_DIVIDENDS_PAID_CONCEPTS.has(dividends.concept)) {
+    return { status: "same" };
+  }
   const series = financialStatementSeriesByKey(artifact, "consolidatedNetIncome");
   const consolidated = latestFinancialStatementFact(
     (series === undefined ? [] : financialStatementFacts(series)).filter(
@@ -20,30 +44,15 @@ function noncontrollingIncome(
     ),
   );
   if (consolidated !== undefined) {
-    return consolidated.value !== income.value;
+    return consolidated.value === income.value
+      ? { status: "same", consolidated }
+      : { status: "bounded", consolidated };
   }
   return artifact.validationNotes.some(
     (note) => note.seriesKey === "consolidatedNetIncome" && note.periodKey === income.periodKey,
-  );
-}
-
-// Payout divides by parent net income, so the dividend total must not carry NCI distributions (Accounting Scope).
-export function payoutScopeReason(
-  artifact: FinancialStatementsArtifact,
-  dividends: FinancialStatementFact,
-  income: FinancialStatementFact,
-): string | undefined {
-  // US GAAP netIncome is NetIncomeLoss, or ProfitLoss only where no NCI income was proven; IFRS ProfitLoss includes NCI.
-  if (income.taxonomy !== "us-gaap") {
-    return `net income is IFRS ${income.concept}, which includes noncontrolling interests; profit attributable to the parent is not in the statements`;
-  }
-  if (
-    COMMON_DIVIDENDS_PAID_CONCEPTS.has(dividends.concept) ||
-    !noncontrollingIncome(artifact, income)
-  ) {
-    return undefined;
-  }
-  return `noncontrolling interests earned income and ${dividends.concept} can include distributions to them; dividends and parent net income are not proven to share one scope`;
+  )
+    ? { status: "withheld", reason: payoutScopeAmbiguity(dividends.concept) }
+    : { status: "same" };
 }
 
 interface PayoutRow {

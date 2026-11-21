@@ -48,7 +48,8 @@ import { isYearAligned, latestFinancialStatementFact } from "./financial-stateme
 import type { FinancialStatementFact } from "./financial-statements-contract";
 import { staleAnchor } from "./capital-return";
 import { REIT_SIC } from "./industry-classification";
-import { payoutScopeReason } from "./payout-basis";
+import { PAYOUT_CEILING, payoutScope, payoutScopeAmbiguity } from "./payout-basis";
+import { formatRatioPercent } from "./percent-format";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -707,14 +708,26 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
     window.push(prior);
     later = prior;
   }
-  const years = window.map(({ periodEnd }) => ({
-    periodEnd,
-    dividend: factAt(dividends, periodEnd),
-    income: factAt(incomes, periodEnd),
-  }));
-  const inputs = years.flatMap(({ dividend, income }) => [
+  const years = window.map(({ periodEnd }) => {
+    const dividend = factAt(dividends, periodEnd);
+    const income = factAt(incomes, periodEnd);
+    return {
+      periodEnd,
+      dividend,
+      income,
+      scope:
+        dividend === undefined || income === undefined
+          ? undefined
+          : payoutScope(statements, dividend, income),
+    };
+  });
+  const anyBounded = years.some(({ scope }) => scope?.status === "bounded");
+  const inputs = years.flatMap(({ dividend, income, scope }) => [
     ...(dividend === undefined ? [] : [factInput(dividend, "dividendsPaid")]),
     ...(income === undefined ? [] : [factInput(income, "netIncome")]),
+    ...(anyBounded && scope?.status !== "withheld" && scope?.consolidated !== undefined
+      ? [factInput(scope.consolidated, "consolidatedNetIncome")]
+      : []),
   ]);
   const period = periodOf(anchor);
   const missing = (reason: string, cause?: "insufficient-history"): MetricOutcome => ({
@@ -728,31 +741,73 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
   if (stale !== undefined) {
     return missing(stale);
   }
-  const unpaid = years.find(({ dividend }) => dividend === undefined);
-  const unmatched = years.find(({ income }) => income === undefined);
   const yearGap = (year: (typeof years)[number] | undefined) => {
     if (year === undefined) {
       return undefined;
     }
-    return year.dividend === undefined
-      ? `no annual dividends paid for the fiscal year ending ${year.periodEnd}`
-      : year.income === undefined
-        ? `no same-period net income for the fiscal year ending ${year.periodEnd}`
-        : scopeGap(year.periodEnd, payoutScopeReason(statements, year.dividend, year.income));
+    if (year.dividend === undefined) {
+      return `no annual dividends paid for the fiscal year ending ${year.periodEnd}`;
+    }
+    if (year.income === undefined) {
+      return `no same-period net income for the fiscal year ending ${year.periodEnd}`;
+    }
+    return year.scope?.status === "withheld"
+      ? scopeGap(year.periodEnd, year.scope.reason)
+      : undefined;
+  };
+  // Both scope bounds must land on the same side of the ceiling, or the check cannot be judged.
+  const bounds = (span: typeof years) => {
+    const paid = span.reduce((sum, { dividend }) => sum + Math.abs(dividend!.value), 0);
+    const parent = span.reduce((sum, { income }) => sum + income!.value, 0);
+    const consolidated = span.reduce(
+      (sum, { income, scope }) =>
+        sum + (scope?.status === "bounded" ? scope.consolidated.value : income!.value),
+      0,
+    );
+    const bounded = span.find(({ scope }) => scope?.status === "bounded");
+    if (bounded === undefined || paid === 0 || parent <= 0) {
+      return { basis: undefined, gap: undefined };
+    }
+    const alternate = consolidated > 0 ? paid / consolidated : undefined;
+    if (
+      alternate === undefined ||
+      paid / parent <= PAYOUT_CEILING !== alternate <= PAYOUT_CEILING
+    ) {
+      return {
+        basis: undefined,
+        gap: scopeGap(bounded.periodEnd, payoutScopeAmbiguity(bounded.dividend!.concept)),
+      };
+    }
+    return {
+      basis: `dividends as filed under ${bounded.dividend!.concept}, which may include distributions to noncontrolling interests; ${formatRatioPercent(alternate)} against consolidated net income`,
+      gap: undefined,
+    };
   };
   if (new Set(fiscalYears.map((fact) => fact.periodEnd)).size < PAYOUT_WINDOW_YEARS) {
     const latestGap = yearGap(years[0]);
-    return latestGap === undefined
+    const latestBounds = latestGap === undefined ? bounds(years.slice(0, 1)) : undefined;
+    const gap = latestGap ?? latestBounds?.gap;
+    const alone = `the payout check reads the fiscal year ending ${anchor.periodEnd} alone`;
+    return gap === undefined
       ? missing(
-          `fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years; the payout check reads the fiscal year ending ${anchor.periodEnd} alone`,
+          [
+            `fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years`,
+            alone,
+            latestBounds?.basis,
+          ]
+            .filter((part) => part !== undefined)
+            .join("; "),
           "insufficient-history",
         )
-      : missing(`fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years; ${latestGap}`);
+      : missing(`fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years; ${gap}`);
   }
   if (years.length < PAYOUT_WINDOW_YEARS) {
     return missing(`no annual statements for the fiscal year before ${years.at(-1)!.periodEnd}`);
   }
-  const gap = yearGap(unpaid ?? unmatched);
+  const gap = yearGap(
+    years.find(({ dividend }) => dividend === undefined) ??
+      years.find(({ income }) => income === undefined),
+  );
   if (gap !== undefined) {
     return missing(gap);
   }
@@ -773,16 +828,30 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
       inputs,
     };
   }
+  const scopeBounds = bounds(years);
+  if (scopeBounds.gap !== undefined) {
+    return missing(scopeBounds.gap);
+  }
   const earned = years.reduce((sum, { income }) => sum + income!.value, 0);
-  return { status: "value", value: paid / earned, ...period, inputs };
+  return {
+    status: "value",
+    value: paid / earned,
+    ...period,
+    inputs,
+    ...(scopeBounds.basis === undefined
+      ? {}
+      : { basis: `${CUMULATIVE_PAYOUT_BASIS}; ${scopeBounds.basis}` }),
+  };
 }
+
+const CUMULATIVE_PAYOUT_BASIS = `sum of dividends paid / sum of net income attributable to the parent over the ${String(PAYOUT_WINDOW_YEARS)} year-aligned fiscal years ending with the latest filed one; dividends paid ${SPECIAL_DIVIDENDS_BASIS}; withheld where noncontrolling distributions cannot be excluded`;
 
 export function cumulativePayoutRatioDefinition(): MetricDefinition {
   return {
     id: "payoutRatio3y",
     label: "Payout ratio (3y cumulative)",
     unit: "ratio-percent",
-    basis: `sum of dividends paid / sum of net income attributable to the parent over the ${String(PAYOUT_WINDOW_YEARS)} year-aligned fiscal years ending with the latest filed one; dividends paid ${SPECIAL_DIVIDENDS_BASIS}; withheld where noncontrolling distributions cannot be excluded`,
+    basis: CUMULATIVE_PAYOUT_BASIS,
     applicable: (ctx) =>
       ctx.secIssuer?.sic === REIT_SIC
         ? `REIT issuer (SIC ${REIT_SIC}): payout is measured against FFO/AFFO, not net income; not assessed`

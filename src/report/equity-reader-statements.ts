@@ -13,7 +13,8 @@ import {
 import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
 import { formatLensValue } from "../sources/extended-evidence/value-format";
 import { REIT_SIC } from "../sources/extended-evidence/industry-classification";
-import { payoutScopeReason } from "../sources/extended-evidence/payout-basis";
+import { payoutScope, payoutScopeAmbiguity } from "../sources/extended-evidence/payout-basis";
+import { formatRatioPercent } from "../sources/extended-evidence/percent-format";
 import { SPECIAL_DIVIDENDS_BASIS } from "../sources/extended-evidence/financial-statement-definitions";
 import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../config/shared";
 
@@ -50,7 +51,8 @@ export const CAPITAL_RETURN_HISTORY_BASIS = `dividends paid ${SPECIAL_DIVIDENDS_
 
 type EquityReaderPayout =
   | { readonly status: "value"; readonly value: number }
-  | { readonly status: "not-meaningful"; readonly reason: string };
+  | { readonly status: "not-meaningful"; readonly reason: string }
+  | { readonly status: "withheld" };
 
 interface EquityReaderCapitalReturnRow {
   readonly period: string;
@@ -417,6 +419,9 @@ export function capitalReturnPayoutCell(payout: EquityReaderPayout | undefined):
   if (payout === undefined) {
     return "—";
   }
+  if (payout.status === "withheld") {
+    return "withheld";
+  }
   return payout.status === "value"
     ? formatLensValue(payout.value, "ratio-percent")
     : `not meaningful, ${payout.reason}`;
@@ -468,6 +473,26 @@ function groupedNote(prefix: string, byReason: ReadonlyMap<string, readonly stri
   );
 }
 
+// A year whose parent and consolidated bounds display differently is withheld.
+function yearScope(
+  artifact: FinancialStatementsArtifact,
+  dividends: FinancialStatementFact,
+  income: FinancialStatementFact,
+): string | undefined {
+  const scope = payoutScope(artifact, dividends, income);
+  if (scope.status === "withheld") {
+    return scope.reason;
+  }
+  if (scope.status === "same" || income.value <= 0) {
+    return undefined;
+  }
+  const paid = Math.abs(dividends.value);
+  return scope.consolidated.value > 0 &&
+    formatRatioPercent(paid / income.value) === formatRatioPercent(paid / scope.consolidated.value)
+    ? undefined
+    : payoutScopeAmbiguity(dividends.concept);
+}
+
 // The window is the latest five filed fiscal years; a flow absent inside it is declared, not skipped.
 export function capitalReturnHistory(
   artifact: FinancialStatementsArtifact | undefined,
@@ -510,12 +535,14 @@ export function capitalReturnHistory(
     const scope =
       dividends === undefined || income === undefined
         ? undefined
-        : payoutScopeReason(artifact, dividends, income);
+        : yearScope(artifact, dividends, income);
     if (scope !== undefined) {
       withheld.set(scope, [...(withheld.get(scope) ?? []), periodEnd]);
     }
     let payout: EquityReaderPayout | undefined;
-    if (dividends !== undefined && income !== undefined && scope === undefined) {
+    if (scope !== undefined) {
+      payout = { status: "withheld" };
+    } else if (dividends !== undefined && income !== undefined) {
       payout =
         income.value > 0
           ? { status: "value", value: Math.abs(dividends.value) / income.value }

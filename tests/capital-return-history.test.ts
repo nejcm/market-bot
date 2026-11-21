@@ -389,8 +389,69 @@ describe("3y cumulative payout ratio", () => {
     expect(loss.criterion).toBeUndefined();
   });
 
+  test("TDG's 1M of NCI income leaves both scope bounds above 80%, so the check is assessed", () => {
+    // Saved run 62e6bd98: ProfitLoss exceeds NetIncomeLoss by the 1M NCI share in FY2024 and FY2026.
+    const artifact = tdg({ ProfitLoss: { 2024: 1715, 2025: 2074, 2026: 2108 } });
+    const { payout, criterion } = strength(artifact);
+    const cumulative = payout("payoutRatio3y");
+
+    expect(cumulative?.status).toBe("value");
+    expect(cumulative?.value).toBeCloseTo(11_726 / 5895, 6);
+    expect(cumulative?.basis).toContain(
+      "dividends as filed under PaymentsOfDividends, which may include distributions to noncontrolling interests; 198.8% against consolidated net income",
+    );
+    expect(criterion).toBe(false);
+    const history = capitalReturnHistory(artifact, AS_OF);
+    expect(history?.rows.slice(-3).map((row) => row.payout)).toEqual([
+      { status: "withheld" },
+      { status: "value", value: 9629 / 2074 },
+      { status: "value", value: 59 / 2107 },
+    ]);
+    expect(history?.notes).toContain(
+      "Payout withheld for the fiscal years ending 2024-09-30: noncontrolling interests earned income and PaymentsOfDividends can include distributions to them; dividends and parent net income are not proven to share one scope.",
+    );
+  });
+
+  test("scope bounds that straddle 80% withhold the check, in the window and in the fallback", () => {
+    // 85 paid; parent earns 100, consolidated 110: 85% vs 77.3%.
+    const straddle = {
+      PaymentsOfDividends: { 2024: 85, 2025: 85, 2026: 85 },
+      NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
+      ProfitLoss: { 2024: 110, 2025: 110, 2026: 110 },
+    };
+    const reason =
+      "fiscal year ending 2026-09-30: noncontrolling interests earned income and PaymentsOfDividends can include distributions to them; dividends and parent net income are not proven to share one scope";
+
+    expect(strength(tdg(straddle)).payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      reason,
+    });
+    expect(strength(tdg(straddle)).criterion).toBeUndefined();
+
+    const young = (consolidated: number) =>
+      strength(
+        statements({
+          PaymentsOfDividends: { 2025: 85, 2026: 85 },
+          NetIncomeLoss: { 2025: 100, 2026: 100 },
+          ProfitLoss: { 2026: consolidated },
+        }),
+      );
+    expect(young(110).payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      reason: `fewer than 3 filed fiscal years; ${reason}`,
+    });
+    expect(young(110).criterion).toBeUndefined();
+    expect(young(101).payout("payoutRatio3y")).toMatchObject({
+      status: "missing",
+      cause: "insufficient-history",
+      reason:
+        "fewer than 3 filed fiscal years; the payout check reads the fiscal year ending 2026-09-30 alone; dividends as filed under PaymentsOfDividends, which may include distributions to noncontrolling interests; 84.2% against consolidated net income",
+    });
+    expect(young(101).criterion).toBe(false);
+  });
+
   test("a generic dividend total beside noncontrolling income is withheld; a common-stock tag is not", () => {
-    // 95 paid in total, 35 of it to NCI; parent earns 100 and NCI 50 each year.
+    // Sol's case: 95 paid in total, 35 of it to NCI; parent earns 100 and NCI 50 each year (95% vs 63.3%).
     const nci = {
       NetIncomeLoss: { 2024: 100, 2025: 100, 2026: 100 },
       ProfitLoss: { 2024: 150, 2025: 150, 2026: 150 },
@@ -428,9 +489,9 @@ describe("3y cumulative payout ratio", () => {
         "fiscal year ending 2026-09-30: net income is IFRS ProfitLoss, which includes noncontrolling interests; profit attributable to the parent is not in the statements",
     });
     expect(criterion).toBeUndefined();
-    expect(capitalReturnHistory(bns, AS_OF)?.rows.every((row) => row.payout === undefined)).toBe(
-      true,
-    );
+    expect(
+      capitalReturnHistory(bns, AS_OF)?.rows.every((row) => row.payout?.status === "withheld"),
+    ).toBe(true);
   });
 
   test("a REIT's payout is not assessed on net income; the history table stays and says so", () => {

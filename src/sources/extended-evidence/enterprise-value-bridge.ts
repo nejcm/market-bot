@@ -23,7 +23,6 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
     "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
     "AvailableForSaleSecuritiesCurrent",
     "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
-    "HeldToMaturitySecuritiesCurrent",
     "OtherShortTermInvestments",
   ],
   cashAndShortTermInvestments: ["CashCashEquivalentsAndShortTermInvestments"],
@@ -121,10 +120,24 @@ const CONTINUITY_DAYS = 400;
 const NONE_TAGGED = "none tagged";
 const COMBINED_CONCEPT = "CashCashEquivalentsAndShortTermInvestments";
 const CURRENT_EQUITY_CONCEPT = "EquitySecuritiesFvNiCurrent";
-const OTHER_SHORT_TERM_CONCEPT = "OtherShortTermInvestments";
+const TOTAL_SHORT_TERM_CONCEPT = "ShortTermInvestments";
+const AFS_CURRENT = [
+  "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+  "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+  "AvailableForSaleSecuritiesCurrent",
+];
+const HTM_CURRENT = "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent";
+// Lower-priority lines a pick may contain (AAPL: AFS inside MSC); any other line beside it is a class it may not cover.
+const SHORT_TERM_COVERS: Readonly<Record<string, readonly string[]>> = {
+  MarketableSecuritiesCurrent: AFS_CURRENT,
+  DebtSecuritiesCurrent: [...AFS_CURRENT, HTM_CURRENT],
+  ...Object.fromEntries(AFS_CURRENT.map((concept) => [concept, AFS_CURRENT])),
+};
 const DEBT_ONLY_SHORT_TERM: ReadonlySet<string> = new Set([
   "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
   "DebtSecuritiesCurrent",
+  "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+  HTM_CURRENT,
 ]);
 const IDENTITY_TOLERANCE = 0.001;
 const DERIVED_NONCONTROLLING_CONCEPT =
@@ -269,28 +282,31 @@ function withCombinedCheck<F extends BridgeFact>(
     : part;
 }
 
-// Beside a non-total pick the other line may be its own face line (Allot) or inside the pick, so it is neither summed nor dropped.
-function withOtherShortTermInvestments<F extends BridgeFact>(
+// A separate line the pick does not cover (Allot deposits, MMI HTM beside AFS) may sit beside it or inside it: never summed.
+function withUncoveredShortTermLine<F extends BridgeFact>(
   part: BridgeComponent<F>,
   facts: readonly F[],
   instant: string,
 ): BridgeComponent<F> {
-  if (
-    part.status !== "tagged" ||
-    part.concept === "ShortTermInvestments" ||
-    part.concept === OTHER_SHORT_TERM_CONCEPT
-  ) {
+  if (part.status !== "tagged" || part.concept === TOTAL_SHORT_TERM_CONCEPT) {
     return part;
   }
-  const other = facts.findLast(
-    (fact) => fact.periodEnd === instant && fact.concept === OTHER_SHORT_TERM_CONCEPT,
+  const covered = SHORT_TERM_COVERS[part.concept] ?? [];
+  const other = facts.find(
+    (fact) =>
+      fact.periodEnd === instant &&
+      fact.concept !== part.concept &&
+      !covered.includes(fact.concept) &&
+      (fact.value !== 0 || fact.shortTermInvestmentsWithheld !== undefined) &&
+      facts.findLast((row) => row.periodEnd === instant && row.concept === fact.concept) === fact,
   );
-  return other === undefined ||
-    (other.value === 0 && other.shortTermInvestmentsWithheld === undefined)
+  return other === undefined
     ? part
     : {
         status: "incomplete",
-        reason: `${OTHER_SHORT_TERM_CONCEPT} (${String(other.value)}) beside ${part.concept} (${String(part.value)}) at ${instant}; whether it is a separate balance-sheet line is not proven`,
+        reason:
+          other.shortTermInvestmentsWithheld ??
+          `${other.concept} (${String(other.value)}) beside ${part.concept} (${String(part.value)}) at ${instant}; whether it is a separate balance-sheet line is not proven`,
       };
 }
 
@@ -354,7 +370,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const withEquity = currentAssetsResidual(facts, cash, base + equity.value);
   const withoutEquity = currentAssetsResidual(facts, cash, base);
   const closesIdentity =
-    debtOnly &&
+    (part.status === "untagged" || part.concept !== TOTAL_SHORT_TERM_CONCEPT) &&
     withEquity !== undefined &&
     withoutEquity !== undefined &&
     withEquity <= tolerance &&
@@ -495,7 +511,7 @@ export function resolveEnterpriseValueBridge<F extends BridgeFact>(
   return {
     shortTermInvestments: withCombinedCheck(
       withCurrentEquitySecurities(
-        withOtherShortTermInvestments(
+        withUncoveredShortTermLine(
           component(
             "shortTermInvestments",
             shown.shortTermInvestments,

@@ -183,7 +183,7 @@ Console-only user state lives in the Console DB (`data/console/console.sqlite`) 
 
 **Tagged Zero Debt** — Debt 0 at a balance-sheet instant proven from the filing's own XBRL instance: a borrowing concept tagged 0 and no other nonzero credit fact outside listed non-debt concepts. It trusts the issuer's tagging; prose with no tag behind it never proves a zero, and a failed read withholds as a Source Gap. `MARKET_BOT_TAGGED_ZERO_DEBT_DISABLE` withholds every such zero. See ADR 0004.
 
-**Extension Short-Term Investments** — Short-term investments read from an issuer-extension face line, proven from the filing's XBRL instance and calculation linkbase to foot into `AssetsCurrent`. Enters the EV Bridge only where no standard short-term investments tag exists at that instant; a failed proof is a Source Gap. `MARKET_BOT_EXTENSION_SHORT_TERM_INVESTMENTS_DISABLE` skips it. See ADR 0004.
+**Extension Short-Term Investments** — Short-term investments read from an issuer-extension face line, proven from the filing's XBRL instance and calculation linkbase to foot into `AssetsCurrent`. Enters the EV Bridge until a `ShortTermInvestments` total is public at that instant, and withholds it beside a standard component tag; a failed proof is a Source Gap. `MARKET_BOT_EXTENSION_SHORT_TERM_INVESTMENTS_DISABLE` skips it. See ADR 0004.
 
 **Extended Evidence** — Optional higher-specificity provider evidence for instrument Research Views. **Fundamental Evidence** — sourced issuer operating and financial facts used as Extended Evidence.
 

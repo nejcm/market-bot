@@ -457,14 +457,16 @@ export function assertCompositeFactIntegrity(
   }
 }
 
-// A9: EV bridge facts are reporting-currency instants; a filer's combined line below cash is the resolver's job.
+// A9: EV bridge facts are reporting-currency instants or withhold theirs in the filed currency; combined < cash is the resolver's job.
 function assertEnterpriseValueBridge(
   artifact: FinancialStatementsArtifact,
   check: FinancialInvariantCheck,
 ): void {
   for (const fact of Object.values(artifact.enterpriseValueBridge ?? {}).flat()) {
     check(
-      fact.periodKey.startsWith("instant|") && fact.currency === artifact.reportingCurrency,
+      fact.periodKey.startsWith("instant|") &&
+        (fact.currency === artifact.reportingCurrency ||
+          (fact.shortTermInvestmentsWithheld !== undefined && fact.currency === fact.unit)),
       "A9",
       `EV bridge ${fact.concept} is not a reporting-currency instant`,
       fact.periodEnd,

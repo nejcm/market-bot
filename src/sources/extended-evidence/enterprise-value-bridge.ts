@@ -154,13 +154,19 @@ function withinContinuity(periodEnd: string, instant: string): boolean {
   return days > 0 && days <= CONTINUITY_DAYS;
 }
 
+// A filed reporting-currency fact outranks a withheld one at the same instant.
+function factAt<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
+  const at = facts.filter((fact) => fact.periodEnd === instant);
+  return at.findLast((fact) => fact.shortTermInvestmentsWithheld === undefined) ?? at.at(-1);
+}
+
 function component<F extends BridgeFact>(
   key: EnterpriseValueBridgeKey,
   facts: readonly F[],
   instant: string,
   derived?: BridgeComponent<F>,
 ): BridgeComponent<F> {
-  const tagged = facts.findLast((fact) => fact.periodEnd === instant);
+  const tagged = factAt(facts, instant);
   if (tagged?.shortTermInvestmentsWithheld !== undefined) {
     return { status: "incomplete", reason: tagged.shortTermInvestmentsWithheld };
   }
@@ -185,7 +191,10 @@ function combinedShortTermInvestments<F extends BridgeFact>(
   combined: readonly F[],
   cash: { readonly value: number; readonly periodEnd: string },
 ): BridgeComponent<F> | undefined {
-  const fact = combined.findLast((candidate) => candidate.periodEnd === cash.periodEnd);
+  const fact = factAt(combined, cash.periodEnd);
+  if (fact?.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: fact.shortTermInvestmentsWithheld };
+  }
   if (fact === undefined) {
     return combined.some((candidate) => withinContinuity(candidate.periodEnd, cash.periodEnd))
       ? {
@@ -213,10 +222,11 @@ function withCombinedCheck<F extends BridgeFact>(
   combined: readonly F[],
   cash: { readonly value: number; readonly periodEnd: string },
 ): BridgeComponent<F> {
-  const total = combined.findLast((candidate) => candidate.periodEnd === cash.periodEnd);
+  const total = factAt(combined, cash.periodEnd);
   if (
     part.status !== "tagged" ||
     total === undefined ||
+    total.shortTermInvestmentsWithheld !== undefined ||
     part.concept.startsWith(COMBINED_CONCEPT)
   ) {
     return part;
@@ -264,8 +274,12 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const explicit = facts.currentEquitySecurities.filter(
     (fact) => fact.concept === CURRENT_EQUITY_CONCEPT,
   );
-  const equity = facts.currentEquitySecurities.findLast(
-    (fact) => fact.periodEnd === cash.periodEnd,
+  const equity = factAt(
+    facts.currentEquitySecurities.filter(
+      (fact) =>
+        fact.shortTermInvestmentsWithheld === undefined || fact.concept === CURRENT_EQUITY_CONCEPT,
+    ),
+    cash.periodEnd,
   );
   if (equity === undefined) {
     const prior = explicit.findLast(
@@ -277,6 +291,9 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
           status: "incomplete",
           reason: `${LABELS.shortTermInvestments} (${CURRENT_EQUITY_CONCEPT}) reported nonzero at ${prior.periodEnd} but not tagged at ${cash.periodEnd}`,
         };
+  }
+  if (equity.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: equity.shortTermInvestmentsWithheld };
   }
   if (equity.value === 0) {
     return part;

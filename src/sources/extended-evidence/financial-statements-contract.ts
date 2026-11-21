@@ -176,7 +176,7 @@ export interface FinancialStatementFact {
   readonly zeroBorrowingsProof?: string;
   // Short-term investments only: the extension line its filing's instance and calculation linkbase prove.
   readonly shortTermInvestmentsProof?: string;
-  // Short-term investments only: why a proven extension line withholds its instant instead of publishing.
+  // EV bridge: why this fact withholds its instant (an unproven extension line, or a line filed in another currency).
   readonly shortTermInvestmentsWithheld?: string;
   // Dividends per share only: how DPS x diluted shares reconciled with dividends paid.
   readonly dividendsPaidProof?: string;

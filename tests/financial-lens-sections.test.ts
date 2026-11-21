@@ -803,6 +803,22 @@ test("short-term investments in a currency other than cash's withhold liquidity 
   expect(metric("cashRunwayYears")?.status).toBe("missing");
 });
 
+test("VKTX Q3 2026 short-term investments filed only in CAD withhold liquidity, runway and net debt", () => {
+  const { metric } = vktxStrength(
+    vktxConcepts({
+      AvailableForSaleSecuritiesDebtSecuritiesCurrent: {
+        units: { CAD: [q3Fact(282_204_000, "2026-09-30")] },
+      },
+    }),
+  );
+  expect(metric("liquidity")).toMatchObject({
+    status: "missing",
+    reason: expect.stringContaining("filed in CAD, not reporting currency USD"),
+  });
+  expect(metric("cashRunwayYears")?.status).toBe("missing");
+  expect(metric("netDebt")?.status).toBe("missing");
+});
+
 test("an interim span that rounds to 12 months is neither a fiscal year nor a TTM", () => {
   const { metric } = vktxStrength(
     vktxConcepts({

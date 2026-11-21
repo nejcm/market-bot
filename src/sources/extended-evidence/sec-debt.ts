@@ -544,7 +544,7 @@ export function factsForDebt(
     ].map((fact) => ({
       ...fact,
       ...(lineScoped.has(fact) ? { lineScope: true as const } : {}),
-      ...(proofs.has(fact) ? { proofSourceIds: proofs.get(fact) ?? [] } : {}),
+      ...(proofs.has(fact) ? proofOf(filings, proofs.get(fact) ?? []) : {}),
       ...(faceLeases.has(fact) ? { faceLeases: faceLeases.get(fact) ?? [] } : {}),
     })),
     notes: [
@@ -553,6 +553,21 @@ export function factsForDebt(
       ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
     ],
   };
+}
+
+function proofOf(
+  filings: readonly ExtendedEvidenceItem[],
+  proofSourceIds: readonly string[],
+): Pick<ParsedFact, "proofSourceIds" | "proofPublicAt"> {
+  const proofPublicAt = filings
+    .flatMap(({ sourceIds, metrics }) =>
+      typeof metrics?.filingDate === "string" && sourceIds.some((id) => proofSourceIds.includes(id))
+        ? [metrics.filingDate]
+        : [],
+    )
+    .toSorted()
+    .at(-1);
+  return { proofSourceIds, ...(proofPublicAt === undefined ? {} : { proofPublicAt }) };
 }
 
 const ZERO_BORROWINGS_REASON =

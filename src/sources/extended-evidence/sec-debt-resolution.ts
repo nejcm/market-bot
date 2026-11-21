@@ -624,6 +624,16 @@ export function resolveDebtAtInstant<T>(
     );
   };
   const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
+  const [currentLease, noncurrentLease] = concepts.financeLeases?.split ?? [];
+  // On a face, a removed noncurrent leg says leases sit in the debt lines, so the current leg may too (TDG FY2021).
+  const unplacedCurrentLease =
+    used.some((concept) => faceRow(concept, "current")) &&
+    currentLease !== undefined &&
+    noncurrentLease !== undefined &&
+    subtracted.includes(noncurrentLease) &&
+    !subtracted.includes(currentLease) &&
+    valueAt(currentLease) !== 0 &&
+    !faceRow(currentLease, "current");
   const componentReason = (() => {
     if (total !== undefined) {
       return undefined;
@@ -754,7 +764,10 @@ export function resolveDebtAtInstant<T>(
                     : omittedShortTerm.length > 0
                       ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
                       : excess === undefined
-                        ? componentReason
+                        ? (componentReason ??
+                          (unplacedCurrentLease
+                            ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
+                            : undefined))
                         : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&

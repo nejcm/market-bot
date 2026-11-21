@@ -1611,7 +1611,7 @@ describe("short-term bank loans beside LongTermDebtCurrent", () => {
     expect(debt?.sourceIds).toContain(`sec-filing-${TDG_10K}`);
   });
 
-  test("a lease placement list naming two lines proves no current lease deduction", () => {
+  test("a lease placement list naming two lines proves no current lease placement, so it withholds", () => {
     const twoLines = TDG_LEASE_PLACEMENT.replace(
       "#LongTermDebtCurrent<",
       "#LongTermDebtCurrent http://fasb.org/us-gaap/2026#AccruedLiabilitiesCurrent<",
@@ -1621,7 +1621,7 @@ describe("short-term bank loans beside LongTermDebtCurrent", () => {
       [faceFiling(TDG_10K, "2026-09-30", TDG_FY2026_ROWS, twoLines)],
       AFTER_TDG_10K,
     );
-    expect(debt?.concept).not.toContain("FinanceLeaseLiabilityCurrent");
+    expect(debt).toBeUndefined();
   });
 
   test("TDG FY2026 without its face is a gap, not LongTermDebt 33,890", () => {
@@ -1814,5 +1814,59 @@ describe("short-term bank loans beside LongTermDebtCurrent", () => {
     );
     expect(debt?.value).not.toBe(35_201e6);
     expect(debt?.value).toBeUndefined();
+  });
+});
+
+const TDG_FY2022_10K = "0001260221-22-000065";
+const tdgFy2021 = (millions: number) =>
+  fact(millions * 1e6, "2021-09-30", "2022-11-10", TDG_FY2022_10K, "10-K");
+const TDG_FY2021_GAAP = {
+  LongTermDebt: [tdgFy2021(19_649)],
+  LongTermDebtCurrent: [tdgFy2021(277)],
+  ShortTermBankLoansAndNotesPayable: [tdgFy2021(349)],
+  LongTermDebtAndCapitalLeaseObligations: [tdgFy2021(19_372)],
+  FinanceLeaseLiabilityCurrent: [tdgFy2021(2)],
+  FinanceLeaseLiabilityNoncurrent: [tdgFy2021(98)],
+  AccountsPayableCurrent: [tdgFy2021(300)],
+  AccruedLiabilitiesCurrent: [tdgFy2021(500)],
+  LiabilitiesCurrent: [tdgFy2021(1426)],
+  Liabilities: [tdgFy2021(21_698)],
+};
+const TDG_FY2021_ROWS: readonly Row[] = [
+  ["Total assets", "us-gaap:Assets", 30_000_000],
+  ["Accounts payable", "us-gaap:AccountsPayableCurrent", 300_000],
+  ["Accrued and other current liabilities", "us-gaap:AccruedLiabilitiesCurrent", 500_000],
+  ["Current portion of long-term debt", "us-gaap:LongTermDebtCurrent", 277_000],
+  ["Short-term borrowings", "us-gaap:ShortTermBankLoansAndNotesPayable", 349_000],
+  ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 1_426_000],
+  ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 19_372_000],
+  ["Deferred income taxes", "us-gaap:DeferredIncomeTaxLiabilitiesNet", 500_000],
+  ["Other non-current liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 400_000],
+  ["Total liabilities", "us-gaap:Liabilities", 21_698_000],
+];
+
+describe("TDG FY2022 10-K 0001260221-22-000065 at 2021-09-30, current finance lease 2M unplaced", () => {
+  test("withholds instead of 19,900M, which leaves the 2M lease inside current maturities", () => {
+    const { debt, notes } = derive(
+      TDG_FY2021_GAAP,
+      [faceFiling(TDG_FY2022_10K, "2021-09-30", TDG_FY2021_ROWS)],
+      AFTER_TDG_10K,
+    );
+    expect(debt).toBeUndefined();
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        periodKey: "instant|2021-09-30",
+      }),
+    );
+  });
+
+  test("a placement tag naming current maturities publishes 277 + 349 + 19,372 - 2 - 98 = 19,898M", () => {
+    const { debt } = derive(
+      TDG_FY2021_GAAP,
+      [faceFiling(TDG_FY2022_10K, "2021-09-30", TDG_FY2021_ROWS, TDG_LEASE_PLACEMENT)],
+      AFTER_TDG_10K,
+    );
+    expect(debt?.value).toBe(19_898e6);
   });
 });

@@ -15,6 +15,7 @@ import { balanceSheetHistory, financialPosition } from "../src/report/equity-rea
 import { assertCompositeFactIntegrity } from "../src/corpus/financial-statement-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
+import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import type { CollectContext, SourceRequestExecutor } from "../src/sources/types";
 
 type Row = readonly [label: string, concept: string, value: number];
@@ -387,6 +388,7 @@ const TDG_GAAP = {
   ),
   Revenues: [
     { ...tdgFact(8831, "2025-09-30", TDG_K25, "2025-11-12"), start: "2024-10-01" },
+    { ...tdgFact(7940, "2024-09-30", TDG_K24, "2024-11-07"), start: "2023-10-01" },
     { ...tdgFact(7940, "2024-09-30", TDG_K25, "2025-11-12"), start: "2023-10-01" },
   ],
 };
@@ -463,6 +465,23 @@ describe("TDG FY2025 10-K 0001260221-25-000081 comparative column 2024-09-30", (
     expect(debt.get("2024-09-30")?.sourceIds).toContain(
       `extended-sec-edgar-orcl-10k-face-${TDG_K25}`,
     );
+  });
+
+  test("2024-09-30 is public only from the FY2025 10-K that proves it, not the FY2024 10-K", async () => {
+    const { out } = await tdgFaces();
+    expect(tdgDebt(out.items).get("2024-09-30")?.firstPublicAt).toBe("2025-11-12");
+    const rows = new Map(
+      valuationPeriodInputs(deriveItems(TDG_GAAP, out.items)).periods.map((row) => [
+        `${row.basis}|${row.periodEnd}`,
+        row,
+      ]),
+    );
+    expect(rows.get("annual|2024-09-30")?.rowPublicAt).toBe("2024-11-07");
+    expect(rows.get("annual|2024-09-30")?.debt).toBeUndefined();
+    expect(rows.get("ttm|2025-09-30")?.debt).toMatchObject({
+      value: 29_731e6,
+      publicAt: "2025-11-12",
+    });
   });
 
   test("an unfooted comparative column is declared and stays withheld", async () => {

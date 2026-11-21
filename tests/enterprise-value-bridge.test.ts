@@ -2047,7 +2047,7 @@ describe("short-term investment classes the pick does not cover", () => {
     ).shortTermInvestments;
 
   // FTNT FY2021 10-K 0001262039-22-000008: 1,319.1 + 1,194.0 + 38.6 + 807.7 + 175.8 + 65.4 = AssetsCurrent 3,600.6M.
-  test("FTNT 2021-12-31 adds the EquitySecuritiesFvNi 38.6M the current-asset identity proves to OtherShortTermInvestments", () => {
+  test("FTNT 2021-12-31 withholds the EquitySecuritiesFvNi 38.6M the current-asset identity places beside OtherShortTermInvestments", () => {
     const fy21 = (value: number) => [
       fact(value * 100_000, "2021-12-31", "2022-02-25", "0001262039-22-000008", "10-K"),
     ];
@@ -2066,9 +2066,69 @@ describe("short-term investment classes the pick does not cover", () => {
         1319.1 * M,
       ),
     ).toMatchObject({
-      status: "tagged",
-      value: 1232.6 * M,
-      concept: "OtherShortTermInvestments + EquitySecuritiesFvNi",
+      status: "incomplete",
+      reason: expect.stringContaining(
+        "EquitySecuritiesFvNi (38600000) at 2021-12-31 may already sit inside OtherShortTermInvestments",
+      ),
+    });
+  });
+
+  // An omitted IncomeTaxesReceivable 20M closes the identity as well as equity already inside the pick would.
+  test.each([
+    ["MarketableSecuritiesCurrent", 100],
+    ["CashCashEquivalentsAndShortTermInvestments", 300],
+  ])(
+    "generic equity closing the identity beside %s withholds instead of adding",
+    (concept, value) => {
+      const at = (amount: number) => [fact(amount * M, "2026-09-30", "2026-11-05", "q3")];
+      expect(
+        resolvedAt(
+          {
+            CashAndCashEquivalentsAtCarryingValue: at(200),
+            [concept]: at(value),
+            EquitySecuritiesFvNi: at(20),
+            AccountsReceivableNetCurrent: at(30),
+            InventoryNet: at(20),
+            PrepaidExpenseAndOtherAssetsCurrent: at(10),
+            AssetsCurrent: at(380),
+          },
+          "2026-09-30",
+          200 * M,
+        ),
+      ).toMatchObject({
+        status: "incomplete",
+        reason: expect.stringContaining("may already sit inside"),
+      });
+    },
+  );
+
+  test.each([
+    [
+      "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+      80,
+      "AvailableForSaleSecuritiesCurrent",
+      100,
+    ],
+    ["DebtSecuritiesCurrent", 80, "AvailableForSaleSecuritiesCurrent", 100],
+    [
+      "MarketableSecuritiesCurrent",
+      0,
+      "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+      80,
+    ],
+    [
+      "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+      80,
+      "HeldToMaturitySecuritiesCurrent",
+      20,
+    ],
+  ])("%s %d cannot mask %s %d", (pick, pickValue, other, otherValue) => {
+    const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
+    expect(
+      resolvedAt({ [pick]: at(pickValue), [other]: at(otherValue) }, "2026-09-30", 200 * M),
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining(`${other} (${String(otherValue * M)}) beside ${pick}`),
     });
   });
 
@@ -2106,7 +2166,26 @@ describe("short-term investment classes the pick does not cover", () => {
     ).toMatchObject({ status: "tagged", value: 100 * M, concept: "DebtSecuritiesCurrent" });
   });
 
-  test("HeldToMaturitySecuritiesCurrent is before credit-loss allowance, so it never reads as carrying amount", () => {
+  // VKTX FY2019 10-K 0001564590-20-006766 tags the same 267,261K as broad and debt-only AFS: no equity beside the debt.
+  test("VKTX 2019-12-31 keeps the debt-only AFS pick beside an equal broad AFS line", () => {
+    const fy19 = [fact(267_261_000, "2019-12-31", "2020-02-26", "0001564590-20-006766", "10-K")];
+    expect(
+      resolvedAt(
+        {
+          AvailableForSaleSecuritiesDebtSecuritiesCurrent: fy19,
+          AvailableForSaleSecuritiesCurrent: fy19,
+        },
+        "2019-12-31",
+        8_377_000,
+      ),
+    ).toMatchObject({
+      status: "tagged",
+      value: 267_261_000,
+      concept: "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+    });
+  });
+
+  test("HeldToMaturitySecuritiesCurrent is before credit-loss allowance, so it withholds rather than reading as carrying amount or none", () => {
     const at = (value: number) => [fact(value * M, "2026-09-30", "2026-11-05", "q3")];
     expect(
       resolvedAt(
@@ -2117,6 +2196,9 @@ describe("short-term investment classes the pick does not cover", () => {
         "2026-09-30",
         200 * M,
       ),
-    ).toEqual({ status: "untagged" });
+    ).toMatchObject({
+      status: "incomplete",
+      reason: expect.stringContaining("before credit-loss allowance"),
+    });
   });
 });

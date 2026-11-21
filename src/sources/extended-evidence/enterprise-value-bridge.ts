@@ -24,6 +24,7 @@ export const ENTERPRISE_VALUE_BRIDGE_CONCEPTS = {
     "AvailableForSaleSecuritiesCurrent",
     "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent",
     "OtherShortTermInvestments",
+    "HeldToMaturitySecuritiesCurrent",
   ],
   cashAndShortTermInvestments: ["CashCashEquivalentsAndShortTermInvestments"],
   // Added to debt-only short-term lines; the generic concept counts only where current assets prove it current (NVDA).
@@ -121,22 +122,25 @@ const NONE_TAGGED = "none tagged";
 const COMBINED_CONCEPT = "CashCashEquivalentsAndShortTermInvestments";
 const CURRENT_EQUITY_CONCEPT = "EquitySecuritiesFvNiCurrent";
 const TOTAL_SHORT_TERM_CONCEPT = "ShortTermInvestments";
-const AFS_CURRENT = [
-  "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
-  "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
-  "AvailableForSaleSecuritiesCurrent",
-];
+const AFS_EXCLUDING_INTEREST = "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent";
+const BROAD_AFS = "AvailableForSaleSecuritiesCurrent";
 const HTM_CURRENT = "DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent";
-// Lower-priority lines a pick may contain (AAPL: AFS inside MSC); any other line beside it is a class it may not cover.
+const GROSS_HTM_CURRENT = "HeldToMaturitySecuritiesCurrent";
+// Lines a pick may contain or equal (AAPL: AFS inside MSC; VKTX: broad AFS = debt AFS); one larger than the pick withholds.
 const SHORT_TERM_COVERS: Readonly<Record<string, readonly string[]>> = {
-  MarketableSecuritiesCurrent: AFS_CURRENT,
-  DebtSecuritiesCurrent: [...AFS_CURRENT, HTM_CURRENT],
-  ...Object.fromEntries(AFS_CURRENT.map((concept) => [concept, AFS_CURRENT])),
+  MarketableSecuritiesCurrent: [
+    "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+    AFS_EXCLUDING_INTEREST,
+    BROAD_AFS,
+  ],
+  AvailableForSaleSecuritiesDebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, BROAD_AFS],
+  DebtSecuritiesCurrent: [AFS_EXCLUDING_INTEREST, BROAD_AFS, HTM_CURRENT],
+  [AFS_EXCLUDING_INTEREST]: [BROAD_AFS],
 };
 const DEBT_ONLY_SHORT_TERM: ReadonlySet<string> = new Set([
   "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
   "DebtSecuritiesCurrent",
-  "DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent",
+  AFS_EXCLUDING_INTEREST,
   HTM_CURRENT,
 ]);
 const IDENTITY_TOLERANCE = 0.001;
@@ -291,12 +295,18 @@ function withUncoveredShortTermLine<F extends BridgeFact>(
   if (part.status !== "tagged" || part.concept === TOTAL_SHORT_TERM_CONCEPT) {
     return part;
   }
+  if (part.concept === GROSS_HTM_CURRENT && part.value !== 0) {
+    return {
+      status: "incomplete",
+      reason: `${GROSS_HTM_CURRENT} (${String(part.value)}) at ${instant} is amortized cost before credit-loss allowance; its carrying amount is not proven`,
+    };
+  }
   const covered = SHORT_TERM_COVERS[part.concept] ?? [];
   const other = facts.find(
     (fact) =>
       fact.periodEnd === instant &&
       fact.concept !== part.concept &&
-      !covered.includes(fact.concept) &&
+      (!covered.includes(fact.concept) || fact.value > part.value) &&
       (fact.value !== 0 || fact.shortTermInvestmentsWithheld !== undefined) &&
       facts.findLast((row) => row.periodEnd === instant && row.concept === fact.concept) === fact,
   );
@@ -370,14 +380,13 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const withEquity = currentAssetsResidual(facts, cash, base + equity.value);
   const withoutEquity = currentAssetsResidual(facts, cash, base);
   const closesIdentity =
-    (part.status === "untagged" || part.concept !== TOTAL_SHORT_TERM_CONCEPT) &&
     withEquity !== undefined &&
     withoutEquity !== undefined &&
     withEquity <= tolerance &&
     withoutEquity > tolerance;
   const outsideIdentity =
     withoutEquity !== undefined && withoutEquity <= tolerance && (withEquity ?? 0) > tolerance;
-  const additive = closesIdentity || (explicitLine && debtOnly && !outsideIdentity);
+  const additive = debtOnly && (closesIdentity || (explicitLine && !outsideIdentity));
   // A withheld generic line withholds only where its as-filed value would add; otherwise it proves nothing, like no line.
   if (withheld !== undefined) {
     return additive && equity.unit === total?.unit
@@ -398,11 +407,11 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
         }
       : { status: "tagged", value: equity.value, concept: equity.concept, fact: equity };
   }
-  // The generic concept is usually a noncurrent holding (META, MRK), which stays out like other long-term investments.
-  return explicitLine
+  // The generic concept is usually a noncurrent holding (META, MRK), which stays out unless the identity proves it current.
+  return explicitLine || closesIdentity
     ? {
         status: "incomplete",
-        reason: `${CURRENT_EQUITY_CONCEPT} (${String(equity.value)}) at ${cash.periodEnd} may already sit inside ${part.status === "tagged" ? part.concept : "short-term investments"}`,
+        reason: `${equity.concept} (${String(equity.value)}) at ${cash.periodEnd} may already sit inside ${part.status === "tagged" ? part.concept : "short-term investments"}`,
       }
     : part;
 }

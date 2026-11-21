@@ -420,20 +420,23 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   never summed (`ShortTermInvestments` > `MarketableSecuritiesCurrent` >
   `AvailableForSaleSecuritiesDebtSecuritiesCurrent` > `DebtSecuritiesCurrent` >
   `DebtSecuritiesAvailableForSaleExcludingAccruedInterestCurrent` > `AvailableForSaleSecuritiesCurrent` >
-  `DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent` > `OtherShortTermInvestments`,
-  else `CashCashEquivalentsAndShortTermInvestments` − cash; `HeldToMaturitySecuritiesCurrent` is before
-  credit-loss allowance, so it is not read). A pick covers only its own components (`MarketableSecuritiesCurrent`
-  the AFS lines, `DebtSecuritiesCurrent` the AFS and HTM lines, the `ShortTermInvestments` total every line); a
-  nonzero or withheld line of another class beside it, the proven extension line included, is incomplete, since it
-  may be a separate face line (Allot 6-K 0001178913-25-002876: 11,050K `OtherShortTermInvestments` beside 11,518K
-  AFS) or inside the pick. Current equity securities add to a debt-only pick (the AFS and HTM debt lines and
-  `DebtSecuritiesCurrent`): `EquitySecuritiesFvNiCurrent` unless current assets already sum without it, and the
-  generic `EquitySecuritiesFvNi` to any pick but the total when it closes the current-asset identity with
-  receivables, inventory and other current assets all tagged (NVDA FY2027 Q2: 42,783M; FTNT FY2021 10-K
-  0001262039-22-000008: 38.6M beside 1,194.0M `OtherShortTermInvestments`; usually it is a noncurrent holding,
-  META, MRK); explicit
-  current equity beside any other pick is incomplete. Added equity keeps its own lineage row and is disclosed as
-  possibly sale-restricted, not cash on hand (NVDA Note 5); `MinorityInterest`; `PreferredStockValue` >
+  `DebtSecuritiesHeldToMaturityAmortizedCostAfterAllowanceForCreditLossCurrent` > `OtherShortTermInvestments` >
+  `HeldToMaturitySecuritiesCurrent`, else `CashCashEquivalentsAndShortTermInvestments` − cash). Gross
+  `HeldToMaturitySecuritiesCurrent` is before credit-loss allowance, so a nonzero one is incomplete, never
+  carrying amount or none (GHM FY2020 10-K: 40.048M CDs). A pick covers only lines it may contain or equal
+  (`MarketableSecuritiesCurrent` every AFS line; the debt-only AFS lines and `DebtSecuritiesCurrent` broad
+  `AvailableForSaleSecuritiesCurrent`, which also holds equity, only up to their own value (VKTX FY2019: 267,261K
+  both); `DebtSecuritiesCurrent` net HTM too; the `ShortTermInvestments` total every line). A nonzero or withheld
+  line of another class beside a pick, or a covered line larger than it, the proven extension line
+  included, is incomplete, since it may be a separate face line (Allot 6-K 0001178913-25-002876: 11,050K
+  `OtherShortTermInvestments` beside 11,518K AFS) or inside the pick. Current equity securities add only to a
+  debt-only pick (the debt-only AFS and net HTM lines and `DebtSecuritiesCurrent`): `EquitySecuritiesFvNiCurrent`
+  unless current assets already sum without it, and the generic `EquitySecuritiesFvNi` when it closes the
+  current-asset identity with receivables, inventory and other current assets all tagged (NVDA FY2027 Q2:
+  42,783M; usually it is a noncurrent holding, META, MRK). Beside any other pick, explicit current equity or a
+  generic line that closes the identity is incomplete: the identity reads only named lines, so an omitted current
+  asset of the same amount would double-count equity already inside the pick (FTNT FY2021–23 withhold). Added equity keeps its own lineage
+  row and is disclosed as possibly sale-restricted, not cash on hand (NVDA Note 5); `MinorityInterest`; `PreferredStockValue` >
   `PreferredStockValueOutstanding`; the equity-stack temporary-equity carrying concepts, then
   `TemporaryEquityCarryingAmountAttributableToParent`). Tagged zeros count; a nonzero fact within 400 days
   but absent at the instant is incomplete (the composite-debt continuity rule), as is a combined line that

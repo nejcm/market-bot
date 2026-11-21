@@ -437,7 +437,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   untagged counts as zero. An additive component (short-term investments, the combined cash line,
   current equity securities, NCI, preferred stock, temporary equity) keeps every value each concept held at
   the instant and is read from the last row public at the cutoff, ordered by concept priority, then the
-  Reporting Currency over any other, then filing order, with an extension line below every standard row; a row
+  Reporting Currency over any other, then filing order (other currencies as one stream), with an extension line below every standard row; a row
   in another currency, or an as-filed value a later filing restated, is incomplete, never untagged, including a
   combined line checked against the pick and a generic equity line the current-assets identity would add. Incomplete short-term investments withhold EV, net debt and their multiples;
   incomplete noncontrolling interest, preferred stock or temporary equity withholds EV only; both emit one

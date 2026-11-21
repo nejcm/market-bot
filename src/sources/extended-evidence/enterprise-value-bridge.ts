@@ -300,13 +300,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const equity = factAt(facts.currentEquitySecurities, cash.periodEnd);
   const total = factAt(facts.assetsCurrent, cash.periodEnd);
   const explicitLine = equity?.concept === CURRENT_EQUITY_CONCEPT;
-  // A withheld generic line outside the current-assets currency cannot be proven current, so it stays out like an unproven one.
-  if (
-    equity === undefined ||
-    (equity.shortTermInvestmentsWithheld !== undefined &&
-      !explicitLine &&
-      (total === undefined || equity.unit !== total.unit))
-  ) {
+  const unproven = (): BridgeComponent<F> => {
     const prior = priorNonzero(explicit, cash.periodEnd);
     return prior === undefined
       ? part
@@ -314,12 +308,13 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
           status: "incomplete",
           reason: `${LABELS.shortTermInvestments} (${CURRENT_EQUITY_CONCEPT}) reported nonzero at ${prior.periodEnd} but not tagged at ${cash.periodEnd}`,
         };
+  };
+  if (equity === undefined) {
+    return unproven();
   }
-  if (equity.shortTermInvestmentsWithheld !== undefined && explicitLine) {
-    return { status: "incomplete", reason: equity.shortTermInvestmentsWithheld };
-  }
-  if (equity.value === 0) {
-    return part;
+  const withheld = equity.shortTermInvestmentsWithheld;
+  if (withheld !== undefined && explicitLine) {
+    return { status: "incomplete", reason: withheld };
   }
   const base = part.status === "tagged" ? part.value : 0;
   const debtOnly = part.status === "untagged" || DEBT_ONLY_SHORT_TERM.has(part.concept);
@@ -336,8 +331,14 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const outsideIdentity =
     withoutEquity !== undefined && withoutEquity <= tolerance && (withEquity ?? 0) > tolerance;
   const additive = closesIdentity || (explicitLine && debtOnly && !outsideIdentity);
-  if (additive && equity.shortTermInvestmentsWithheld !== undefined) {
-    return { status: "incomplete", reason: equity.shortTermInvestmentsWithheld };
+  // A withheld generic line withholds only where its as-filed value would add; otherwise it proves nothing, like no line.
+  if (withheld !== undefined) {
+    return additive && equity.unit === total?.unit
+      ? { status: "incomplete", reason: withheld }
+      : unproven();
+  }
+  if (equity.value === 0) {
+    return part;
   }
   if (additive) {
     return part.status === "tagged"

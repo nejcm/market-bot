@@ -534,6 +534,85 @@ describe("enterprise value bridge on both SEC producers", () => {
     },
   );
 
+  // Prior-quarter short-term investments as a sequence of filings in other currencies; the latest one public is in effect.
+  test.each([
+    ["EUR 50, GBP 0, EUR 50", "2026-08-10", "incomplete"],
+    ["EUR 50, GBP 0, EUR 50", "2026-09-20", "untagged"],
+    ["EUR 50, GBP 0, EUR 50", "2026-10-01", "incomplete"],
+    ["EUR 50, GBP 0, EUR 50", "none", "incomplete"],
+    ["GBP 0, EUR 50, GBP 0", "2026-09-20", "incomplete"],
+    ["GBP 0, EUR 50, GBP 0", "2026-10-01", "untagged"],
+    ["GBP 0, then a same-day EUR 50 amendment", "none", "incomplete"],
+  ] as const)("prior-quarter filings %s: publicAt %s reads %s", (sequence, publicAt, status) => {
+    const filings: readonly (readonly [string, number, string, string])[] = sequence.startsWith(
+      "EUR",
+    )
+      ? [
+          ["EUR", 50, "2026-08-05", "10-Q"],
+          ["GBP", 0, "2026-09-15", "10-Q/A"],
+          ["EUR", 50, "2026-09-25", "10-Q/A"],
+        ]
+      : sequence.includes("same-day")
+        ? [
+            ["GBP", 0, "2026-08-05", "10-Q"],
+            ["EUR", 50, "2026-08-05", "10-Q/A"],
+          ]
+        : [
+            ["GBP", 0, "2026-08-05", "10-Q"],
+            ["EUR", 50, "2026-09-15", "10-Q/A"],
+            ["GBP", 0, "2026-09-25", "10-Q/A"],
+          ];
+    const payload = companyFacts(amdWithoutSti);
+    const root = payload.facts["us-gaap"] as Record<string, { units: Record<string, unknown[]> }>;
+    root.ShortTermInvestments = { units: {} };
+    for (const [unit, value, filed, form] of filings) {
+      (root.ShortTermInvestments.units[unit] ??= []).push(
+        fact(value * M, "2026-03-28", filed, `amd-${unit}-${filed}-${form}`, form),
+      );
+    }
+    expect(bridgeAt(payload, publicAt).shortTermInvestments).toEqual(
+      status === "untagged"
+        ? { status }
+        : {
+            status,
+            reason:
+              "short-term investments (ShortTermInvestments) reported nonzero at 2026-03-28 but not tagged at 2026-06-27",
+          },
+    );
+    if (publicAt === "none") {
+      for (const path of ["legacy", "canonical"] as const) {
+        const { metrics, gaps } = payloadValuations(payload)[path];
+        expect(metrics?.netDebt).toBeUndefined();
+        expect(bridgeGaps(gaps)).toHaveLength(1);
+      }
+    }
+  });
+
+  // Explicit current equity 1,200M at 2026-03-28; at 2026-06-27 current assets 25,111M close without the generic line.
+  test.each([30_000, 0])(
+    "a restated generic EquitySecuritiesFvNi %j the identity does not add keeps explicit-equity continuity",
+    (value) => {
+      const part = bridgeAt(
+        companyFacts({
+          ...amdWithoutSti,
+          DebtSecuritiesCurrent: amdAt(8025),
+          AccountsReceivableNetCurrent: amdAt(6000),
+          InventoryNet: amdAt(4000),
+          OtherAssetsCurrent: amdAt(2000),
+          AssetsCurrent: amdAt(25_111),
+          EquitySecuritiesFvNiCurrent: q1(1200 * M, "2026-05-04"),
+          EquitySecuritiesFvNi: [...amdAt(value), ...amdAt(value + 1, "2026-09-15", "amd-10q-a")],
+        }),
+        "2026-08-10",
+      ).shortTermInvestments;
+      expect(part).toEqual({
+        status: "incomplete",
+        reason:
+          "short-term investments (EquitySecuritiesFvNiCurrent) reported nonzero at 2026-03-28 but not tagged at 2026-06-27",
+      });
+    },
+  );
+
   // Current assets 26,311M = cash 5,086 + debt securities 8,025 + receivables 6,000 + inventory 4,000 + other 2,000
   // + generic equity securities; the generic line is restated by 1M on 2026-09-15.
   const restatedEquity = (unit: string, value: number, publicAt: string) => {

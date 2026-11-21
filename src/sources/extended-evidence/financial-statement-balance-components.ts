@@ -231,8 +231,18 @@ function extensionShortTermInvestments(
   });
 }
 
+function sameRevision(fact: ParsedFact, other: ParsedFact | undefined): boolean {
+  return (
+    other !== undefined &&
+    other.periodEnd === fact.periodEnd &&
+    other.concept === fact.concept &&
+    other.unit === fact.unit &&
+    other.value === fact.value
+  );
+}
+
 // Every value an additive bridge line held at an instant, ordered so the last row public at a cutoff is in effect:
-// Concept priority, then the Reporting Currency over any other, then filing order.
+// Concept priority, then the Reporting Currency over any other, then filing order (foreign units as one stream).
 function bridgeRevisions(
   root: Record<string, unknown>,
   concepts: readonly string[],
@@ -250,29 +260,37 @@ function bridgeRevisions(
     .toSorted(
       (left, right) =>
         left.periodEnd.localeCompare(right.periodEnd) ||
-        left.concept.localeCompare(right.concept) ||
-        left.unit.localeCompare(right.unit) ||
+        concepts.indexOf(right.concept) - concepts.indexOf(left.concept) ||
+        Number(left.unit === reportingCurrency) - Number(right.unit === reportingCurrency) ||
         compareFinancialStatementRevisions(right, left),
     );
-  const revisions = rows.flatMap((fact, index) => {
-    const stream = rows.filter(
-      (row) =>
-        row.periodEnd === fact.periodEnd && row.concept === fact.concept && row.unit === fact.unit,
-    );
+  let runStart = rows[0];
+  return rows.flatMap((fact, index) => {
+    if (!sameRevision(fact, rows[index - 1])) {
+      runStart = fact;
+    }
     const next = rows[index + 1];
-    if (next !== undefined && stream.includes(next) && next.value === fact.value) {
+    if (sameRevision(fact, next)) {
       return [];
     }
     const withheld =
       fact.unit !== reportingCurrency
         ? `is filed in ${fact.unit}, not reporting currency ${reportingCurrency}`
-        : fact === stream.at(-1)
+        : next?.periodEnd !== fact.periodEnd || next.concept !== fact.concept
           ? undefined
-          : `was restated on ${next!.filedAt}; the value first filed is withheld`;
+          : `was restated on ${next.filedAt}; the value first filed is withheld`;
     return [
       {
         ...toSelectedFact(
-          withFirstPublicAt(fact, stream),
+          withFirstPublicAt(
+            { ...fact, firstPublicAt: runStart!.filedAt },
+            rows.filter(
+              (row) =>
+                row.periodEnd === fact.periodEnd &&
+                row.concept === fact.concept &&
+                row.unit === fact.unit,
+            ),
+          ),
           INSTANT_DEFINITION,
           fact.unit,
           input.sourceId,
@@ -283,13 +301,6 @@ function bridgeRevisions(
       },
     ];
   });
-  return revisions.toSorted(
-    (left, right) =>
-      left.periodEnd.localeCompare(right.periodEnd) ||
-      concepts.indexOf(right.concept) - concepts.indexOf(left.concept) ||
-      Number(left.unit === reportingCurrency) - Number(right.unit === reportingCurrency) ||
-      (left.firstPublicAt ?? left.filedAt).localeCompare(right.firstPublicAt ?? right.filedAt),
-  );
 }
 
 export function selectEnterpriseValueBridge(

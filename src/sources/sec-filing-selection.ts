@@ -127,17 +127,64 @@ export function selectLatestFilingByForm(
     )[0];
 }
 
+// A later report date is a comparative column of that filing's face.
 export function selectOriginalPeriodicFiling(
   payload: unknown,
   accessionNumber: string,
-  reportDate: string,
+  instant: string,
 ): SecFiling | undefined {
   return recentSecFilingRows(payload).find(
     (filing) =>
       filing.accessionNumber === accessionNumber &&
-      filing.reportDate === reportDate &&
+      filing.reportDate !== undefined &&
+      filing.reportDate >= instant &&
       filing.amended !== true &&
       (filing.form === "10-K" || filing.form === "10-Q"),
+  );
+}
+
+// The instant's own 10-K/10-Q, then in filing order each later face holding it as a comparative:
+// Interim and annual balance sheets compare to the preceding fiscal year-end (Reg S-X 10-01(c), 3-01).
+export function selectInstantFaceFilings(payload: unknown, instant: string): readonly SecFiling[] {
+  const periodic = recentSecFilingRows(payload)
+    .filter(
+      (filing) =>
+        filing.reportDate !== undefined &&
+        filing.reportDate >= instant &&
+        filing.amended !== true &&
+        (filing.form === "10-K" || filing.form === "10-Q"),
+    )
+    .toSorted((left, right) => left.filingDate.localeCompare(right.filingDate));
+  const unreadable = nonInlineXbrlAccessions(payload);
+  const original = periodic.find((filing) => filing.reportDate === instant);
+  const nextAnnual = periodic.find(
+    (filing) => filing.form === "10-K" && filing.reportDate !== instant,
+  );
+  return original === undefined
+    ? []
+    : periodic.filter(
+        (filing) =>
+          !unreadable.has(filing.accessionNumber) &&
+          (filing === original ||
+            (original.form === "10-K" &&
+              (nextAnnual === undefined ||
+                (filing.reportDate ?? "") <= (nextAnnual.reportDate ?? "")))),
+      );
+}
+
+// The face parser reads inline XBRL tags, so a filing SEC marks as not inline cannot foot.
+export function nonInlineXbrlAccessions(payload: unknown): ReadonlySet<string> {
+  const recent =
+    isRecord(payload) && isRecord(payload.filings) && isRecord(payload.filings.recent)
+      ? payload.filings.recent
+      : {};
+  const { accessionNumber: accessions, isInlineXBRL: inline } = recent;
+  return new Set(
+    Array.isArray(accessions) && Array.isArray(inline) && accessions.length === inline.length
+      ? accessions.filter(
+          (accession, index) => inline[index] === 0 && typeof accession === "string",
+        )
+      : [],
   );
 }
 

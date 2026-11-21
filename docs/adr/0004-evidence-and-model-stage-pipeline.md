@@ -288,6 +288,9 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   on one side may not share the parts (KR 10-K 0001104659-26-037723 2026-01-31: 1,366M + 436M and 14,509M +
   1,255M, which its 10-Q comparative column reuses); the lease leg then stays out of debt. Otherwise it withholds
   (KR 10-Q 2026-08-15 tags no finance lease).
+- A later non-amended inline-XBRL 10-K/10-Q comparative column may prove an instant; a face-proved amount is dated by
+  its earliest complete proof, never before the proving filing (TDG 2024-09-30 24,618M public 2024-11-07, 10-K
+  0001260221-24-000083). On such a face, an unplaced nonzero current finance lease beside a subtracted noncurrent one withholds.
 - Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
   emits a dated `incomplete-composite-series` note. When the newest debt instant is incomplete, both paths drop the
   latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,

@@ -51,6 +51,7 @@ import {
   unsupersededDebtResolutions,
 } from "./sec-debt-resolution";
 import type { ParsedFact, SelectedSeries } from "./financial-statement-facts";
+import { nonInlineXbrlAccessions, selectInstantFaceFilings } from "../sec-filing-selection";
 
 export interface DebtFactReader {
   readonly root: (taxonomy: FinancialStatementTaxonomy) => Record<string, unknown> | undefined;
@@ -182,25 +183,65 @@ export function debtScopeUnprovenNotes(
   });
 }
 
-// Face-fixable debt withholds at instants the revenue history joins, newest first.
+const requests = (periodEnd: string, [first, second]: readonly (string | undefined)[]) =>
+  [first, second].flatMap((accessionNumber, rank) =>
+    accessionNumber === undefined ? [] : [{ periodEnd, accessionNumber, rank }],
+  );
+
+// Faces for debt instants the revenue history joins: every first face, then second ones, each newest first.
 export function debtInstantsNeedingFace(
   artifact: FinancialStatementsArtifact,
+  submissionsPayload?: unknown,
+  secFilings: readonly ExtendedEvidenceItem[] = [],
 ): readonly { readonly periodEnd: string; readonly accessionNumber: string }[] {
   const revenue = financialStatementSeriesByKey(artifact, "revenue");
   const joined = new Set(
     revenue === undefined ? [] : financialStatementFacts(revenue).map((fact) => fact.periodEnd),
   );
-  return (artifact.omissionNotes ?? [])
-    .flatMap((note) => {
-      const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
-      return note.faceAccession === undefined ||
-        periodEnd === undefined ||
-        !isWithheldDebtNote(note) ||
-        !joined.has(periodEnd)
-        ? []
-        : [{ periodEnd, accessionNumber: note.faceAccession }];
-    })
-    .toSorted((left, right) => right.periodEnd.localeCompare(left.periodEnd));
+  const debt = financialStatementSeriesByKey(artifact, "debt");
+  const read = new Set(secFilings.map(({ metrics }) => metrics?.accessionNumber));
+  const unreadable = nonInlineXbrlAccessions(submissionsPayload);
+  // The earliest comparative, else the instant's own face; its own face beside a comparative ranks second under the cap.
+  const unreadFaces = (periodEnd: string, before = "\uFFFF") => {
+    const unread = selectInstantFaceFilings(submissionsPayload, periodEnd).filter(
+      ({ accessionNumber, filingDate }) => !read.has(accessionNumber) && filingDate < before,
+    );
+    const own = unread.find(({ reportDate }) => reportDate === periodEnd);
+    const comparative = unread.find(({ reportDate }) => reportDate !== periodEnd);
+    return [comparative ?? own, comparative === undefined ? undefined : own].map(
+      (filing) => filing?.accessionNumber,
+    );
+  };
+  const withheld = (artifact.omissionNotes ?? []).flatMap((note) => {
+    const periodEnd = note.periodKey?.replace(/^instant\|/u, "");
+    if (note.faceAccession === undefined || periodEnd === undefined || !isWithheldDebtNote(note)) {
+      return [];
+    }
+    const fallback = [note.faceAccession].find(
+      (accession) => !read.has(accession) && !unreadable.has(accession),
+    );
+    const [first = fallback, second] = unreadFaces(periodEnd);
+    return requests(periodEnd, [first, second]);
+  });
+  // A filing-proved instant public only after an unread face that holds it asks for that face, which may date it earlier.
+  const late = (debt === undefined ? [] : financialStatementFacts(debt)).flatMap((fact) =>
+    fact.sourceIds.some((id) => id !== artifact.sourceId)
+      ? requests(fact.periodEnd, unreadFaces(fact.periodEnd, fact.firstPublicAt))
+      : [],
+  );
+  return [...withheld, ...late]
+    .filter(
+      (instant, index, all) =>
+        joined.has(instant.periodEnd) &&
+        all.findIndex(
+          ({ periodEnd, accessionNumber }) =>
+            periodEnd === instant.periodEnd && accessionNumber === instant.accessionNumber,
+        ) === index,
+    )
+    .toSorted(
+      (left, right) => left.rank - right.rank || right.periodEnd.localeCompare(left.periodEnd),
+    )
+    .map(({ periodEnd, accessionNumber }) => ({ periodEnd, accessionNumber }));
 }
 
 // The newest debt instant is incomplete, so no older amount may stand in as the latest debt.
@@ -463,6 +504,13 @@ export function factsForDebt(
         accessionNumber === null || filedAt !== instant.filedAt ? [] : [accessionNumber],
       ),
       restatements: debtRestatements(fact, resolution.basis, candidates),
+      proven:
+        fact === undefined
+          ? []
+          : [
+              provenAmount(fact.value, [fact.filedAt], resolution.proofSourceIds, filings),
+              ...provenAmounts(instantFacts.get(instantKey) ?? [], filings, resolveWith),
+            ],
       incomplete,
       incompleteReason: resolution.incompleteReason,
       basis: resolution.basis,
@@ -521,6 +569,17 @@ export function factsForDebt(
         : entry.restatements.map((fact) => [fact, entry.proofSourceIds] as const),
     ),
   );
+  // Any complete resolution of the amount, annual or interim, makes it public, so the earliest one dates it.
+  const provenAt = new Map<string, ProvenAmount>();
+  for (const entry of current) {
+    for (const proof of entry.incomplete ? [] : entry.proven) {
+      const key = `${entry.periodEnd}|${proof.value}`;
+      const earliest = provenAt.get(key);
+      if (earliest === undefined || proof.at < earliest.at) {
+        provenAt.set(key, proof);
+      }
+    }
+  }
   const faceLeases = new Map(
     current.flatMap((entry) =>
       entry.incomplete || entry.faceLeases === undefined
@@ -544,7 +603,9 @@ export function factsForDebt(
     ].map((fact) => ({
       ...fact,
       ...(lineScoped.has(fact) ? { lineScope: true as const } : {}),
-      ...(proofs.has(fact) ? { proofSourceIds: proofs.get(fact) ?? [] } : {}),
+      ...(proofs.has(fact)
+        ? withProvenAt(proofs.get(fact) ?? [], provenAt.get(`${fact.periodEnd}|${fact.value}`))
+        : {}),
       ...(faceLeases.has(fact) ? { faceLeases: faceLeases.get(fact) ?? [] } : {}),
     })),
     notes: [
@@ -553,6 +614,51 @@ export function factsForDebt(
       ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
     ],
   };
+}
+
+// The fact cites the proof that dates it beside the one that resolves it.
+const withProvenAt = (proofSourceIds: readonly string[], proven: ProvenAmount | undefined) =>
+  proven === undefined
+    ? { proofSourceIds }
+    : {
+        proofSourceIds: [...new Set([...proofSourceIds, ...proven.sourceIds])],
+        proofPublicAt: proven.at,
+      };
+
+interface ProvenAmount {
+  readonly value: number;
+  readonly at: string;
+  readonly sourceIds: readonly string[];
+}
+
+// A complete resolution holds once its lines and every filing its proof cites are filed.
+function provenAmount(
+  value: number,
+  filedAts: readonly string[],
+  proofSourceIds: readonly string[] | undefined,
+  filings: readonly ExtendedEvidenceItem[],
+): ProvenAmount {
+  const sourceIds = proofSourceIds ?? [];
+  return {
+    value,
+    at: [...filedAts, proofFiledAt(filings, sourceIds) ?? ""].toSorted().at(-1) ?? "",
+    sourceIds,
+  };
+}
+
+// A proof needs every filing it cites, so the latest of them is when it holds.
+function proofFiledAt(
+  filings: readonly ExtendedEvidenceItem[],
+  proofSourceIds: readonly string[],
+): string | undefined {
+  return filings
+    .flatMap(({ sourceIds, metrics }) =>
+      typeof metrics?.filingDate === "string" && sourceIds.some((id) => proofSourceIds.includes(id))
+        ? [metrics.filingDate]
+        : [],
+    )
+    .toSorted()
+    .at(-1);
 }
 
 const ZERO_BORROWINGS_REASON =
@@ -1041,18 +1147,10 @@ function fromOneFiling(
   for (const filing of nonzero.toSorted(
     (left, right) => Number(used.has(right)) - Number(used.has(left)),
   )) {
-    const lines = new Map<string, ParsedFact>();
-    for (const fact of facts) {
-      if (filingOf(fact) === filing && !lines.has(fact.concept)) {
-        lines.set(fact.concept, fact);
-      }
-    }
-    for (const [concept, fact] of tagged) {
-      if (fact.value === 0 && !lines.has(concept)) {
-        lines.set(concept, fact);
-      }
-    }
-    const alone = resolve(lines, { id: filing, filedAt: filedAt.get(filing) ?? "" });
+    const alone = resolve(filingLines(filing, facts, tagged), {
+      id: filing,
+      filedAt: filedAt.get(filing) ?? "",
+    });
     if (
       alone.incompleteReason === undefined &&
       ((resolution.incompleteReason === undefined && debtLines(alone) === debtLines(resolution)) ||
@@ -1067,6 +1165,59 @@ function fromOneFiling(
       resolution.incompleteReason ??
       `nonzero debt evidence from filings ${nonzero.join(", ")} decide the instant, and no one of them alone resolves it with the same lines or with every other filing repeating its values`,
   };
+}
+
+function filingLines(
+  filing: string,
+  facts: readonly ParsedFact[],
+  tagged: ReadonlyMap<string, ParsedFact>,
+): ReadonlyMap<string, ParsedFact> {
+  const lines = new Map<string, ParsedFact>();
+  for (const fact of facts) {
+    if (filingOf(fact) === filing && !lines.has(fact.concept)) {
+      lines.set(fact.concept, fact);
+    }
+  }
+  for (const [concept, fact] of tagged) {
+    if (fact.value === 0 && !lines.has(concept)) {
+      lines.set(concept, fact);
+    }
+  }
+  return lines;
+}
+
+// Each filing that alone resolves the instant completely is an independent proof of its amount.
+function provenAmounts(
+  facts: readonly ParsedFact[],
+  filings: readonly ExtendedEvidenceItem[],
+  resolve: (lines: ReadonlyMap<string, ParsedFact>, filing: Filing) => DebtResolution<ParsedFact>,
+): readonly ProvenAmount[] {
+  const filingIds = [...new Set(facts.map(filingOf))];
+  return filingIds.length < 2
+    ? []
+    : filingIds.flatMap((filing) => {
+        const filedAt = facts.find((fact) => filingOf(fact) === filing)?.filedAt ?? "";
+        // A zero filed later can neither complete nor delay this filing's proof.
+        const zeros = new Map<string, ParsedFact>();
+        for (const fact of facts) {
+          if (fact.value === 0 && fact.filedAt <= filedAt && !zeros.has(fact.concept)) {
+            zeros.set(fact.concept, fact);
+          }
+        }
+        const lines = filingLines(filing, facts, zeros);
+        const alone = resolve(lines, { id: filing, filedAt });
+        const [anchor] = alone.contributors;
+        return alone.incompleteReason !== undefined || anchor === undefined
+          ? []
+          : [
+              provenAmount(
+                alone.basis === "total" ? anchor.fact.value : signedDebt(alone),
+                [...lines.values()].map((fact) => fact.filedAt),
+                alone.proofSourceIds,
+                filings,
+              ),
+            ];
+      });
 }
 
 // A face statement that foots to its subtotals lists every debt line, so it settles omission and placement gaps.
@@ -1116,6 +1267,7 @@ function withFaceStatementDebt(
       new Map(
         [...tagged].filter(([concept]) => recognized.has(concept) || !face.standard.has(concept)),
       ),
+      face,
     );
     const gross = proven.contributors.filter(({ subtract }) => subtract !== true);
     const [anchor] = gross;

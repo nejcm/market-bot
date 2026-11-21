@@ -63,6 +63,8 @@ export interface ParsedFact {
   readonly lineScope?: true;
   readonly sourceIds?: readonly string[];
   readonly proofSourceIds?: readonly string[];
+  // Earliest complete proof of the amount at its instant, annual or interim, which dates the fact.
+  readonly proofPublicAt?: string;
   readonly faceLeases?: readonly string[];
   readonly zeroBorrowingsProof?: string;
   readonly composite?: {
@@ -679,10 +681,11 @@ export function withFirstPublicAt(
     aliasPeers.filter((fact) => fact.value === winner.value).map((fact) => fact.concept),
   );
   const datingPeers = [...peers, ...aliasPeers.filter((fact) => matchingAliases.has(fact.concept))];
+  const firstPublicAt =
+    winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [datingPeers]);
   return {
     ...winner,
-    firstPublicAt:
-      winner.firstPublicAt ?? firstPublicDate(winner.value, winner.filedAt, [datingPeers]),
+    firstPublicAt: winner.proofPublicAt ?? firstPublicAt,
     ...(restatedFrom === undefined ? {} : { restatedFrom }),
   };
 }

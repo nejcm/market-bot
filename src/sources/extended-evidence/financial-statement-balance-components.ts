@@ -10,7 +10,10 @@ import {
   EXTENSION_SHORT_TERM_INVESTMENTS_PROOF_PREFIX,
 } from "../sec-extension-investments-proof";
 import { FINANCIAL_STATEMENT_SERIES_DEFINITIONS } from "./financial-statement-definitions";
-import { compareFinancialStatementFacts } from "./financial-statement-selection";
+import {
+  compareFinancialStatementFacts,
+  compareFinancialStatementRevisions,
+} from "./financial-statement-selection";
 import {
   type FinancialStatementFact,
   ENTERPRISE_VALUE_BRIDGE_FACT_KEYS,
@@ -228,8 +231,9 @@ function extensionShortTermInvestments(
   });
 }
 
-// A bridge line filed at an instant only in another currency withholds it instead of reading as untagged 0.
-function otherCurrencyInstants(
+// Every value an additive bridge line held at an instant, ordered so the last row public at a cutoff is in effect:
+// Concept priority, then the Reporting Currency over any other, then filing order.
+function bridgeRevisions(
   root: Record<string, unknown>,
   concepts: readonly string[],
   reportingCurrency: string,
@@ -237,38 +241,49 @@ function otherCurrencyInstants(
 ): readonly FinancialStatementFact[] {
   const rows = concepts
     .flatMap((concept) => unitFacts("us-gaap", root, concept))
-    .filter((fact) => fact.periodStart === undefined && isObservable(fact, input.analysisAsOf))
-    .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
-  // A translation filed with or after the same concept in the reporting currency adds nothing.
-  const reported = (fact: ParsedFact) =>
-    rows.some(
-      (row) =>
-        row.unit === reportingCurrency &&
-        row.concept === fact.concept &&
-        row.periodEnd === fact.periodEnd &&
-        row.filedAt <= fact.filedAt,
+    .filter(
+      (fact) =>
+        fact.periodStart === undefined &&
+        currencyForUnit(fact.unit) === fact.unit &&
+        isObservable(fact, input.analysisAsOf),
+    )
+    .toSorted(
+      (left, right) =>
+        left.periodEnd.localeCompare(right.periodEnd) ||
+        concepts.indexOf(right.concept) - concepts.indexOf(left.concept) ||
+        Number(left.unit === reportingCurrency) - Number(right.unit === reportingCurrency) ||
+        left.unit.localeCompare(right.unit) ||
+        compareFinancialStatementRevisions(right, left),
     );
-  const earliest = new Map<string, ParsedFact>();
-  for (const fact of rows) {
-    const key = [fact.periodEnd, fact.concept, fact.unit, fact.value].join("|");
-    if (
-      fact.unit !== reportingCurrency &&
-      currencyForUnit(fact.unit) === fact.unit &&
-      !earliest.has(key) &&
-      !reported(fact)
-    ) {
-      earliest.set(key, fact);
+  return rows.flatMap((fact, index) => {
+    const stream = rows.filter(
+      (row) =>
+        row.periodEnd === fact.periodEnd && row.concept === fact.concept && row.unit === fact.unit,
+    );
+    const next = rows[index + 1];
+    if (next !== undefined && stream.includes(next) && next.value === fact.value) {
+      return [];
     }
-  }
-  return [...earliest.values()].map((fact) => ({
-    ...toSelectedFact(
-      { ...fact, firstPublicAt: fact.filedAt },
-      INSTANT_DEFINITION,
-      fact.unit,
-      input.sourceId,
-    ),
-    shortTermInvestmentsWithheld: `${fact.concept} at ${fact.periodEnd} is filed in ${fact.unit}, not reporting currency ${reportingCurrency}`,
-  }));
+    const withheld =
+      fact.unit !== reportingCurrency
+        ? `is filed in ${fact.unit}, not reporting currency ${reportingCurrency}`
+        : fact === stream.at(-1)
+          ? undefined
+          : `was restated on ${next!.filedAt}; the value first filed is withheld`;
+    return [
+      {
+        ...toSelectedFact(
+          withFirstPublicAt(fact, stream),
+          INSTANT_DEFINITION,
+          fact.unit,
+          input.sourceId,
+        ),
+        ...(withheld === undefined
+          ? {}
+          : { shortTermInvestmentsWithheld: `${fact.concept} at ${fact.periodEnd} ${withheld}` }),
+      },
+    ];
+  });
 }
 
 export function selectEnterpriseValueBridge(
@@ -276,47 +291,33 @@ export function selectEnterpriseValueBridge(
   reportingCurrency: string,
   input: FinancialStatementsDeriveInput,
 ): FinancialStatementEnterpriseValueBridge {
-  const select = (key: keyof FinancialStatementEnterpriseValueBridge) =>
-    selectInstantComponent(
-      payload,
-      "us-gaap",
-      reportingCurrency,
-      () => ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
-      new Map(),
-      input,
-    );
-  const selected = Object.fromEntries(
-    ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [key, select(key)]),
-  ) as unknown as FinancialStatementEnterpriseValueBridge;
   const root = taxonomyRoot(payload, "us-gaap") ?? {};
-  const lists = {
-    ...selected,
+  const lists = Object.fromEntries(
+    ENTERPRISE_VALUE_BRIDGE_FACT_KEYS.map((key) => [
+      key,
+      (OTHER_CURRENCY_BRIDGE_KEYS as readonly string[]).includes(key)
+        ? bridgeRevisions(root, ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key], reportingCurrency, input)
+        : selectInstantComponent(
+            payload,
+            "us-gaap",
+            reportingCurrency,
+            () => ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
+            new Map(),
+            input,
+          ),
+    ]),
+  ) as unknown as FinancialStatementEnterpriseValueBridge;
+  return trimToMezzaninePeriods({
+    ...lists,
     shortTermInvestments: [
-      ...selected.shortTermInvestments,
+      ...lists.shortTermInvestments,
       ...extensionShortTermInvestments(
         root,
         reportingCurrency,
         input,
-        selected.shortTermInvestments,
+        lists.shortTermInvestments.filter((fact) => fact.unit === reportingCurrency),
       ),
-    ],
-  };
-  return trimToMezzaninePeriods({
-    ...lists,
-    ...Object.fromEntries(
-      OTHER_CURRENCY_BRIDGE_KEYS.map((key) => [
-        key,
-        [
-          ...lists[key],
-          ...otherCurrencyInstants(
-            root,
-            ENTERPRISE_VALUE_BRIDGE_CONCEPTS[key],
-            reportingCurrency,
-            input,
-          ),
-        ].toSorted(chronological),
-      ]),
-    ),
+    ].toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd)),
   });
 }
 

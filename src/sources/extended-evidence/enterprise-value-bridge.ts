@@ -135,7 +135,11 @@ export function trimToMezzaninePeriods<F extends BridgeFact>(
     facts.currentEquitySecurities.filter((fact) => fact.value !== 0).map((fact) => fact.periodEnd),
   );
   const parentPeriods = new Set(facts.stockholdersEquity.map((fact) => fact.periodEnd));
-  const taggedNoncontrolling = new Set(facts.noncontrollingInterest.map((fact) => fact.periodEnd));
+  const taggedNoncontrolling = new Set(
+    facts.noncontrollingInterest
+      .filter((fact) => fact.shortTermInvestmentsWithheld === undefined)
+      .map((fact) => fact.periodEnd),
+  );
   const periods = new Set([
     ...facts.temporaryEquity.map((fact) => fact.periodEnd),
     ...facts.stockholdersEquityIncludingNoncontrollingInterest
@@ -164,15 +168,9 @@ function withinContinuity(periodEnd: string, instant: string): boolean {
   return days > 0 && days <= CONTINUITY_DAYS;
 }
 
-// A filed reporting-currency fact outranks withheld ones at the same instant.
-function effectiveAt<F extends BridgeFact>(facts: readonly F[], instant: string): readonly F[] {
-  const at = facts.filter((fact) => fact.periodEnd === instant);
-  const filed = at.filter((fact) => fact.shortTermInvestmentsWithheld === undefined);
-  return filed.length > 0 ? filed.slice(-1) : at;
-}
-
+// Lists are ordered so the last row at an instant is the one in effect (bridgeRevisions).
 function factAt<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
-  return effectiveAt(facts, instant).at(-1);
+  return facts.findLast((fact) => fact.periodEnd === instant);
 }
 
 function priorNonzero<F extends BridgeFact>(facts: readonly F[], instant: string): F | undefined {
@@ -180,7 +178,7 @@ function priorNonzero<F extends BridgeFact>(facts: readonly F[], instant: string
     (fact) =>
       fact.value !== 0 &&
       withinContinuity(fact.periodEnd, instant) &&
-      effectiveAt(facts, fact.periodEnd).includes(fact),
+      factAt(facts, fact.periodEnd) === fact,
   );
 }
 
@@ -263,7 +261,7 @@ function withCombinedCheck<F extends BridgeFact>(
 }
 
 function valueAt<F extends BridgeFact>(facts: readonly F[], instant: string): number | undefined {
-  return facts.findLast((fact) => fact.periodEnd === instant)?.value;
+  return factAt(facts, instant)?.value;
 }
 
 function currentAssetsResidual<F extends BridgeFact>(
@@ -296,14 +294,12 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const explicit = facts.currentEquitySecurities.filter(
     (fact) => fact.concept === CURRENT_EQUITY_CONCEPT,
   );
-  const equity = factAt(
-    facts.currentEquitySecurities.filter(
-      (fact) =>
-        fact.shortTermInvestmentsWithheld === undefined || fact.concept === CURRENT_EQUITY_CONCEPT,
-    ),
-    cash.periodEnd,
-  );
-  if (equity === undefined) {
+  const equity = factAt(facts.currentEquitySecurities, cash.periodEnd);
+  // A withheld generic line cannot be proven current, so it stays out like an unproven one.
+  if (
+    equity === undefined ||
+    (equity.shortTermInvestmentsWithheld !== undefined && equity.concept !== CURRENT_EQUITY_CONCEPT)
+  ) {
     const prior = priorNonzero(explicit, cash.periodEnd);
     return prior === undefined
       ? part
@@ -361,9 +357,7 @@ function derivedNoncontrolling<F extends BridgeFact>(
   temporaryEquity: BridgeComponent<F>,
   instant: string,
 ): BridgeComponent<F> | undefined {
-  const including = facts.stockholdersEquityIncludingNoncontrollingInterest.findLast(
-    (fact) => fact.periodEnd === instant,
-  );
+  const including = factAt(facts.stockholdersEquityIncludingNoncontrollingInterest, instant);
   const parent = valueAt(facts.stockholdersEquity, instant);
   if (including === undefined || parent === undefined || including.value === parent) {
     return undefined;

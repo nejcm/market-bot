@@ -250,12 +250,11 @@ function bridgeRevisions(
     .toSorted(
       (left, right) =>
         left.periodEnd.localeCompare(right.periodEnd) ||
-        concepts.indexOf(right.concept) - concepts.indexOf(left.concept) ||
-        Number(left.unit === reportingCurrency) - Number(right.unit === reportingCurrency) ||
+        left.concept.localeCompare(right.concept) ||
         left.unit.localeCompare(right.unit) ||
         compareFinancialStatementRevisions(right, left),
     );
-  return rows.flatMap((fact, index) => {
+  const revisions = rows.flatMap((fact, index) => {
     const stream = rows.filter(
       (row) =>
         row.periodEnd === fact.periodEnd && row.concept === fact.concept && row.unit === fact.unit,
@@ -284,6 +283,13 @@ function bridgeRevisions(
       },
     ];
   });
+  return revisions.toSorted(
+    (left, right) =>
+      left.periodEnd.localeCompare(right.periodEnd) ||
+      concepts.indexOf(right.concept) - concepts.indexOf(left.concept) ||
+      Number(left.unit === reportingCurrency) - Number(right.unit === reportingCurrency) ||
+      (left.firstPublicAt ?? left.filedAt).localeCompare(right.firstPublicAt ?? right.filedAt),
+  );
 }
 
 export function selectEnterpriseValueBridge(
@@ -309,14 +315,15 @@ export function selectEnterpriseValueBridge(
   ) as unknown as FinancialStatementEnterpriseValueBridge;
   return trimToMezzaninePeriods({
     ...lists,
+    // An extension line is a fallback, so any standard row public at the cutoff overrides it.
     shortTermInvestments: [
-      ...lists.shortTermInvestments,
       ...extensionShortTermInvestments(
         root,
         reportingCurrency,
         input,
         lists.shortTermInvestments.filter((fact) => fact.unit === reportingCurrency),
       ),
+      ...lists.shortTermInvestments,
     ].toSorted((left, right) => left.periodEnd.localeCompare(right.periodEnd)),
   });
 }

@@ -73,6 +73,7 @@ export interface BridgeFact {
   readonly concept: string;
   readonly filedAt: string;
   readonly firstPublicAt?: string;
+  readonly unit?: string;
   readonly shortTermInvestmentsProof?: string;
   readonly shortTermInvestmentsWithheld?: string;
 }
@@ -246,10 +247,12 @@ function withCombinedCheck<F extends BridgeFact>(
   if (
     part.status !== "tagged" ||
     total === undefined ||
-    total.shortTermInvestmentsWithheld !== undefined ||
     part.concept.startsWith(COMBINED_CONCEPT)
   ) {
     return part;
+  }
+  if (total.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: total.shortTermInvestmentsWithheld };
   }
   const residual = total.value - cash.value;
   return Math.abs(residual - part.value) > Math.abs(total.value) * IDENTITY_TOLERANCE
@@ -295,10 +298,14 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
     (fact) => fact.concept === CURRENT_EQUITY_CONCEPT,
   );
   const equity = factAt(facts.currentEquitySecurities, cash.periodEnd);
-  // A withheld generic line cannot be proven current, so it stays out like an unproven one.
+  const total = factAt(facts.assetsCurrent, cash.periodEnd);
+  const explicitLine = equity?.concept === CURRENT_EQUITY_CONCEPT;
+  // A withheld generic line outside the current-assets currency cannot be proven current, so it stays out like an unproven one.
   if (
     equity === undefined ||
-    (equity.shortTermInvestmentsWithheld !== undefined && equity.concept !== CURRENT_EQUITY_CONCEPT)
+    (equity.shortTermInvestmentsWithheld !== undefined &&
+      !explicitLine &&
+      (total === undefined || equity.unit !== total.unit))
   ) {
     const prior = priorNonzero(explicit, cash.periodEnd);
     return prior === undefined
@@ -308,7 +315,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
           reason: `${LABELS.shortTermInvestments} (${CURRENT_EQUITY_CONCEPT}) reported nonzero at ${prior.periodEnd} but not tagged at ${cash.periodEnd}`,
         };
   }
-  if (equity.shortTermInvestmentsWithheld !== undefined) {
+  if (equity.shortTermInvestmentsWithheld !== undefined && explicitLine) {
     return { status: "incomplete", reason: equity.shortTermInvestmentsWithheld };
   }
   if (equity.value === 0) {
@@ -317,8 +324,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
   const base = part.status === "tagged" ? part.value : 0;
   const debtOnly = part.status === "untagged" || DEBT_ONLY_SHORT_TERM.has(part.concept);
   // Total current assets prove the equity a separate current line only when it closes the identity (VRTX sums without it).
-  const tolerance =
-    Math.abs(valueAt(facts.assetsCurrent, cash.periodEnd) ?? 0) * IDENTITY_TOLERANCE;
+  const tolerance = Math.abs(total?.value ?? 0) * IDENTITY_TOLERANCE;
   const withEquity = currentAssetsResidual(facts, cash, base + equity.value);
   const withoutEquity = currentAssetsResidual(facts, cash, base);
   const closesIdentity =
@@ -329,8 +335,10 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
     withoutEquity > tolerance;
   const outsideIdentity =
     withoutEquity !== undefined && withoutEquity <= tolerance && (withEquity ?? 0) > tolerance;
-  const additive =
-    closesIdentity || (equity.concept === CURRENT_EQUITY_CONCEPT && debtOnly && !outsideIdentity);
+  const additive = closesIdentity || (explicitLine && debtOnly && !outsideIdentity);
+  if (additive && equity.shortTermInvestmentsWithheld !== undefined) {
+    return { status: "incomplete", reason: equity.shortTermInvestmentsWithheld };
+  }
   if (additive) {
     return part.status === "tagged"
       ? {
@@ -343,7 +351,7 @@ function withCurrentEquitySecurities<F extends BridgeFact>(
       : { status: "tagged", value: equity.value, concept: equity.concept, fact: equity };
   }
   // The generic concept is usually a noncurrent holding (META, MRK), which stays out like other long-term investments.
-  return equity.concept === CURRENT_EQUITY_CONCEPT
+  return explicitLine
     ? {
         status: "incomplete",
         reason: `${CURRENT_EQUITY_CONCEPT} (${String(equity.value)}) at ${cash.periodEnd} may already sit inside ${part.status === "tagged" ? part.concept : "short-term investments"}`,

@@ -489,6 +489,106 @@ describe("enterprise value bridge on both SEC producers", () => {
     },
   );
 
+  test.each(["legacy", "canonical"] as const)(
+    "AMD %s: a USD DebtSecuritiesCurrent cannot skip the check against a combined line filed only in EUR",
+    (path) => {
+      const { metrics, gaps } = payloadValuations(
+        withEur(
+          { ...amdWithoutSti, DebtSecuritiesCurrent: amdAt(8025) },
+          { CashCashEquivalentsAndShortTermInvestments: amdAt(14_000) },
+        ),
+      )[path];
+      expect(metrics?.netDebt).toBeUndefined();
+      expect(metrics?.shortTermInvestmentsIncompleteReason).toBe(
+        "CashCashEquivalentsAndShortTermInvestments at 2026-06-27 is filed in EUR, not reporting currency USD",
+      );
+      expect(bridgeGaps(gaps)).toHaveLength(1);
+    },
+  );
+
+  // Prior-quarter short-term investments filed in two other currencies; the later filing is in effect.
+  test.each([
+    ["GBP", 0, "EUR", 50, "2026-08-10", "untagged"],
+    ["GBP", 0, "EUR", 50, "2026-10-01", "incomplete"],
+    ["GBP", 0, "EUR", 50, "none", "incomplete"],
+    ["EUR", 50, "GBP", 0, "2026-10-01", "untagged"],
+  ] as const)(
+    "prior-quarter %s %j on 2026-08-05 then %s %j on 2026-09-15: publicAt %s reads %s",
+    (firstUnit, firstValue, laterUnit, laterValue, publicAt, status) => {
+      const payload = withEur(
+        amdWithoutSti,
+        { ShortTermInvestments: q1(firstValue * M, "2026-08-05") },
+        firstUnit,
+      );
+      const root = payload.facts["us-gaap"] as Record<string, { units: Record<string, unknown> }>;
+      root.ShortTermInvestments!.units[laterUnit] = q1(laterValue * M, "2026-09-15");
+      expect(bridgeAt(payload, publicAt).shortTermInvestments).toEqual(
+        status === "untagged"
+          ? { status }
+          : {
+              status,
+              reason:
+                "short-term investments (ShortTermInvestments) reported nonzero at 2026-03-28 but not tagged at 2026-06-27",
+            },
+      );
+    },
+  );
+
+  // Current assets 26,311M = cash 5,086 + debt securities 8,025 + receivables 6,000 + inventory 4,000 + other 2,000
+  // + generic equity securities; the generic line is restated by 1M on 2026-09-15.
+  const restatedEquity = (unit: string, value: number, publicAt: string) => {
+    const operands = {
+      ...amdWithoutSti,
+      DebtSecuritiesCurrent: amdAt(8025),
+      AccountsReceivableNetCurrent: amdAt(6000),
+      InventoryNet: amdAt(4000),
+      OtherAssetsCurrent: amdAt(2000),
+      AssetsCurrent: amdAt(26_311),
+    };
+    const equity = [...amdAt(value), ...amdAt(value + 1, "2026-09-15", "amd-10q-a")];
+    return bridgeAt(
+      unit === "USD"
+        ? companyFacts({ ...operands, EquitySecuritiesFvNi: equity })
+        : withEur(operands, { EquitySecuritiesFvNi: equity }),
+      publicAt,
+    ).shortTermInvestments;
+  };
+  test.each([
+    ["USD", 1200, "2026-08-10", "withheld"],
+    ["USD", 1200, "none", "DebtSecuritiesCurrent + EquitySecuritiesFvNi"],
+    ["USD", 30_000, "2026-08-10", "DebtSecuritiesCurrent"],
+    ["EUR", 1200, "2026-08-10", "DebtSecuritiesCurrent"],
+  ] as const)(
+    "%s generic EquitySecuritiesFvNi %j restated later: publicAt %s reads %s",
+    (unit, value, publicAt, expected) => {
+      const part = restatedEquity(unit, value, publicAt);
+      expect(part).toEqual(
+        expected === "withheld"
+          ? {
+              status: "incomplete",
+              reason:
+                "EquitySecuritiesFvNi at 2026-06-27 was restated on 2026-09-15; the value first filed is withheld",
+            }
+          : expect.objectContaining({ status: "tagged", concept: expected }),
+      );
+    },
+  );
+
+  test("the artifact reader keeps each bridge list in the order the resolver reads", () => {
+    const { artifact } = payloadValuations(
+      withEur(
+        {
+          ...amdWithoutSti,
+          ShortTermInvestments: [...usd8025.after, ...amdAt(8055, "2026-09-15", "amd-10q-a")],
+        },
+        { ShortTermInvestments: amdAt(7300) },
+      ),
+    );
+    const read = readFinancialStatementsArtifact(JSON.parse(JSON.stringify(artifact)));
+    expect(read?.enterpriseValueBridge?.shortTermInvestments).toHaveLength(3);
+    expect(read?.enterpriseValueBridge).toEqual(artifact.enterpriseValueBridge);
+  });
+
   test("a reporting-currency-only issuer keeps one dated, unmarked bridge row per instant", () => {
     const { shortTermInvestments } = valuations(amd).artifact.enterpriseValueBridge!;
     expect(shortTermInvestments).toEqual([
@@ -560,10 +660,7 @@ describe("enterprise value bridge on both SEC producers", () => {
 
   // Allot 6-K 0001178913-25-002876 (2025-08-14) tags only AvailableForSaleSecuritiesDebtSecuritiesCurrent 11.518M
   // At 2025-06-30; 6-K 0001178913-25-003436 (2025-09-30) adds MarketableSecuritiesCurrent 33.19M there.
-  test.each([
-    ["2025-08-14", 11.518, "AvailableForSaleSecuritiesDebtSecuritiesCurrent"],
-    ["none", 33.19, "MarketableSecuritiesCurrent"],
-  ] as const)("Allot 2025-06-30 at publicAt %s reads %j M %s", (publicAt, value, concept) => {
+  test("Allot 2025-06-30 at publicAt 2025-08-14 reads the 11.518M AvailableForSaleSecuritiesDebtSecuritiesCurrent", () => {
     const at = (amount: number, filed: string, accn: string) =>
       fact(amount * M, "2025-06-30", filed, accn, "6-K");
     const part = resolveEnterpriseValueBridge(
@@ -577,9 +674,13 @@ describe("enterprise value bridge on both SEC producers", () => {
         }),
       ).artifact.enterpriseValueBridge,
       { value: 26.943 * M, periodEnd: "2025-06-30" },
-      publicAt === "none" ? undefined : publicAt,
+      "2025-08-14",
     ).shortTermInvestments;
-    expect(part).toMatchObject({ status: "tagged", value: value * M, concept });
+    expect(part).toMatchObject({
+      status: "tagged",
+      value: 11.518 * M,
+      concept: "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+    });
   });
 
   // DoorDash FY2020 10-K 0001628280-21-004032 (2021-03-05): redeemable convertible preferred 2,264M at 2019-12-31
@@ -1625,6 +1726,43 @@ describe("extension short-term investments proven from the filing's XBRL instanc
     expect(isCurrentEquityConcept("EquitySecuritiesFvNi")).toBe(true);
     expect(isCurrentEquityConcept(undefined)).toBe(false);
   });
+
+  // A standard ShortTermInvestments line filed only in EUR on 2026-11-01 overrides the extension fallback.
+  test.each([
+    ["2026-10-30", "the extension", { status: "tagged", value: 809 * M, concept: line }],
+    [
+      "2026-11-02",
+      "the EUR tag",
+      {
+        status: "incomplete",
+        reason: "ShortTermInvestments at 2026-09-30 is filed in EUR, not reporting currency USD",
+      },
+    ],
+  ] as const)(
+    "a foreign standard tag after the extension: publicAt %s reads %s",
+    (publicAt, _label, expected) => {
+      const artifact = deriveFinancialStatements(
+        withEur(ebay, {
+          ShortTermInvestments: [fact(800 * M, "2026-09-30", "2026-11-01", "ebay-10qa", "10-Q/A")],
+        }),
+        {
+          symbol: "EBAY",
+          generatedAt: asOf,
+          analysisAsOf: asOf,
+          sourceId: "extended-sec-edgar-ebay-fundamentals",
+          secFilings: [proofItem()],
+        },
+      );
+      expect(
+        resolveEnterpriseValueBridge(
+          artifact.enterpriseValueBridge,
+          { value: 1166 * M, periodEnd: "2026-09-30" },
+          publicAt,
+        ).shortTermInvestments,
+      ).toMatchObject(expected);
+      expect(valuationAt(artifact).metrics?.netDebt).toBeUndefined();
+    },
+  );
 
   test("a standard ShortTermInvestments tag at the instant stays the bridge value", () => {
     const { sti } = bridgeAt({ ...ebay, ShortTermInvestments: [sep(700)] }, [proofItem()]);

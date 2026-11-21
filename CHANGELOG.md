@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.63](https://github.com/nejcm/market-bot/compare/v1.19.62...v1.19.63) (2026-11-21)
+
+### Bug Fixes
+
+- **ev-bridge:** read every current investment concept so sti is not understated (#288) ([f8f144d](https://github.com/nejcm/market-bot/commit/f8f144d9d3ff4ea695c05f9e01bfa9862d1d31ee))
+
 ## [1.19.62](https://github.com/nejcm/market-bot/compare/v1.19.61...v1.19.62) (2026-11-21)
 
 ### Bug Fixes

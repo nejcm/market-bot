@@ -50,6 +50,7 @@ import {
   debtToEquityDefinition,
   marketLeverageDefinition,
   payoutRatioDefinition,
+  cumulativePayoutRatioDefinition,
   dividendYieldDefinition,
   financingCurrentnessDefinitions,
 } from "./financial-lens-strength";
@@ -199,6 +200,7 @@ function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
 }
 
 // Payout applies once the issuer filed a dividend, stale or not; only a current filed ratio assesses it.
+// A full 3y window decides over the latest period, so one lumpy or quiet year cannot pass or fail alone.
 function payoutCriterion(
   ctx: MetricContext,
   section: readonly MetricResult[] | undefined,
@@ -209,6 +211,10 @@ function payoutCriterion(
       : latestFinancialStatementFact(eligibleFacts(ctx, "dividendsPaid"))?.value;
   if (dividend === undefined || dividend === 0) {
     return "not-applicable";
+  }
+  const cumulative = section?.find((metric) => metric.id === "payoutRatio3y");
+  if (cumulative?.status === "value" || cumulative?.status === "not-meaningful") {
+    return criterionOf(section, "payoutRatio3y", (value) => value <= 0.8);
   }
   const payout = section?.find((metric) => metric.id === "payoutRatio");
   return payout !== undefined && filedInput(payout)
@@ -300,6 +306,7 @@ function lensDefinitions(
       currentRatioDefinition(),
       withCompleteDebt(debtToEquityDefinition()),
       payoutRatioDefinition(),
+      cumulativePayoutRatioDefinition(),
       dividendYieldDefinition(),
       ...financingCurrentnessDefinitions(ctx),
     ],
@@ -341,9 +348,11 @@ export function financialLensMetrics(ctx: MetricContext): {
   };
   const strength = lensMetrics["Financial Strength"];
   const symbol = ctx.symbol.toUpperCase();
+  const latestPayout = strength.find((metric) => metric.id === "payoutRatio");
   const displayOnlyPayout =
     payoutCriterion(ctx, strength) === undefined &&
-    strength.find((metric) => metric.id === "payoutRatio")?.status === "value";
+    latestPayout?.status === "value" &&
+    !filedInput(latestPayout);
   return {
     sections,
     lensMetrics,

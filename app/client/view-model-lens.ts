@@ -282,7 +282,8 @@ function assessFinancialLensMetric(
         (v) => v >= 1 && v <= 4,
       );
     }
-    case "payoutRatio": {
+    case "payoutRatio":
+    case "payoutRatio3y": {
       return assessment(
         rawValue,
         (v) => v >= 0 && v <= 0.6,

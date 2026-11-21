@@ -16,8 +16,10 @@ import { isWebSubjectProfileWithheldAnswer } from "../web-evidence/contract";
 import { earningsBasis, type EquityReaderEarningsBasis } from "./equity-reader-earnings-basis";
 import {
   balanceSheetHistory,
+  capitalReturnHistory,
   financialPosition,
   type EquityReaderBalanceSheetHistory,
+  type EquityReaderCapitalReturnHistory,
   type EquityReaderFinancialPosition,
 } from "./equity-reader-statements";
 import {
@@ -156,6 +158,7 @@ export interface EquityReaderProjection {
   readonly appendix: {
     readonly completeness?: EquityReaderAppendixCompleteness;
     readonly balanceSheetHistory?: EquityReaderBalanceSheetHistory;
+    readonly capitalReturnHistory?: EquityReaderCapitalReturnHistory;
     readonly analystEstimateDistributions: readonly EquityReaderAnalystEstimateDistribution[];
     readonly diagnosticGaps: readonly string[];
   };
@@ -533,6 +536,7 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   );
   const projectedFinancialPosition = financialPosition(input.financialStatements, generatedAt);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
+  const projectedCapitalReturn = capitalReturnHistory(input.financialStatements, generatedAt);
   const completeness = completenessProjection(input.report);
   const projectedEarningsBasis = earningsBasis(input.marketSnapshot, input.financialStatements);
   return {
@@ -562,6 +566,9 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
       ...(projectedBalanceSheet === undefined
         ? {}
         : { balanceSheetHistory: projectedBalanceSheet }),
+      ...(projectedCapitalReturn === undefined
+        ? {}
+        : { capitalReturnHistory: projectedCapitalReturn }),
       analystEstimateDistributions: analystEstimateDistributions(input.report),
       diagnosticGaps: gaps.diagnostic,
     },

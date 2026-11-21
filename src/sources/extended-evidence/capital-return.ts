@@ -8,6 +8,7 @@ import {
   conceptScope,
   NEGATIVE_CAPEX_REASON,
   scopedLabel,
+  SPECIAL_DIVIDENDS_BASIS,
 } from "./financial-statement-definitions";
 import {
   compareFinancialStatementFacts,
@@ -137,7 +138,11 @@ function nextAnnualFilingCutoff(periodEnd: string): string {
   return new Date(due + FISCAL_YEAR_END_SLACK_DAYS * DAY_MS).toISOString().slice(0, 10);
 }
 
-function staleAnchor(ctx: MetricContext, label: string, periodEnd: string): string | undefined {
+export function staleAnchor(
+  ctx: MetricContext,
+  label: string,
+  periodEnd: string,
+): string | undefined {
   const analysisAsOf = ctx.statements?.analysisAsOf;
   return analysisAsOf !== undefined && analysisAsOf.slice(0, 10) > nextAnnualFilingCutoff(periodEnd)
     ? `stale ${label} as of ${periodEnd}`
@@ -678,7 +683,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     id: "dividendsLatestFy",
     label: "Dividends paid (latest FY)",
     unit: "currency",
-    basis: "cash dividends paid in the latest year-aligned fiscal year",
+    basis: `cash dividends paid in the latest year-aligned fiscal year; ${SPECIAL_DIVIDENDS_BASIS}`,
     compute: latestFyAmount("dividendsPaid"),
   },
   ...[1, 3, 5].map(
@@ -709,21 +714,21 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     id: "dividendYieldFiled",
     label: "Dividend yield (filed)",
     unit: "ratio-percent",
-    basis: "latest FY dividends paid / current quote market cap",
+    basis: `latest FY dividends paid / current quote market cap; ${SPECIAL_DIVIDENDS_BASIS}`,
     compute: marketCapYield(["dividendsPaid"]),
   },
   {
     id: "shareholderYield",
     label: "Shareholder yield",
     unit: "ratio-percent",
-    basis: "latest FY dividends paid + same-year share repurchases / current quote market cap",
+    basis: `latest FY dividends paid + same-year share repurchases / current quote market cap; ${SPECIAL_DIVIDENDS_BASIS}`,
     compute: marketCapYield(["dividendsPaid", "shareRepurchases"]),
   },
   {
     id: "fcfPayoutRatio",
     label: "Dividends / free cash flow",
     unit: "ratio-percent",
-    basis: `latest FY dividends paid / ${FCF_BASIS}`,
+    basis: `latest FY dividends paid / ${FCF_BASIS}; ${SPECIAL_DIVIDENDS_BASIS}`,
     cashFlowBased: true,
     reitCapexBased: true,
     compute: freeCashFlowRatio(["dividendsPaid"]),
@@ -732,7 +737,7 @@ const CAPITAL_RETURN_METRICS: readonly MetricDefinition[] = [
     id: "totalPayoutToFcf",
     label: "Dividends + repurchases / free cash flow",
     unit: "ratio-percent",
-    basis: `latest FY dividends paid + share repurchases / ${FCF_BASIS}`,
+    basis: `latest FY dividends paid + share repurchases / ${FCF_BASIS}; ${SPECIAL_DIVIDENDS_BASIS}`,
     cashFlowBased: true,
     reitCapexBased: true,
     compute: freeCashFlowRatio(["dividendsPaid", "shareRepurchases"]),

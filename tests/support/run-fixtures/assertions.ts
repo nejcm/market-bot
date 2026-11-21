@@ -21,6 +21,8 @@ import { isRecord, readNumber, readString } from "../../../src/guards";
 import type { RenderedMetric, ResearchReport } from "../../../src/domain/report";
 import type { ModelRequest } from "../../../src/model/types";
 import { projectEquityReader } from "../../../src/report/equity-reader";
+import { CAPITAL_RETURN_HISTORY_BASIS } from "../../../src/report/equity-reader-statements";
+import { financialLensMetricSectionId } from "../../../src/sources/extended-evidence/financial-lens-contract";
 import { readGapTriage } from "../../../src/report/gap-triage";
 import { assertSafeReportLanguage, validateResearchReport } from "../../../src/report/schema";
 import { renderMarkdownReport } from "../../../src/report/markdown";
@@ -516,6 +518,7 @@ export async function assertInvariants(
   assertSafeReportLanguage(report);
   assertValuationWorkbenchInvariants(result, meta, fixtureName);
   assertMetricSectionInvariants(result, report);
+  assertCapitalReturnHistory(result, report);
   expect(
     reportInvariantViolations(
       (report.extras?.metricSections as MetricSectionsExtra | undefined) ?? [],
@@ -606,6 +609,34 @@ export async function assertInvariants(
     }
   }
   await assertFinancialRunInvariants(result, meta);
+}
+
+// Multi-year dividends are shown, and the 3y payout is the plain sum over its own inputs.
+function assertCapitalReturnHistory(result: RunFixtureResult, report: ResearchReport): void {
+  const statements = result.collectedSources.financialStatements;
+  if (statements === undefined || report.jobType !== "equity") {
+    return;
+  }
+  const history = projectEquityReader({ report, financialStatements: statements }).appendix
+    .capitalReturnHistory;
+  const paidYears = history?.rows.filter((row) => row.dividendsPaid !== undefined).length ?? 0;
+  if (paidYears >= 2) {
+    expect(result.markdown).toContain("### Capital Return History");
+    expect(result.markdown).toContain(CAPITAL_RETURN_HISTORY_BASIS);
+  }
+  const strength = (report.extras?.metricSections as MetricSectionsExtra | undefined)?.find(
+    (section) => section.id === financialLensMetricSectionId("Financial Strength"),
+  );
+  const cumulative = strength?.metrics.find((metric) => metric.id === "payoutRatio3y");
+  if (cumulative?.status !== "value") {
+    return;
+  }
+  const sum = (series: string) =>
+    (cumulative.inputs ?? [])
+      .filter((input) => input.series === series)
+      .reduce((total, input) => total + Math.abs(Number(input.value)), 0);
+  expect(new Set((cumulative.inputs ?? []).map((input) => input.periodKey)).size).toBe(3);
+  expectClose(cumulative.value, sum("dividendsPaid") / sum("netIncome"), "payoutRatio3y");
 }
 
 const DAY_MS = 86_400_000;

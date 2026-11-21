@@ -354,9 +354,12 @@ export function reportInvariantViolations(
     }
     const periodSets = [...flowPeriods.values()];
     const changeSets = periodSets.filter((periods) => periods.size > 1);
-    // Workbench TTM lineage, Phase and capital-return trends span periods; a Lens/Framework ratio joins one.
+    // Workbench TTM lineage, Phase, cumulative payout and capital-return trends span periods; a Lens/Framework ratio joins one.
     const spansPeriods =
-      GROWTH_ROW.test(id) || id === "phase" || !CURRENT_VALUATION_SECTION.test(section);
+      GROWTH_ROW.test(id) ||
+      id === "phase" ||
+      id === "payoutRatio3y" ||
+      !CURRENT_VALUATION_SECTION.test(section);
     // A change row compares its multi-period series; a single-period series beside it is context.
     const periodMismatch =
       spansPeriods && changeSets.length > 0

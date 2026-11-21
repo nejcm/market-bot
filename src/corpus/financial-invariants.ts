@@ -60,6 +60,7 @@ const FINANCIAL_LENS_INPUTS: Readonly<Record<string, readonly FinancialStatement
   roe: ["netIncome", "stockholdersEquity"],
   roa: ["netIncome", "totalAssets"],
   payoutRatio: ["dividendsPaid", "netIncome"],
+  payoutRatio3y: ["dividendsPaid", "netIncome"],
   revenueDeltaPercent: ["revenue"],
   grossProfitDeltaPercent: ["grossProfit"],
   operatingIncomeDeltaPercent: ["operatingIncome"],

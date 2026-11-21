@@ -16,6 +16,7 @@ import {
 } from "./markdown-primitives";
 import {
   renderBalanceSheetAndShareCount,
+  renderCapitalReturnHistory,
   renderCompactEarningsAndConsensus,
   renderCompanyDescription,
   renderCompletenessAppendix,
@@ -97,6 +98,7 @@ export function renderMarkdownReport(
       renderAppendixSection,
       renderCompletenessAppendix,
       renderBalanceSheet: renderBalanceSheetAndShareCount,
+      renderCapitalReturnHistory,
       renderScenarios,
       renderBusinessFramework,
       renderMetricSections: () =>

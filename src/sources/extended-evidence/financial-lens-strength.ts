@@ -11,6 +11,7 @@ import {
   type LensSeries,
   SERIES_LABELS,
   latestFact,
+  eligibleFacts,
   samePeriodFact,
   factInput,
   periodOf,
@@ -37,7 +38,14 @@ import {
   annualizeSummary,
 } from "./financial-lens-inputs";
 import { operatingCashFlowScope } from "./financial-lens-quality";
-import { conceptScope, isContinuingScope, scopedLabel } from "./financial-statement-definitions";
+import {
+  conceptScope,
+  isContinuingScope,
+  scopedLabel,
+  SPECIAL_DIVIDENDS_BASIS,
+} from "./financial-statement-definitions";
+import { isYearAligned, latestFinancialStatementFact } from "./financial-statement-selection";
+import { staleAnchor } from "./capital-return";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -658,12 +666,85 @@ export function marketLeverageDefinition(
   };
 }
 
+const PAYOUT_WINDOW_YEARS = 3;
+
+function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
+  const annual = eligibleFacts(ctx, "dividendsPaid").filter((fact) => fact.periodType === "annual");
+  const latest = latestFinancialStatementFact(annual);
+  if (latest === undefined) {
+    return noFact(ctx, "dividendsPaid");
+  }
+  const years = [latest];
+  for (let later = latest; years.length < PAYOUT_WINDOW_YEARS; ) {
+    const prior = latestFinancialStatementFact(
+      annual.filter((fact) => isYearAligned(fact.periodEnd, later.periodEnd)),
+    );
+    if (prior === undefined) {
+      break;
+    }
+    years.push(prior);
+    later = prior;
+  }
+  const incomes = years.map((fact) => samePeriodFact(ctx, fact, "netIncome"));
+  const inputs = years.flatMap((fact, index) => {
+    const income = incomes[index];
+    return [
+      factInput(fact, "dividendsPaid"),
+      ...(income === undefined ? [] : [factInput(income, "netIncome")]),
+    ];
+  });
+  const period = periodOf(latest);
+  const stale = staleAnchor(ctx, "dividends paid", latest.periodEnd);
+  if (stale !== undefined) {
+    return { status: "missing", reason: stale, ...period, inputs };
+  }
+  if (years.length < PAYOUT_WINDOW_YEARS) {
+    return {
+      status: "missing",
+      reason: `no annual dividends paid for the fiscal year before ${years.at(-1)!.periodEnd}`,
+      ...period,
+      inputs,
+    };
+  }
+  const unmatched = years.find((_fact, index) => incomes[index] === undefined);
+  if (unmatched !== undefined) {
+    return {
+      status: "missing",
+      reason: `no same-period net income for the fiscal year ending ${unmatched.periodEnd}`,
+      ...period,
+      inputs,
+    };
+  }
+  const loss = incomes.find((income) => income!.value <= 0);
+  if (loss !== undefined) {
+    return {
+      status: "not-meaningful",
+      reason: `net income is zero or negative for the fiscal year ending ${loss.periodEnd}`,
+      ...period,
+      inputs,
+    };
+  }
+  const paid = years.reduce((sum, fact) => sum + Math.abs(fact.value), 0);
+  const earned = incomes.reduce((sum, income) => sum + income!.value, 0);
+  return { status: "value", value: paid / earned, ...period, inputs };
+}
+
+export function cumulativePayoutRatioDefinition(): MetricDefinition {
+  return {
+    id: "payoutRatio3y",
+    label: "Payout ratio (3y cumulative)",
+    unit: "ratio-percent",
+    basis: `sum of dividends paid / sum of net income over the latest ${String(PAYOUT_WINDOW_YEARS)} consecutive year-aligned fiscal years, each year joined on its own period; ${SPECIAL_DIVIDENDS_BASIS}; regular vs special not distinguished`,
+    compute: cumulativePayoutOutcome,
+  };
+}
+
 export function payoutRatioDefinition(): MetricDefinition {
   return {
     id: "payoutRatio",
     label: "Payout ratio",
     unit: "ratio-percent",
-    basis: "dividends paid / net income of the same period, or a Yahoo fallback",
+    basis: `dividends paid / net income of the same period, or a Yahoo fallback; ${SPECIAL_DIVIDENDS_BASIS}`,
     compute: (ctx) => {
       const yahoo = yahooItem(ctx);
       const yahooRate = readNumberMetric(yahoo?.metrics, "trailingAnnualDividendRate");

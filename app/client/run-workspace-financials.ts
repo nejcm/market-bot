@@ -11,9 +11,12 @@ import type {
   EquityReaderConsensusItem,
   EquityReaderProjection,
 } from "../../src/report/equity-reader";
-import type {
-  EquityReaderBalanceSheetHistory,
-  EquityReaderFinancialPosition,
+import {
+  CAPITAL_RETURN_HISTORY_BASIS,
+  capitalReturnPayoutCell,
+  type EquityReaderBalanceSheetHistory,
+  type EquityReaderCapitalReturnHistory,
+  type EquityReaderFinancialPosition,
 } from "../../src/report/equity-reader-statements";
 import { compactNumber } from "../../src/report/equity-reader-trends";
 import {
@@ -105,6 +108,21 @@ export interface RunWorkspaceBalanceSheetHistoryView {
   readonly sourceIds: readonly string[];
   readonly notes?: readonly { readonly code: string; readonly message: string }[];
   readonly rows: readonly RunWorkspaceBalanceSheetHistoryRow[];
+}
+
+interface RunWorkspaceCapitalReturnHistoryRow {
+  readonly period: string;
+  readonly dividendsPaid: string;
+  readonly shareRepurchases: string;
+  readonly payout: string;
+}
+
+export interface RunWorkspaceCapitalReturnHistoryView {
+  readonly reportingCurrency?: string;
+  readonly basis: string;
+  readonly sourceIds: readonly string[];
+  readonly notes: readonly string[];
+  readonly rows: readonly RunWorkspaceCapitalReturnHistoryRow[];
 }
 
 interface RunWorkspaceFinancialPositionMetric {
@@ -360,6 +378,28 @@ export function balanceSheetHistoryFromProjection(
         ? {}
         : { debtProof: row.debt.zeroBorrowingsProof }),
       dilutedShares: row.dilutedShares === undefined ? "—" : scaleCurrency(row.dilutedShares.value),
+    })),
+  };
+}
+
+export function capitalReturnHistoryFromProjection(
+  history: EquityReaderCapitalReturnHistory | undefined,
+): RunWorkspaceCapitalReturnHistoryView | undefined {
+  if (history === undefined) {
+    return undefined;
+  }
+  return {
+    ...(history.reportingCurrency === undefined
+      ? {}
+      : { reportingCurrency: history.reportingCurrency }),
+    basis: CAPITAL_RETURN_HISTORY_BASIS,
+    sourceIds: history.sourceIds,
+    notes: history.notes,
+    rows: history.rows.map((row) => ({
+      period: row.period,
+      dividendsPaid: statementAmount(row.dividendsPaid?.value, history.reportingCurrency),
+      shareRepurchases: statementAmount(row.shareRepurchases?.value, history.reportingCurrency),
+      payout: capitalReturnPayoutCell(row.payout),
     })),
   };
 }

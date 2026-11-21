@@ -45,8 +45,10 @@ import {
   SPECIAL_DIVIDENDS_BASIS,
 } from "./financial-statement-definitions";
 import { isYearAligned, latestFinancialStatementFact } from "./financial-statement-selection";
+import type { FinancialStatementFact } from "./financial-statements-contract";
 import { staleAnchor } from "./capital-return";
 import { REIT_SIC } from "./industry-classification";
+import { payoutScopeReason } from "./payout-basis";
 
 export function instantDefinition(id: string, key: LensSeries, label: string): MetricDefinition {
   return {
@@ -669,54 +671,100 @@ export function marketLeverageDefinition(
 
 const PAYOUT_WINDOW_YEARS = 3;
 
+function scopeGap(periodEnd: string, reason: string | undefined): string | undefined {
+  return reason === undefined ? undefined : `fiscal year ending ${periodEnd}: ${reason}`;
+}
+
+function annualFacts(ctx: MetricContext, key: "dividendsPaid" | "netIncome") {
+  return eligibleFacts(ctx, key).filter((fact) => fact.periodType === "annual");
+}
+
+function factAt(facts: readonly FinancialStatementFact[], periodEnd: string) {
+  return latestFinancialStatementFact(facts.filter((fact) => fact.periodEnd === periodEnd));
+}
+
+// The window is the latest filed fiscal year and the two before it; a year without a dividend fact is a gap, never skipped.
 function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
-  const annual = eligibleFacts(ctx, "dividendsPaid").filter((fact) => fact.periodType === "annual");
-  const latest = latestFinancialStatementFact(annual);
-  if (latest === undefined) {
+  const { statements } = ctx;
+  if (statements === undefined || eligibleFacts(ctx, "dividendsPaid").length === 0) {
     return noFact(ctx, "dividendsPaid");
   }
-  const years = [latest];
-  for (let later = latest; years.length < PAYOUT_WINDOW_YEARS; ) {
+  const dividends = annualFacts(ctx, "dividendsPaid");
+  const incomes = annualFacts(ctx, "netIncome");
+  const fiscalYears = [...dividends, ...incomes];
+  const anchor = latestFinancialStatementFact(fiscalYears);
+  if (anchor === undefined) {
+    return { status: "missing", reason: "no annual dividends paid or net income filed" };
+  }
+  const window = [anchor];
+  for (let later = anchor; window.length < PAYOUT_WINDOW_YEARS; ) {
     const prior = latestFinancialStatementFact(
-      annual.filter((fact) => isYearAligned(fact.periodEnd, later.periodEnd)),
+      fiscalYears.filter((fact) => isYearAligned(fact.periodEnd, later.periodEnd)),
     );
     if (prior === undefined) {
       break;
     }
-    years.push(prior);
+    window.push(prior);
     later = prior;
   }
-  const incomes = years.map((fact) => samePeriodFact(ctx, fact, "netIncome"));
-  const inputs = years.flatMap((fact, index) => {
-    const income = incomes[index];
-    return [
-      factInput(fact, "dividendsPaid"),
-      ...(income === undefined ? [] : [factInput(income, "netIncome")]),
-    ];
+  const years = window.map(({ periodEnd }) => ({
+    periodEnd,
+    dividend: factAt(dividends, periodEnd),
+    income: factAt(incomes, periodEnd),
+  }));
+  const inputs = years.flatMap(({ dividend, income }) => [
+    ...(dividend === undefined ? [] : [factInput(dividend, "dividendsPaid")]),
+    ...(income === undefined ? [] : [factInput(income, "netIncome")]),
+  ]);
+  const period = periodOf(anchor);
+  const missing = (reason: string, cause?: "insufficient-history"): MetricOutcome => ({
+    status: "missing",
+    reason,
+    ...(cause === undefined ? {} : { cause }),
+    ...period,
+    inputs,
   });
-  const period = periodOf(latest);
-  const stale = staleAnchor(ctx, "dividends paid", latest.periodEnd);
+  const stale = staleAnchor(ctx, "fiscal year", anchor.periodEnd);
   if (stale !== undefined) {
-    return { status: "missing", reason: stale, ...period, inputs };
+    return missing(stale);
+  }
+  const unpaid = years.find(({ dividend }) => dividend === undefined);
+  const unmatched = years.find(({ income }) => income === undefined);
+  const yearGap = (year: (typeof years)[number] | undefined) => {
+    if (year === undefined) {
+      return undefined;
+    }
+    return year.dividend === undefined
+      ? `no annual dividends paid for the fiscal year ending ${year.periodEnd}`
+      : year.income === undefined
+        ? `no same-period net income for the fiscal year ending ${year.periodEnd}`
+        : scopeGap(year.periodEnd, payoutScopeReason(statements, year.dividend, year.income));
+  };
+  if (new Set(fiscalYears.map((fact) => fact.periodEnd)).size < PAYOUT_WINDOW_YEARS) {
+    const latestGap = yearGap(years[0]);
+    return latestGap === undefined
+      ? missing(
+          `fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years; the payout check reads the fiscal year ending ${anchor.periodEnd} alone`,
+          "insufficient-history",
+        )
+      : missing(`fewer than ${String(PAYOUT_WINDOW_YEARS)} filed fiscal years; ${latestGap}`);
   }
   if (years.length < PAYOUT_WINDOW_YEARS) {
-    return {
-      status: "missing",
-      reason: `no annual dividends paid for the fiscal year before ${years.at(-1)!.periodEnd}`,
-      ...period,
-      inputs,
-    };
+    return missing(`no annual statements for the fiscal year before ${years.at(-1)!.periodEnd}`);
   }
-  const unmatched = years.find((_fact, index) => incomes[index] === undefined);
-  if (unmatched !== undefined) {
-    return {
-      status: "missing",
-      reason: `no same-period net income for the fiscal year ending ${unmatched.periodEnd}`,
-      ...period,
-      inputs,
-    };
+  const gap = yearGap(unpaid ?? unmatched);
+  if (gap !== undefined) {
+    return missing(gap);
   }
-  const loss = incomes.find((income) => income!.value <= 0);
+  const paid = years.reduce((sum, { dividend }) => sum + Math.abs(dividend!.value), 0);
+  if (paid === 0) {
+    return { status: "value", value: 0, ...period, inputs };
+  }
+  const scope = years.map(yearGap).find((reason) => reason !== undefined);
+  if (scope !== undefined) {
+    return missing(scope);
+  }
+  const loss = years.find(({ income }) => income!.value <= 0);
   if (loss !== undefined) {
     return {
       status: "not-meaningful",
@@ -725,8 +773,7 @@ function cumulativePayoutOutcome(ctx: MetricContext): MetricOutcome {
       inputs,
     };
   }
-  const paid = years.reduce((sum, fact) => sum + Math.abs(fact.value), 0);
-  const earned = incomes.reduce((sum, income) => sum + income!.value, 0);
+  const earned = years.reduce((sum, { income }) => sum + income!.value, 0);
   return { status: "value", value: paid / earned, ...period, inputs };
 }
 
@@ -735,7 +782,7 @@ export function cumulativePayoutRatioDefinition(): MetricDefinition {
     id: "payoutRatio3y",
     label: "Payout ratio (3y cumulative)",
     unit: "ratio-percent",
-    basis: `sum of dividends paid / sum of net income over the latest ${String(PAYOUT_WINDOW_YEARS)} consecutive year-aligned fiscal years, each year joined on its own period; ${SPECIAL_DIVIDENDS_BASIS}; regular vs special not distinguished`,
+    basis: `sum of dividends paid / sum of net income attributable to the parent over the ${String(PAYOUT_WINDOW_YEARS)} year-aligned fiscal years ending with the latest filed one; dividends paid ${SPECIAL_DIVIDENDS_BASIS}; withheld where noncontrolling distributions cannot be excluded`,
     applicable: (ctx) =>
       ctx.secIssuer?.sic === REIT_SIC
         ? `REIT issuer (SIC ${REIT_SIC}): payout is measured against FFO/AFFO, not net income; not assessed`

@@ -311,7 +311,7 @@ export const DEBT_SCOPE_CAVEAT =
   "debt was last filed before a later filing first reported discontinued operations for the period ending then, so its continuing-operations scope is unproven";
 
 export const SPECIAL_DIVIDENDS_BASIS =
-  "includes any special dividends and dividend equivalents as filed";
+  "includes any special dividends and dividend equivalents as filed; regular vs special not distinguished";
 // SEC payments-for-PP&E concepts are positive outflows; a negative filing is withheld, not sign-flipped.
 export const NEGATIVE_CAPEX_REASON =
   "capital expenditure filed as a negative amount; outflow sign is ambiguous";

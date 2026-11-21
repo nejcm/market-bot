@@ -13,7 +13,7 @@ import {
 } from "./metric-engine";
 import { type LensValueUnit } from "./value-format";
 import { readNumberMetric } from "./utils";
-import { latestFinancialStatementFact } from "./financial-statement-selection";
+import { payoutFallbackApplies } from "./payout-basis";
 import {
   type MetricPeriod,
   periodEndInput,
@@ -199,27 +199,40 @@ function summaryNetDebtCriterion(ctx: MetricContext): boolean | undefined {
   return meets(evidenceDisplayNetDebt(ctx), (value) => value <= 0);
 }
 
-// Payout applies once the issuer filed a dividend, stale or not; only a current filed ratio assesses it.
-// A full 3y window decides over the latest period, so one lumpy or quiet year cannot pass or fail alone.
-function payoutCriterion(
+const withinPayoutCeiling = (value: number) => value <= 0.8;
+
+// The 3y window decides; a non-payer is one whose deciding window paid nothing.
+export function payoutCriterion(
   ctx: MetricContext,
   section: readonly MetricResult[] | undefined,
 ): PostureCriterion {
-  const dividend =
-    ctx.statements === undefined
-      ? readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid")
-      : latestFinancialStatementFact(eligibleFacts(ctx, "dividendsPaid"))?.value;
-  if (dividend === undefined || dividend === 0) {
+  if (ctx.statements === undefined) {
+    const dividend = readNumberMetric(secItem(ctx)?.metrics, "dividendsPaid");
+    const payout = section?.find((metric) => metric.id === "payoutRatio");
+    if (dividend === undefined || dividend === 0) {
+      return "not-applicable";
+    }
+    return payout !== undefined && filedInput(payout)
+      ? criterionOf(section, "payoutRatio", withinPayoutCeiling)
+      : undefined;
+  }
+  if (eligibleFacts(ctx, "dividendsPaid").every((fact) => fact.value === 0)) {
     return "not-applicable";
   }
-  const cumulative = section?.find((metric) => metric.id === "payoutRatio3y");
-  if (cumulative !== undefined && cumulative.status !== "missing") {
-    return criterionOf(section, "payoutRatio3y", (value) => value <= 0.8);
+  const rows = section ?? [];
+  const cumulative = rows.find((metric) => metric.id === "payoutRatio3y");
+  const decidingId =
+    cumulative !== undefined && cumulative.status !== "missing"
+      ? "payoutRatio3y"
+      : payoutFallbackApplies(rows)
+        ? "payoutRatio"
+        : undefined;
+  if (decidingId === undefined) {
+    return undefined;
   }
-  const payout = section?.find((metric) => metric.id === "payoutRatio");
-  return payout !== undefined && filedInput(payout)
-    ? criterionOf(section, "payoutRatio", (value) => value <= 0.8)
-    : undefined;
+  return valueOf(section, decidingId) === 0
+    ? "not-applicable"
+    : criterionOf(section, decidingId, withinPayoutCeiling);
 }
 
 function strengthPosture(

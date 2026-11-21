@@ -2797,6 +2797,30 @@ describe("report artifact parsers", () => {
     ]);
   });
 
+  test("latest-year payout tile is badged only when the payout check fell back to it", () => {
+    expect(payoutTones(strengthReport({ status: "value", value: 1.989 }))).toEqual([
+      { key: "payoutRatio", tone: "neutral", assessment: undefined },
+      { key: "payoutRatio3y", tone: "weak", assessment: "Weak" },
+    ]);
+    expect(
+      payoutTones(
+        strengthReport({
+          status: "not-applicable",
+          reason: "REIT distributions are measured on FFO/AFFO, not net income",
+        }),
+      )[0],
+    ).toEqual({ key: "payoutRatio", tone: "neutral", assessment: undefined });
+    expect(
+      payoutTones(
+        strengthReport({
+          status: "missing",
+          reason: "fewer than 3 filed fiscal years",
+          cause: "insufficient-history",
+        }),
+      )[0],
+    ).toEqual({ key: "payoutRatio", tone: "strong", assessment: "Strong" });
+  });
+
   test("parses Web Subject Profile from report extras before sidecar fallback", () => {
     const answer = { answer: "Apple sells devices and services.", sourceIds: ["report-source"] };
     const sidecarAnswer = { answer: "Fallback profile.", sourceIds: ["sidecar-source"] };
@@ -3701,3 +3725,44 @@ describe("note indicator", () => {
     expect(noteIndicator("boom", "draft", "kept")).toBe("error");
   });
 });
+
+function strengthReport(cumulative: Record<string, unknown>) {
+  return {
+    extras: {
+      metricSections: [
+        {
+          id: "financial-lens-financial-strength",
+          title: "Financial Lens: Financial Strength",
+          metrics: [
+            {
+              id: "payoutRatio",
+              label: "Payout ratio",
+              unit: "ratio-percent",
+              status: "value",
+              value: 0.028,
+              periodEnd: "2026-09-30",
+              periodMonths: 12,
+              sourceIds: [],
+            },
+            {
+              id: "payoutRatio3y",
+              label: "Payout ratio (3y)",
+              unit: "ratio-percent",
+              periodEnd: "2026-09-30",
+              sourceIds: [],
+              ...cumulative,
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+function payoutTones(report: Record<string, unknown>) {
+  return financialLensSectionTiles(report).map(({ key, tone, assessment }) => ({
+    key,
+    tone,
+    assessment,
+  }));
+}

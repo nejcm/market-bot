@@ -77,6 +77,7 @@ import {
   financialStatementFacts,
   financialStatementSeriesByKey,
   financialStatementPeriodMonths,
+  isYearAlignedFact,
 } from "../../../src/sources/extended-evidence/financial-statement-selection";
 import type { MetricInput } from "../../../src/sources/extended-evidence/metric-engine";
 import { formatMetricValue } from "../../../src/sources/extended-evidence/value-format";
@@ -617,11 +618,23 @@ function assertCapitalReturnHistory(result: RunFixtureResult, report: ResearchRe
   if (statements === undefined || report.jobType !== "equity") {
     return;
   }
-  const history = projectEquityReader({ report, financialStatements: statements }).appendix
-    .capitalReturnHistory;
-  const paidYears = history?.rows.filter((row) => row.dividendsPaid !== undefined).length ?? 0;
-  if (paidYears >= 2) {
-    expect(result.markdown).toContain("### Capital Return History");
+  const annual = (key: "netIncome" | "dividendsPaid" | "shareRepurchases") => {
+    const series = financialStatementSeriesByKey(statements, key);
+    return (series === undefined ? [] : financialStatementFacts(series)).filter(
+      (fact) => fact.periodType === "annual" && isYearAlignedFact(key, fact),
+    );
+  };
+  const flows = [...annual("dividendsPaid"), ...annual("shareRepurchases")];
+  const window = new Set(
+    [...new Set([...annual("netIncome"), ...flows].map((fact) => fact.periodEnd))]
+      .toSorted()
+      .slice(-5),
+  );
+  const rendered = flows.some((fact) => window.has(fact.periodEnd));
+  expect(result.markdown.includes("### Capital Return History"), "capital return history").toBe(
+    rendered,
+  );
+  if (rendered) {
     expect(result.markdown).toContain(CAPITAL_RETURN_HISTORY_BASIS);
   }
   const strength = (report.extras?.metricSections as MetricSectionsExtra | undefined)?.find(
@@ -630,6 +643,12 @@ function assertCapitalReturnHistory(result: RunFixtureResult, report: ResearchRe
   const cumulative = strength?.metrics.find((metric) => metric.id === "payoutRatio3y");
   if (cumulative?.status !== "value") {
     return;
+  }
+  const lens = result.collectedSources.extendedEvidence?.items.find(
+    (item) => item.category === "financial-lens",
+  );
+  if (typeof cumulative.value === "number" && cumulative.value > 0.8) {
+    expect(lens?.metrics?.financialStrengthPosture).not.toBe("criteria-supported");
   }
   const sum = (series: string) =>
     (cumulative.inputs ?? [])

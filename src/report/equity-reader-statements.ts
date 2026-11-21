@@ -12,6 +12,9 @@ import {
 } from "../sources/extended-evidence/financial-statement-selection";
 import { heldForSaleRecast, withheldDebt } from "../sources/extended-evidence/sec-debt";
 import { formatLensValue } from "../sources/extended-evidence/value-format";
+import { REIT_SIC } from "../sources/extended-evidence/industry-classification";
+import { payoutScopeReason } from "../sources/extended-evidence/payout-basis";
+import { SPECIAL_DIVIDENDS_BASIS } from "../sources/extended-evidence/financial-statement-definitions";
 import { isFreshPeriodEnd, SEC_FRESHNESS_DAYS } from "../config/shared";
 
 export interface LabeledPeriod {
@@ -43,8 +46,7 @@ export interface EquityReaderBalanceSheetHistory {
   readonly rows: readonly EquityReaderBalanceSheetRow[];
 }
 
-export const CAPITAL_RETURN_HISTORY_BASIS =
-  "as filed, including any special dividends and dividend equivalents; regular vs special not distinguished";
+export const CAPITAL_RETURN_HISTORY_BASIS = `dividends paid ${SPECIAL_DIVIDENDS_BASIS}`;
 
 type EquityReaderPayout =
   | { readonly status: "value"; readonly value: number }
@@ -459,9 +461,18 @@ function missingYearsNote(
   ];
 }
 
+function groupedNote(prefix: string, byReason: ReadonlyMap<string, readonly string[]>): string[] {
+  return [...byReason].map(
+    ([reason, periodEnds]) =>
+      `${prefix} for the fiscal years ending ${periodEnds.join(", ")}: ${reason}.`,
+  );
+}
+
+// The window is the latest five filed fiscal years; a flow absent inside it is declared, not skipped.
 export function capitalReturnHistory(
   artifact: FinancialStatementsArtifact | undefined,
   reportGeneratedAt: string | undefined,
+  issuerSic?: string,
 ): EquityReaderCapitalReturnHistory | undefined {
   if (artifact === undefined) {
     return undefined;
@@ -472,25 +483,39 @@ export function capitalReturnHistory(
     shareRepurchases: annualFlowFacts(artifact, "shareRepurchases", cutoff),
     netIncome: annualFlowFacts(artifact, "netIncome", cutoff),
   };
+  const at = (key: keyof typeof facts, periodEnd: string) =>
+    latestFinancialStatementFact(facts[key].filter((fact) => fact.periodEnd === periodEnd));
   const periods = [
-    ...new Set([...facts.dividendsPaid, ...facts.shareRepurchases].map((fact) => fact.periodEnd)),
+    ...new Set(Object.values(facts).flatMap((series) => series.map((fact) => fact.periodEnd))),
   ]
     .toSorted()
     .slice(-CAPITAL_RETURN_YEARS);
-  if (periods.length === 0) {
+  if (
+    !periods.some(
+      (periodEnd) =>
+        at("dividendsPaid", periodEnd) !== undefined ||
+        at("shareRepurchases", periodEnd) !== undefined,
+    )
+  ) {
     return undefined;
   }
-  const at = (key: keyof typeof facts, periodEnd: string) =>
-    latestFinancialStatementFact(facts[key].filter((fact) => fact.periodEnd === periodEnd));
+  const withheld = new Map<string, string[]>();
   const rows = periods.map((periodEnd): EquityReaderCapitalReturnRow => {
     const dividends = at("dividendsPaid", periodEnd);
     const repurchases = at("shareRepurchases", periodEnd);
-    const income = dividends === undefined ? undefined : at("netIncome", periodEnd);
+    const income = at("netIncome", periodEnd);
     const { filedAt } = latestFinancialStatementFact(
-      [dividends, repurchases].filter((fact) => fact !== undefined),
+      [dividends, repurchases, income].filter((fact) => fact !== undefined),
     )!;
+    const scope =
+      dividends === undefined || income === undefined
+        ? undefined
+        : payoutScopeReason(artifact, dividends, income);
+    if (scope !== undefined) {
+      withheld.set(scope, [...(withheld.get(scope) ?? []), periodEnd]);
+    }
     let payout: EquityReaderPayout | undefined;
-    if (dividends !== undefined && income !== undefined) {
+    if (dividends !== undefined && income !== undefined && scope === undefined) {
       payout =
         income.value > 0
           ? { status: "value", value: Math.abs(dividends.value) / income.value }
@@ -509,7 +534,9 @@ export function capitalReturnHistory(
               value: Math.abs(repurchases.value),
             },
           }),
-      ...(income === undefined ? {} : { netIncome: statementValue(income) }),
+      ...(income === undefined || dividends === undefined
+        ? {}
+        : { netIncome: statementValue(income) }),
       ...(payout === undefined ? {} : { payout }),
     };
   });
@@ -532,6 +559,12 @@ export function capitalReturnHistory(
       ...missingYearsNote("dividendsPaid", missing("dividendsPaid", periods), periods.length),
       ...missingYearsNote("shareRepurchases", missing("shareRepurchases", periods), periods.length),
       ...missingYearsNote("netIncome", missing("netIncome", paidPeriods), periods.length),
+      ...groupedNote("Payout withheld", withheld),
+      ...(issuerSic === REIT_SIC && rows.some((row) => row.payout?.status === "value")
+        ? [
+            "Payout is against net income, not the FFO/AFFO basis REIT distributions are usually measured on.",
+          ]
+        : []),
     ],
     rows,
   };

@@ -15,6 +15,7 @@ import {
   financialLensNameFromSectionId,
 } from "../../src/sources/extended-evidence/financial-lens-contract";
 import { readMetricSectionsExtra } from "../../src/report/report-extras-contract";
+import { payoutFallbackApplies } from "../../src/sources/extended-evidence/payout-basis";
 import { resolveMarketSnapshotPriceAsOf, type MarketSnapshot } from "../../src/domain/market-data";
 import { readRecord } from "./view-model-format";
 
@@ -198,6 +199,15 @@ function assessment(
   return { tone: "weak", assessment: "Weak" };
 }
 
+function payoutAssessment(value: number): Pick<FinancialLensStatTile, "tone" | "assessment"> {
+  return assessment(
+    value,
+    (v) => v >= 0 && v <= 0.6,
+    (v) => v >= 0 && v <= 0.75,
+    (v) => v >= 0 && v <= 0.8,
+  );
+}
+
 function assessFinancialLensMetric(
   metric: Pick<FinancialLensMetric, "key" | "value">,
 ): Pick<FinancialLensStatTile, "tone" | "assessment"> {
@@ -282,14 +292,8 @@ function assessFinancialLensMetric(
         (v) => v >= 1 && v <= 4,
       );
     }
-    case "payoutRatio":
     case "payoutRatio3y": {
-      return assessment(
-        rawValue,
-        (v) => v >= 0 && v <= 0.6,
-        (v) => v >= 0 && v <= 0.75,
-        (v) => v >= 0 && v <= 0.8,
-      );
+      return payoutAssessment(rawValue);
     }
     case "rsi14": {
       return assessment(
@@ -413,6 +417,16 @@ export function financialLensStatTiles(
   );
 }
 
+// The latest-year payout carries a badge only when it is the fiscal year the payout check fell back to.
+function sectionPayoutAssessment(
+  metrics: Parameters<typeof payoutFallbackApplies>[0],
+  value: unknown,
+): Pick<FinancialLensStatTile, "tone" | "assessment"> {
+  return typeof value === "number" && Number.isFinite(value) && payoutFallbackApplies(metrics)
+    ? payoutAssessment(value)
+    : { tone: "neutral" };
+}
+
 // The tiles the report itself renders: the frozen Metric Sections, not the artifact's own rows.
 export function financialLensSectionTiles(
   report: Record<string, unknown> | undefined,
@@ -452,7 +466,9 @@ export function financialLensSectionTiles(
           lens,
           label: metric.label,
           value,
-          ...assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" }),
+          ...(metric.id === "payoutRatio"
+            ? sectionPayoutAssessment(section.metrics, metric.value)
+            : assessFinancialLensMetric({ key: metric.id, value: metric.value ?? "" })),
           ...(caption === "" ? {} : { caption }),
         },
       ];

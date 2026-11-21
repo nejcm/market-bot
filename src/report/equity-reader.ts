@@ -9,7 +9,10 @@ import type { EquityAnalysisDimensionStatus } from "../domain/report";
 import type { SourceGap } from "../domain/sources";
 import type { FinancialStatementsArtifact } from "../sources/extended-evidence/financial-statements-contract";
 import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";
-import { depositoryIssuerSic } from "../sources/extended-evidence/industry-classification";
+import {
+  depositoryIssuerSic,
+  secIssuerRegistration,
+} from "../sources/extended-evidence/industry-classification";
 import type { StoredPeerImpliedRange } from "../sources/extended-evidence/valuation-comps";
 import type { ValuationWorkbenchArtifact } from "../sources/extended-evidence/valuation-workbench-contract";
 import { isWebSubjectProfileWithheldAnswer } from "../web-evidence/contract";
@@ -536,7 +539,11 @@ export function projectEquityReader(input: EquityReaderProjectionInput): EquityR
   );
   const projectedFinancialPosition = financialPosition(input.financialStatements, generatedAt);
   const projectedBalanceSheet = balanceSheetHistory(input.financialStatements, generatedAt);
-  const projectedCapitalReturn = capitalReturnHistory(input.financialStatements, generatedAt);
+  const projectedCapitalReturn = capitalReturnHistory(
+    input.financialStatements,
+    generatedAt,
+    secIssuerRegistration(record?.extendedEvidence)?.sic,
+  );
   const completeness = completenessProjection(input.report);
   const projectedEarningsBasis = earningsBasis(input.marketSnapshot, input.financialStatements);
   return {

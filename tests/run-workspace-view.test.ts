@@ -3056,7 +3056,7 @@ describe("run workspace view", () => {
     expect(advanced?.capitalReturnHistory).toEqual({
       reportingCurrency: "USD",
       basis:
-        "as filed, including any special dividends and dividend equivalents; regular vs special not distinguished",
+        "dividends paid includes any special dividends and dividend equivalents as filed; regular vs special not distinguished",
       sourceIds: ["extended-sec-edgar-aapl-fundamentals"],
       notes: ["No year-aligned annual share repurchases filed for these fiscal years."],
       rows: [

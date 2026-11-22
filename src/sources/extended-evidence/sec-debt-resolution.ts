@@ -405,7 +405,7 @@ function longTermDebtUse(
 export function resolveDebtAtInstant<T>(
   taxonomy: FinancialStatementTaxonomy,
   instant: DebtInstant,
-  taggedAtInstant: ReadonlyMap<string, T>,
+  tagged: ReadonlyMap<string, T>,
   history: readonly DebtHistoryFact[],
   valueOf: (fact: T) => number,
   filedAtOf: (fact: T) => string,
@@ -422,45 +422,6 @@ export function resolveDebtAtInstant<T>(
   // The filing's own lease-placement tag puts a finance lease leg inside this debt line.
   leasePlacements: Readonly<Record<string, "current" | "noncurrent">> = {},
 ): DebtResolution<T> {
-  const ambiguous = DEBT_CONCEPTS[taxonomy].ambiguousLongTermDebt;
-  const yieldLines = [
-    ambiguous?.currentTotal,
-    ambiguous?.current,
-    "LongTermDebtNoncurrent",
-    ambiguous?.concept,
-  ].map((concept) => taggedAtInstant.get(concept ?? ""));
-  const [, dueInYear, noncurrent, longTermTotal] = yieldLines.map((fact) =>
-    fact === undefined ? undefined : valueOf(fact),
-  );
-  const yieldLegs = new Set([ambiguous?.current, "LongTermDebtNoncurrent", ambiguous?.concept]);
-  const atEnd = history.filter((fact) => fact.periodEnd === instant.periodEnd);
-  // One filing's LongTermDebt sums nonzero maturities and the noncurrent line, and every filing at the instant agrees with nothing else nonzero (DLTR FY2024).
-  const narrowZeroCurrentTotal =
-    dueInYear !== 0 &&
-    longTermTotal === (dueInYear ?? 0) + (noncurrent ?? 0) &&
-    yieldLines.every(
-      (fact) =>
-        fact !== undefined &&
-        accessionOf(fact) !== null &&
-        accessionOf(fact) === accessionOf(yieldLines[0] as T),
-    ) &&
-    atEnd.every(
-      (fact) =>
-        fact.value ===
-        (yieldLegs.has(fact.concept) ? valueOf(taggedAtInstant.get(fact.concept) as T) : 0),
-    ) &&
-    // Each filing's zero DebtCurrent carries its LongTermDebt, so no earlier filing dates the value before its proof.
-    atEnd.every(
-      (fact) =>
-        fact.concept !== ambiguous?.currentTotal ||
-        atEnd.some(
-          ({ concept, accessionNumber }) =>
-            concept === ambiguous.concept && accessionNumber === fact.accessionNumber,
-        ),
-    );
-  const tagged = narrowZeroCurrentTotal
-    ? new Map([...taggedAtInstant].filter(([concept]) => concept !== ambiguous?.currentTotal))
-    : taggedAtInstant;
   const placementFacts = [
     "LongTermDebtCurrent",
     "LongTermDebtAndCapitalLeaseObligationsCurrent",
@@ -492,6 +453,7 @@ export function resolveDebtAtInstant<T>(
     },
   };
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
+  const ambiguous = concepts.ambiguousLongTermDebt;
   const taggedValue = (concept: string | undefined) => {
     const fact = tagged.get(concept ?? "");
     return fact === undefined ? undefined : valueOf(fact);
@@ -735,25 +697,30 @@ export function resolveDebtAtInstant<T>(
         )
       : [];
   const paper = ambiguous?.commercialPaper ?? "";
-  const paperAt =
-    history.find(
+  const paperValues = history
+    .filter(
       (fact) => fact.concept === paper && fact.periodEnd === instant.periodEnd && fact.value !== 0,
-    )?.value ?? 0;
+    )
+    .map((fact) => fact.value)
+    .toSorted((a, b) => a - b);
   // DebtCurrent is defined to hold short-term debt and maturities, so one at least their sum holds the paper (QCOM FY2019); PH FY2023's is smaller.
   const unsummedPaper =
-    ambiguous !== undefined &&
-    paperAt !== 0 &&
-    !used.includes(paper) &&
-    !ambiguous.shortTerm.some((concept) => concept !== paper && (valueAt(concept) ?? 0) !== 0) &&
-    !(
-      used.includes(ambiguous.currentTotal) &&
-      (valueAt(ambiguous.currentTotal) ?? 0) >= (valueAt(ambiguous.current) ?? 0) + paperAt
-    ) &&
-    (total === undefined ||
-      (total === ambiguous.concept &&
-        (valueAt(paper) !== paperAt ||
-          valueAt(total) !==
-            sum([...new Set([...sides.flatMap((side) => side.concepts), paper])]))));
+    ambiguous === undefined ||
+    ambiguous.shortTerm.some((concept) => concept !== paper && (valueAt(concept) ?? 0) !== 0)
+      ? undefined
+      : paperValues.find(
+          (paperAt) =>
+            !(used.includes(paper) && valueAt(paper) === paperAt) &&
+            !(
+              used.includes(ambiguous.currentTotal) &&
+              (valueAt(ambiguous.currentTotal) ?? 0) >= (valueAt(ambiguous.current) ?? 0) + paperAt
+            ) &&
+            (total === undefined ||
+              (total === ambiguous.concept &&
+                (valueAt(paper) !== paperAt ||
+                  valueAt(total) !==
+                    sum([...new Set([...sides.flatMap((side) => side.concepts), paper])])))),
+        );
   const currentGeneric = sides[0]?.generic;
   const currentInstruments = concepts.current.instruments
     .flatMap((aliases) => first(aliases) ?? [])
@@ -857,8 +824,8 @@ export function resolveDebtAtInstant<T>(
                             ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag or same-filing arithmetic shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
                             : undefined
                         : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`) ??
-    (unsummedPaper
-      ? `${paper} (${String(paperAt)}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`
+    (unsummedPaper !== undefined
+      ? `${paper} (${String(unsummedPaper)}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`
       : undefined);
   const reconciledTotal =
     total === ambiguous?.concept &&

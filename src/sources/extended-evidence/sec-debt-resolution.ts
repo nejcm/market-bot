@@ -18,6 +18,8 @@ export interface DebtResolution<T> {
     readonly subtract?: true;
   }[];
   readonly incompleteReason?: string;
+  // Applied after face and filing selection, so it never changes which candidate is chosen.
+  readonly paperReason?: string;
   readonly leaseInclusive?: readonly string[];
   // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
   readonly lineScope?: true;
@@ -696,6 +698,34 @@ export function resolveDebtAtInstant<T>(
           history,
         )
       : [];
+  const paper = ambiguous?.commercialPaper ?? "";
+  const paperValues = history
+    .filter(
+      (fact) => fact.concept === paper && fact.periodEnd === instant.periodEnd && fact.value !== 0,
+    )
+    .map((fact) => fact.value)
+    .toSorted((a, b) => a - b);
+  // DebtCurrent is defined to hold short-term debt and maturities, so one at least their sum holds the paper (QCOM FY2019); PH FY2023's is smaller.
+  const shortTermAlias = ambiguous === undefined ? undefined : first(ambiguous.shortTerm);
+  const unsummedPaper =
+    ambiguous === undefined ||
+    (new Set(paperValues).size === 1 &&
+      shortTermAlias !== paper &&
+      (valueAt(shortTermAlias ?? "") ?? 0) !== 0)
+      ? undefined
+      : paperValues.find(
+          (paperAt) =>
+            !(used.includes(paper) && valueAt(paper) === paperAt) &&
+            !(
+              used.includes(ambiguous.currentTotal) &&
+              (valueAt(ambiguous.currentTotal) ?? 0) >= (valueAt(ambiguous.current) ?? 0) + paperAt
+            ) &&
+            (total === undefined ||
+              (total === ambiguous.concept &&
+                (valueAt(paper) !== paperAt ||
+                  valueAt(total) !==
+                    sum([...new Set([...sides.flatMap((side) => side.concepts), paper])])))),
+        );
   const currentGeneric = sides[0]?.generic;
   const currentInstruments = concepts.current.instruments
     .flatMap((aliases) => first(aliases) ?? [])
@@ -730,7 +760,6 @@ export function resolveDebtAtInstant<T>(
         !(valueAt(generic) === sum(subsumed) && faceStatementLines("current", subsumed)) &&
         (total === undefined || valueAt(total) !== sum([...classifiedLines, ...subsumed]))));
   // The first tagged alternative holds the rest (paper at carrying value), but commercial paper holds no other line.
-  const paper = ambiguous?.commercialPaper ?? "";
   const besidePaper = concepts.current.instruments
     .filter((aliases) => first(aliases) === paper)
     .flat()
@@ -821,6 +850,11 @@ export function resolveDebtAtInstant<T>(
       ...subtracted.map((concept) => ({ ...contributor(concept), subtract: true as const })),
     ],
     ...(incompleteReason !== undefined ? { incompleteReason } : {}),
+    ...(unsummedPaper === undefined
+      ? {}
+      : {
+          paperReason: `${paper} (${String(unsummedPaper)}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`,
+        }),
     ...(unadjusted.length > 0 ? { leaseInclusive: unadjusted } : {}),
     ...(lineScope ? { lineScope: true as const } : {}),
   };

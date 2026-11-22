@@ -464,13 +464,17 @@ export function factsForDebt(
       (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
     );
     const mixed = resolveWith(tagged);
-    const resolution = fromOneFiling(
+    const selected = fromOneFiling(
       mixed,
       tagged,
       instantFacts.get(instantKey) ?? [],
       support,
       resolveWith,
     );
+    const resolution =
+      selected.incompleteReason === undefined && selected.paperReason !== undefined
+        ? { ...selected, incompleteReason: selected.paperReason }
+        : selected;
     const [faceAccession, ...otherAccessions] = new Set(facts.map((fact) => fact.accessionNumber));
     // A real fetched face still has to prove the instant, so eligibility only rules out what no face settles.
     const faceFixable =

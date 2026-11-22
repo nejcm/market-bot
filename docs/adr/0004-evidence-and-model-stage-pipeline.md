@@ -217,7 +217,23 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   allowlist cannot show which tags are disjoint rows. One left out needs the selected total to equal the lines plus
   it, a combined total equal to the classified lines, or a maturities line equal to it whose current liabilities
   foot; otherwise the instant is a gap. Alias members are alternatives where the first tagged one holds the rest (NOW: short-term borrowings at carrying value hold paper at principal), but commercial paper holds no other line, so any nonzero bank loan beside it, equal or not, is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
-  a selected total must still sum it. `DebtCurrent` is the balance-sheet current line and outranks narrower
+  a selected total must still sum it. Every distinct nonzero paper value tagged at the period end by any eligible
+  filing must be shown inside the selected debt, or the instant is a gap. A value is shown when the selected lines
+  include paper at that value (a zero paper row never counts), a selected `DebtCurrent` is at least
+  `LongTermDebtCurrent` plus it (the line is defined to hold short-term debt; QCOM FY2019 2,496M = 1,997M + 499M), a
+  total other than `LongTermDebt` is selected, or the selected `LongTermDebt` sits beside paper tagged at that value
+  and equals the lines plus it (NDSN). When exactly one nonzero paper value is tagged and the first tagged
+  short-term alias is not paper and is nonzero, the alias rule decides instead (NOW-shape short-term borrowings at
+  191M carrying value hold 192M paper and publish); a zero first alias never does. Two different nonzero values can
+  never both be one selected row or one alias, so they gap unless a `DebtCurrent` or non-`LongTermDebt` total covers
+  both. The check applies to the candidate that face and filing selection pick, after selection, so it never changes
+  which candidate is chosen and a face that recovers an omission does not clear it. Known limit of every withhold, not
+  only this one: when a later filing group's candidate is withheld, supersession can republish an earlier group's
+  total that a later amendment restated.
+  PH FY2024 10-K (8,412M beside 2,100M paper), PH FY2023 (`DebtCurrent` 1,974M below 3,763M + 1,800M), NTAP FY2017
+  (zero short-term loan beside 500M paper) and PH 10-Q composites on `LongTermDebtAndCapitalLeaseObligationsCurrent`
+  gap. LMT FY2018 and AMGN 2017 gap conservatively: their face labels put the paper inside the current line, but no
+  tag shows it. `DebtCurrent` is the balance-sheet current line and outranks narrower
   `LongTermDebtCurrent` maturities (INTC FY2018: 1,261M vs 761M), unless a nonzero `CapitalLeaseObligationsCurrent`
   shows a `DebtCurrent` above the maturities may hold leases no finance-lease leg deducts (LRCX FY2018). A combined total that differs
   from both same-filing classified lines and their component sum is refused for them (AVGO FY2024 principal, QCOM

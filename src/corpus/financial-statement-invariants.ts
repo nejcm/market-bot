@@ -539,12 +539,21 @@ export function collectFinancialStatementInvariants(
   artifact: FinancialStatementsArtifact,
 ): readonly FinancialInvariantResult[] {
   const checks = new Map<string, { passed: boolean; periodEnd: string | undefined }[]>();
-  assertFinancialStatementInvariants(artifact, (passed, code, _message, periodEnd) => {
+  const record: FinancialInvariantCheck = (passed, code, _message, periodEnd) => {
     const results = checks.get(code) ?? [];
     results.push({ passed, periodEnd });
     checks.set(code, results);
-  });
-  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"].map((code) => {
+  };
+  assertFinancialStatementInvariants(artifact, record);
+  // A census, not an assertion: annual/interim debt differences can be legitimate.
+  const { annual, interim } = artifact.statements.balanceSheet.debt;
+  for (const fact of interim) {
+    const other = annual.find((candidate) => candidate.periodEnd === fact.periodEnd);
+    if (other !== undefined) {
+      record(other.value === fact.value, "A11", "", fact.periodEnd);
+    }
+  }
+  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11"].map((code) => {
     const results = checks.get(code) ?? [];
     const failures = results.filter((result) => !result.passed);
     const periods = new Set(

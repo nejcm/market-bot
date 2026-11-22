@@ -12,7 +12,11 @@ import {
   withheldDebt,
 } from "../src/sources/extended-evidence/sec-debt";
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
-import { assertCompositeFactIntegrity } from "../src/corpus/financial-statement-invariants";
+import {
+  assertCompositeFactIntegrity,
+  assertFinancialStatementInvariants,
+  collectFinancialStatementInvariants,
+} from "../src/corpus/financial-statement-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
@@ -2305,4 +2309,32 @@ describe("AMRC 2026-06-30 current finance lease placed only by its face", () => 
       ["interim", 1_946_937e3, "2026-08-04"],
     ]);
   });
+});
+
+test("a kept 90M/101M annual/interim debt pair is an A11 census entry, not a thrown invariant", () => {
+  const K = ["2026-02-20", "0000000001-26-000001", "10-K"] as const;
+  const Q = ["2026-08-07", "0000000001-26-000003", "10-Q"] as const;
+  const end = "2025-12-31";
+  const artifact = deriveItems(
+    {
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [
+        fact(100e6, end, ...K),
+        { ...fact(101e6, end, ...Q), fp: "Q2" },
+      ],
+      FinanceLeaseLiability: [fact(10e6, end, ...K)],
+      Revenues: [
+        { ...fact(40e9, end, ...K), start: "2025-01-01" },
+        { ...fact(10e9, "2026-03-31", ...Q), start: "2026-01-01" },
+      ],
+    },
+    [],
+  );
+  const { annual, interim } = artifact.statements.balanceSheet.debt;
+  expect(
+    [annual, interim].map((facts) => facts.find((debt) => debt.periodEnd === end)?.value),
+  ).toEqual([90e6, 101e6]);
+  expect(
+    collectFinancialStatementInvariants(artifact).find(({ code }) => code === "A11")?.failingCount,
+  ).toBe(1);
+  expect(() => assertFinancialStatementInvariants(artifact)).not.toThrow();
 });

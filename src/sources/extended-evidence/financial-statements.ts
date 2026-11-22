@@ -327,7 +327,6 @@ function selectSeries(
   const withNotes = { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
   return {
     ...withNotes,
-    repeatsAnnualWithoutLeases: debt.repeatsAnnualWithoutLeases,
     omissionNotes: [
       ...withNotes.omissionNotes,
       ...debtScopeUnprovenNotes(debtReader, taxonomy, eligible, withNotes),
@@ -578,22 +577,7 @@ export function deriveFinancialStatements(
       ? { validationNotes: [] }
       : selectEquityStack(payload, taxonomy, reportingCurrency, selected, input);
   const uncapped = selected.map((item) => item.series);
-  const { series: capped, notes: capNotes } = capFinancialStatementPeriods(uncapped);
-  const debtSelection: SelectedSeries | undefined = selected.find(
-    (item) => item.series.key === "debt",
-  );
-  const repeatsAnnualWithoutLeases = debtSelection?.repeatsAnnualWithoutLeases;
-  const retained = capped.map((item) =>
-    item.key !== "debt" || repeatsAnnualWithoutLeases === undefined
-      ? item
-      : {
-          ...item,
-          interim: item.interim.filter((fact) => {
-            const annual = item.annual.find((other) => other.periodEnd === fact.periodEnd);
-            return annual === undefined || !repeatsAnnualWithoutLeases(annual, fact);
-          }),
-        },
-  );
+  const { series: retained, notes: capNotes } = capFinancialStatementPeriods(uncapped);
   const shareBasisNotes = mixedShareBasisNotes(uncapped, retained);
   const durationFacts =
     taxonomy === undefined ? [] : filedDurationFacts(payload, taxonomy, input.analysisAsOf);

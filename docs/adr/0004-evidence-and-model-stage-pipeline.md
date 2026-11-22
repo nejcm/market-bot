@@ -244,20 +244,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   mixed composite (an equal sum through other lines is not enough) or with every other same-form filing at
   the instant repeating its values (absent lines only if zero or a named non-borrowing row). That filing's own
   resolution then publishes attributed to it; otherwise the instant withholds with a note naming the filings
-  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups. After
-  settlement, supersession, the latest-revision election and the shared history cap, a retained instant's
-  elected interim value is removed (never replaced by an older quarter) when the retained annual value was
-  published from its own filing's debt lines less that filing's finance-lease legs (or is a line-scoped total that its
-  lines reconcile), a later interim filing repeats those lines unambiguously from one accession, tags no
-  finance-lease concept, and exceeds the annual value by exactly those legs (DG 2026-01-30: 10-Q comparative
-  4,580M vs 10-K 0001104659-26-032325 4,432M after its 149M `FinanceLeaseLiabilityNoncurrent`). Any doubt keeps
-  both: an annual value first published after the interim (a later 10-K's comparative, TDG 2025-09-30), conflicting
-  duplicate or lease total/split tags, an unreconciled direct total, a liability the two filings both tag at
-  different values (TGT 2026-01-31 `SupplierFinanceProgramObligation` 3,026M vs 3,000M), a
-  debt-identity liability recast in between (LHX 2026-01-02, `OtherLiabilitiesCurrent` 1,908M to 1,235M),
-  disposal-group or separate principal rows after the annual filing, or any other accession tagging the
-  instant on the interim's filing day. Other annual/interim differences at one instant stay published. A11
-  counts every one of them in the corpus census, but it is not asserted, since the rules keep some on purpose. A mixed composite
+  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups. An annual
+  and an interim value can disagree at one instant (a 10-Q comparative that keeps the finance-lease legs its
+  10-K deducted, DG 2026-01-30 4,580M vs 4,432M); both stay published. Invariant A11 counts every exact-value
+  disagreement in the corpus census, and is not asserted, since it is not a defect on its own. A mixed composite
   that resolves complete but is withheld still contests partial-comparative recovery with its value.
   Other filings' facts stay in that resolution as obligations (prior nonzero lines still need coverage,
   principal due within a year still needs a current line); they only stop vouching for its lines. An older filing's nonzero line is not proven to hold

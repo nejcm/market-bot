@@ -45,7 +45,6 @@ import {
   debtIdentityConcepts,
   incompleteDebtNote,
   recognizedDebtConcepts,
-  repeatsAnnualWithoutLeases,
   resolveDebtAtInstant,
   UNRECOGNIZED_BORROWING_REASON,
   unadjustedLeaseInclusiveDebt,
@@ -296,17 +295,10 @@ export function factsForDebt(
   taxonomy: FinancialStatementTaxonomy,
   eligible: (fact: ParsedFact) => boolean,
   filings: readonly ExtendedEvidenceItem[],
-): {
-  readonly facts: readonly ParsedFact[];
-  readonly notes: readonly FinancialStatementNote[];
-  readonly repeatsAnnualWithoutLeases: (
-    annual: FinancialStatementFact,
-    interim: FinancialStatementFact,
-  ) => boolean;
-} {
+): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
   const root = taxonomyRoot(taxonomy);
   if (root === undefined) {
-    return { facts: [], notes: [], repeatsAnnualWithoutLeases: () => false };
+    return { facts: [], notes: [] };
   }
   const recognized = recognizedDebtConcepts(taxonomy);
   const candidates = debtCandidateConcepts(taxonomy, root)
@@ -622,26 +614,6 @@ export function factsForDebt(
       ...zero.notes,
       ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
     ],
-    repeatsAnnualWithoutLeases: (annual, interim) =>
-      repeatsAnnualWithoutLeases(
-        taxonomy,
-        () =>
-          Object.keys(root).flatMap((concept) =>
-            unitFacts(taxonomy, root, concept).filter(
-              (fact) =>
-                fact.periodStart === undefined &&
-                fact.periodEnd === interim.periodEnd &&
-                eligible(fact),
-            ),
-          ),
-        liabilities,
-        new Set([
-          ...DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy],
-          ...Object.values(principalFacts).flatMap((facts) => facts.map(({ concept }) => concept)),
-        ]),
-        annual,
-        interim,
-      ),
   };
 }
 

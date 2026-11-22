@@ -545,7 +545,7 @@ export function collectFinancialStatementInvariants(
     checks.set(code, results);
   };
   assertFinancialStatementInvariants(artifact, record);
-  // A census, not an assertion: the rules keep some annual/interim debt differences on purpose.
+  // A census, not an assertion: annual/interim debt differences can be legitimate.
   const { annual, interim } = artifact.statements.balanceSheet.debt;
   for (const fact of interim) {
     const other = annual.find((candidate) => candidate.periodEnd === fact.periodEnd);

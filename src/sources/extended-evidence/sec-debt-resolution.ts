@@ -6,7 +6,6 @@ import {
 } from "./financial-statement-definitions";
 import { restatedFromOriginalFiling } from "./financial-statement-selection";
 import type {
-  FinancialStatementFact,
   FinancialStatementNote,
   FinancialStatementTaxonomy,
 } from "./financial-statements-contract";
@@ -838,124 +837,6 @@ const filedAfter = (
   fact.filedAt > latest.filedAt ||
   (fact.filedAt === latest.filedAt && !latest.accessions.includes(fact.accessionNumber ?? ""));
 
-const recastLiabilities = (
-  liabilities: readonly DebtHistoryFact[],
-  entry: { readonly periodEnd: string; readonly filedAt: string },
-  latest: { readonly filedAt: string; readonly accessions: readonly string[] },
-) => [
-  ...new Set(
-    liabilities
-      .filter(
-        (fact) =>
-          fact.periodEnd === entry.periodEnd &&
-          filedAfter(fact, latest) &&
-          fact.filedAt <= entry.filedAt &&
-          fact.value !==
-            (liabilities
-              .filter(
-                (prior) =>
-                  prior.concept === fact.concept &&
-                  prior.periodEnd === fact.periodEnd &&
-                  !filedAfter(prior, latest),
-              )
-              .toSorted(
-                (left, right) =>
-                  left.filedAt.localeCompare(right.filedAt) ||
-                  Number(latest.accessions.includes(left.accessionNumber ?? "")) -
-                    Number(latest.accessions.includes(right.accessionNumber ?? "")),
-              )
-              .at(-1)?.value ?? 0),
-      )
-      .map(({ concept }) => concept),
-  ),
-];
-const termsOf = (fact: FinancialStatementFact) => fact.composite?.components ?? [fact];
-// Conflicting duplicates leave the filed amount ambiguous.
-const single = (values: ReadonlyMap<string, ReadonlySet<number>>, concept: string) => {
-  const filed = values.get(concept);
-  return filed?.size === 1 ? [...filed][0] : undefined;
-};
-
-// A later interim comparative that repeats the published annual's own lines but drops its finance-lease legs proves nothing new.
-export function repeatsAnnualWithoutLeases(
-  taxonomy: FinancialStatementTaxonomy,
-  instantFacts: () => readonly DebtHistoryFact[],
-  liabilities: readonly DebtHistoryFact[],
-  scopeConcepts: ReadonlySet<string>,
-  annual: FinancialStatementFact,
-  interim: FinancialStatementFact,
-): boolean {
-  const leases = DEBT_CONCEPTS[taxonomy].financeLeases;
-  const proof = annual.accessionNumber;
-  const accession = interim.accessionNumber;
-  const annualTerms = termsOf(annual);
-  const interimTerms = termsOf(interim);
-  if (
-    leases === undefined ||
-    proof === null ||
-    accession === null ||
-    annual.filedAt >= interim.filedAt ||
-    annualTerms.some((term) => term.accessionNumber !== proof) ||
-    interimTerms.some((term) => term.accessionNumber !== accession || term.value < 0)
-  ) {
-    return false;
-  }
-  const facts = instantFacts();
-  const valuesIn = (filing: string) => {
-    const values = new Map<string, Set<number>>();
-    for (const fact of facts.filter((candidate) => candidate.accessionNumber === filing)) {
-      values.set(fact.concept, (values.get(fact.concept) ?? new Set()).add(fact.value));
-    }
-    return values;
-  };
-  const proofValues = valuesIn(proof);
-  const interimValues = valuesIn(accession);
-  const leaseConcepts = [leases.total, ...leases.split];
-  const total = single(proofValues, leases.total);
-  const split = leases.split.flatMap((leg) => [...(proofValues.get(leg) ?? [])]);
-  const splitSum = split.reduce((sum, value) => sum + value, 0);
-  const legs = total ?? splitSum;
-  const repeated = annualTerms.filter((term) => term.value >= 0);
-  const deducted = annualTerms.filter((term) => term.value < 0);
-  const linesLessLeases =
-    annual.composite !== undefined &&
-    deducted.every((term) => leaseConcepts.includes(term.concept)) &&
-    -deducted.reduce((sum, term) => sum + term.value, 0) === legs &&
-    repeated.length === interimTerms.length &&
-    repeated.every((term) =>
-      interimTerms.some((other) => other.concept === term.concept && other.value === term.value),
-    );
-  const window = { filedAt: annual.filedAt, accessions: [proof] };
-  return (
-    legs > 0 &&
-    leaseConcepts.every(
-      (concept) => (proofValues.get(concept)?.size ?? 0) <= 1 && !interimValues.has(concept),
-    ) &&
-    (total === undefined || split.length === 0 || total === splitSum) &&
-    (linesLessLeases || annual.lineScope === true) &&
-    interimTerms.every(
-      (term) =>
-        single(proofValues, term.concept) === term.value &&
-        single(interimValues, term.concept) === term.value,
-    ) &&
-    interim.value - legs === annual.value &&
-    [...interimValues.keys()].every(
-      (concept) =>
-        !proofValues.has(concept) ||
-        (single(proofValues, concept) !== undefined &&
-          single(proofValues, concept) === single(interimValues, concept)),
-    ) &&
-    !facts.some(
-      (fact) =>
-        (fact.filedAt === interim.filedAt && fact.accessionNumber !== accession) ||
-        (scopeConcepts.has(fact.concept) &&
-          filedAfter(fact, window) &&
-          fact.filedAt <= interim.filedAt),
-    ) &&
-    recastLiabilities(liabilities, interim, window).length === 0
-  );
-}
-
 interface ResolutionValues {
   readonly fact: { readonly value: number } | undefined;
   readonly lines: ReadonlyMap<string, number>;
@@ -1016,6 +897,33 @@ export function unsupersededDebtResolutions<
       ? latest
       : undefined;
   };
+  const recastLiabilities = (entry: R, latest: R) => [
+    ...new Set(
+      liabilities
+        .filter(
+          (fact) =>
+            fact.periodEnd === entry.periodEnd &&
+            filedAfter(fact, latest) &&
+            fact.filedAt <= entry.filedAt &&
+            fact.value !==
+              (liabilities
+                .filter(
+                  (prior) =>
+                    prior.concept === fact.concept &&
+                    prior.periodEnd === fact.periodEnd &&
+                    !filedAfter(prior, latest),
+                )
+                .toSorted(
+                  (left, right) =>
+                    left.filedAt.localeCompare(right.filedAt) ||
+                    Number(latest.accessions.includes(left.accessionNumber ?? "")) -
+                      Number(latest.accessions.includes(right.accessionNumber ?? "")),
+                )
+                .at(-1)?.value ?? 0),
+        )
+        .map(({ concept }) => concept),
+    ),
+  ];
   const resolved = all.flatMap((entry) => {
     const latest = entry.incompleteReason?.startsWith("omits ")
       ? repeatedComplete(entry)
@@ -1023,7 +931,7 @@ export function unsupersededDebtResolutions<
     if (latest === undefined) {
       return [entry];
     }
-    const recast = recastLiabilities(liabilities, entry, latest);
+    const recast = recastLiabilities(entry, latest);
     return recast.length === 0
       ? []
       : [

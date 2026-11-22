@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.67](https://github.com/nejcm/market-bot/compare/v1.19.66...v1.19.67) (2026-11-22)
+
+### Bug Fixes
+
+- **sec-debt:** veto unplaced current finance leases at every instant (#292) ([3452bca](https://github.com/nejcm/market-bot/commit/3452bca143d5e61d631d72fbc0c4703e1fd301d7))
+
 ## [1.19.66](https://github.com/nejcm/market-bot/compare/v1.19.65...v1.19.66) (2026-11-21)
 
 ### Bug Fixes

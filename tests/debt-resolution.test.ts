@@ -2048,8 +2048,104 @@ describe("ambiguous LongTermDebt", () => {
         `CommercialPaper (25) ${PAPER_UNSHOWN}`,
       ] as const,
     ]),
+    [
+      "one alias beside two paper values",
+      {
+        ShortTermBorrowings: [later(4)],
+        CommercialPaper: [annual(10), later(20)],
+        DebtCurrent: [later(5)],
+        LongTermDebtNoncurrent: [later(70)],
+        LongTermDebt: [later(75)],
+      },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    ...[
+      [annual(10), later(20)],
+      [later(20), annual(10)],
+    ].map(
+      (papers) =>
+        [
+          "an alias and DebtCurrent with room for one of two paper values",
+          {
+            LongTermDebtCurrent: [later(30)],
+            ShortTermBorrowings: [later(19)],
+            CommercialPaper: papers,
+            DebtCurrent: [later(49)],
+            LongTermDebtNoncurrent: [later(70)],
+          },
+          `CommercialPaper (20) ${PAPER_UNSHOWN}`,
+        ] as const,
+    ),
+    [
+      "an alias as the only current line beside two paper values",
+      {
+        ShortTermBorrowings: [later(19)],
+        CommercialPaper: [annual(10), later(20)],
+        LongTermDebtNoncurrent: [later(70)],
+      },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a zero first alias before a nonzero later one",
+      {
+        DebtCurrent: [at(5)],
+        ShortTermBorrowings: [at(0)],
+        ShortTermDebt: [at(4)],
+        CommercialPaper: [at(10)],
+        LongTermDebtNoncurrent: [at(70)],
+        LongTermDebt: [at(75)],
+      },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
   ] as const)("debt withholds: %s", (_label, gaap, reason) => {
     expectGap(gaap as Parameters<typeof resolve>[0], reason);
+  });
+
+  test.each([
+    [
+      "a nonzero first alias beside one paper value",
+      {
+        ShortTermBorrowings: [later(4)],
+        CommercialPaper: [later(10)],
+        DebtCurrent: [later(5)],
+        LongTermDebtNoncurrent: [later(70)],
+        LongTermDebt: [later(75)],
+      },
+      75,
+    ],
+    [
+      "a nonzero first alias beside one paper value two filings repeat",
+      {
+        LongTermDebtCurrent: [later(30)],
+        ShortTermBorrowings: [later(19)],
+        CommercialPaper: [annual(20), later(20)],
+        DebtCurrent: [later(49)],
+        LongTermDebtNoncurrent: [later(70)],
+      },
+      119,
+    ],
+  ] as const)("debt publishes: %s", (_label, gaap, value) => {
+    const values = financialStatementFacts(
+      resolve(gaap as Parameters<typeof resolve>[0]).artifact.statements.balanceSheet.debt,
+    )
+      .filter((fact) => fact.periodEnd === "2026-06-30")
+      .map((fact) => fact.value);
+    expect(values).toContain(value);
+  });
+
+  test("a later comparative withheld for paper leaves the earlier same-form value that passes", () => {
+    const facts = financialStatementFacts(
+      resolve({
+        DebtCurrent: [annual(20)],
+        LongTermDebtCurrent: [annual(10), laterAnnual(10)],
+        LongTermDebtNoncurrent: [annual(0), laterAnnual(0)],
+        LongTermDebt: [annual(10), laterAnnual(10)],
+        CommercialPaper: [annual(5)],
+      }).artifact.statements.balanceSheet.debt,
+    ).filter((fact) => fact.periodEnd === "2026-06-30");
+    expect(facts).toMatchObject([
+      { value: 20, concept: "DebtCurrent+LongTermDebtNoncurrent", filedAt: "2026-08-20" },
+    ]);
   });
 
   test("a selected zero paper row never shows another filing's paper inside the debt", () => {

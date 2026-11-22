@@ -704,9 +704,12 @@ export function resolveDebtAtInstant<T>(
     .map((fact) => fact.value)
     .toSorted((a, b) => a - b);
   // DebtCurrent is defined to hold short-term debt and maturities, so one at least their sum holds the paper (QCOM FY2019); PH FY2023's is smaller.
+  const shortTermAlias = ambiguous === undefined ? undefined : first(ambiguous.shortTerm);
   const unsummedPaper =
     ambiguous === undefined ||
-    ambiguous.shortTerm.some((concept) => concept !== paper && (valueAt(concept) ?? 0) !== 0)
+    (new Set(paperValues).size === 1 &&
+      shortTermAlias !== paper &&
+      (valueAt(shortTermAlias ?? "") ?? 0) !== 0)
       ? undefined
       : paperValues.find(
           (paperAt) =>
@@ -816,9 +819,12 @@ export function resolveDebtAtInstant<T>(
                     : omittedShortTerm.length > 0
                       ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
                       : excess === undefined
-                        ? // A face can recover an omission but not the lease scope, so the lease veto outranks it.
+                        ? // A face can recover an omission but not the lease scope or paper, so those vetoes outrank it.
                           componentReason !== undefined &&
-                          !(unplacedCurrentLease && componentReason.startsWith("omits "))
+                          !(
+                            (unplacedCurrentLease || unsummedPaper !== undefined) &&
+                            componentReason.startsWith("omits ")
+                          )
                           ? componentReason
                           : unplacedCurrentLease
                             ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag or same-filing arithmetic shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`

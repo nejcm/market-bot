@@ -222,9 +222,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   include paper at that value (a zero paper row never counts), a selected `DebtCurrent` is at least
   `LongTermDebtCurrent` plus it (the line is defined to hold short-term debt; QCOM FY2019 2,496M = 1,997M + 499M), a
   total other than `LongTermDebt` is selected, or the selected `LongTermDebt` sits beside paper tagged at that value
-  and equals the lines plus it (NDSN). A nonzero alias other than paper turns this check off and leaves the
-  alias rule to decide (NOW-shape short-term borrowings at 191M carrying value hold 192M paper and publish). Two different nonzero values
-  can never both be one selected row, so they gap unless a `DebtCurrent` or non-`LongTermDebt` total covers both.
+  and equals the lines plus it (NDSN). When exactly one nonzero paper value is tagged and the first tagged
+  short-term alias is not paper and is nonzero, the alias rule decides instead (NOW-shape short-term borrowings at
+  191M carrying value hold 192M paper and publish); a zero first alias never does. Two different nonzero values can
+  never both be one selected row or one alias, so they gap unless a `DebtCurrent` or non-`LongTermDebt` total covers
+  both. A face that recovers an omission does not clear this gap. When a later comparative gaps for paper, an earlier
+  same-form value that passes this check and is not restated stands.
   PH FY2024 10-K (8,412M beside 2,100M paper), PH FY2023 (`DebtCurrent` 1,974M below 3,763M + 1,800M), NTAP FY2017
   (zero short-term loan beside 500M paper) and PH 10-Q composites on `LongTermDebtAndCapitalLeaseObligationsCurrent`
   gap. LMT FY2018 and AMGN 2017 gap conservatively: their face labels put the paper inside the current line, but no

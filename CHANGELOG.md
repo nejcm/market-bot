@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.20.0](https://github.com/nejcm/market-bot/compare/v1.19.67...v1.20.0) (2026-11-22)
+
+### Features
+
+- **corpus:** count instants where annual and interim debt disagree (#293) ([96d88c7](https://github.com/nejcm/market-bot/commit/96d88c7e21295e3ed4ece80813f01b720224b5f5))
+
 ## [1.19.67](https://github.com/nejcm/market-bot/compare/v1.19.66...v1.19.67) (2026-11-22)
 
 ### Bug Fixes

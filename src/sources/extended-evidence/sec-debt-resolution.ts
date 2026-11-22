@@ -421,9 +421,32 @@ export function resolveDebtAtInstant<T>(
   // The filing's own lease-placement tag puts a finance lease leg inside this debt line.
   leasePlacements: Readonly<Record<string, "current" | "noncurrent">> = {},
 ): DebtResolution<T> {
-  const concepts = {
+  const placementFacts = [
+    "LongTermDebtCurrent",
+    "LongTermDebtAndCapitalLeaseObligationsCurrent",
+    "FinanceLeaseLiabilityCurrent",
+  ].map((concept) => tagged.get(concept));
+  const [maturities = 0, inclusiveCurrent, leaseCurrent = 0] = placementFacts.every(
+    (fact) => fact !== undefined && filedAtOf(fact) === filedAtOf(placementFacts[0] as T),
+  )
+    ? placementFacts.map((fact) => valueOf(fact as T))
+    : [];
+  // Same-filing arithmetic places the current lease inside (TGT FY2018) or beside (AVGO FY2023) LongTermDebtCurrent.
+  const currentLeasePlacement =
+    leaseCurrent === 0
+      ? undefined
+      : inclusiveCurrent === maturities
+        ? "inside"
+        : inclusiveCurrent === maturities + leaseCurrent
+          ? "beside"
+          : undefined;
+  const concepts: DebtTaxonomyConcepts = {
     ...DEBT_CONCEPTS[taxonomy],
-    leaseInclusive: { ...DEBT_CONCEPTS[taxonomy].leaseInclusive, ...leasePlacements },
+    leaseInclusive: {
+      ...DEBT_CONCEPTS[taxonomy].leaseInclusive,
+      ...(currentLeasePlacement === "inside" ? { LongTermDebtCurrent: "current" as const } : {}),
+      ...leasePlacements,
+    },
   };
   const contributor = (concept: string) => ({ concept, fact: tagged.get(concept) as T });
   const ambiguous = concepts.ambiguousLongTermDebt;
@@ -625,9 +648,10 @@ export function resolveDebtAtInstant<T>(
   };
   const excess = deductions.find(({ aggregates, leases }) => sum(leases) > sum(aggregates));
   const [currentLease, noncurrentLease] = concepts.financeLeases?.split ?? [];
-  // On a face, a removed noncurrent leg says leases sit in the debt lines, so the current leg may too (TDG FY2021).
+  // A removed noncurrent leg says leases sit in the debt lines, so the current leg may too (TDG FY2021).
   const unplacedCurrentLease =
-    used.some((concept) => faceRow(concept, "current")) &&
+    currentLeasePlacement !== "beside" &&
+    !unadjusted.some((concept) => concepts.leaseInclusive?.[concept] === "current") &&
     currentLease !== undefined &&
     noncurrentLease !== undefined &&
     subtracted.includes(noncurrentLease) &&

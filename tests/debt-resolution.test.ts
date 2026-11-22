@@ -1899,7 +1899,83 @@ describe("ambiguous LongTermDebt", () => {
   };
   const annual = (value: number) => filed(value, "2026-06-30", "2026-08-20", "annual-10-K", "10-K");
   const later = (value: number) => filed(value, "2026-06-30", "2026-09-15", "later-10-Q");
+  const laterAnnual = (value: number) =>
+    filed(value, "2026-06-30", "2026-09-30", "later-10-K", "10-K");
+  const repeated = {
+    DebtCurrent: [annual(0), later(0)],
+    LongTermDebtCurrent: [annual(30), later(30)],
+    LongTermDebtNoncurrent: [annual(70), later(70)],
+    LongTermDebt: [annual(100), later(100)],
+  };
+  const restated = {
+    DebtCurrent: [annual(5), later(0)],
+    LongTermDebtCurrent: [annual(30), later(30)],
+    LongTermDebtNoncurrent: [annual(70), later(70)],
+    LongTermDebt: [annual(70), later(100)],
+  };
+  const paperBeside = {
+    DebtCurrent: [annual(5), later(5)],
+    LongTermDebtNoncurrent: [annual(70), later(70)],
+    LongTermDebt: [annual(75), later(75)],
+  };
   test.each([
+    [
+      "every filing repeating the narrow shape",
+      repeated,
+      100,
+      "LongTermDebtCurrent+LongTermDebtNoncurrent",
+    ],
+    ...(
+      [
+        ["ShortTermBorrowings", 200],
+        ["OtherShortTermBorrowings", 10],
+        ["LongTermLineOfCredit", 100],
+        ["NotesPayableCurrent", 5],
+        ["LineOfCredit", 10],
+        ["FinanceLeaseLiabilityCurrent", 5],
+      ] as const
+    ).map(
+      ([concept, value]) =>
+        [
+          `a narrow later filing beside an annual ${concept}`,
+          { ...repeated, [concept]: [annual(value)] },
+          70,
+          "DebtCurrent+LongTermDebtNoncurrent",
+        ] as const,
+    ),
+    [
+      "an earlier filing's zero DebtCurrent without LongTermDebt",
+      {
+        DebtCurrent: [filed(0, "2026-06-30", "2026-08-05", "early-10-Q"), annual(0)],
+        LongTermDebtCurrent: [filed(30, "2026-06-30", "2026-08-05", "early-10-Q"), annual(30)],
+        LongTermDebtNoncurrent: [filed(70, "2026-06-30", "2026-08-05", "early-10-Q"), annual(70)],
+        LongTermDebt: [annual(100)],
+      },
+      70,
+      "DebtCurrent+LongTermDebtNoncurrent",
+    ],
+    [
+      "paper only at the prior period end",
+      {
+        DebtCurrent: [annual(5)],
+        LongTermDebtNoncurrent: [annual(70)],
+        LongTermDebt: [annual(75)],
+        CommercialPaper: [filed(10, "2025-12-31", "2026-02-15", "prior-10-K", "10-K")],
+      },
+      75,
+      "LongTermDebt",
+    ],
+    [
+      "a combined total that is not LongTermDebt beside paper",
+      {
+        DebtCurrent: [annual(5)],
+        LongTermDebtNoncurrent: [annual(95)],
+        DebtLongtermAndShorttermCombinedAmount: [annual(100)],
+        CommercialPaper: [annual(10)],
+      },
+      100,
+      "DebtLongtermAndShorttermCombinedAmount",
+    ],
     [
       "the narrow shape yields its zero DebtCurrent",
       narrow,
@@ -1971,18 +2047,6 @@ describe("ambiguous LongTermDebt", () => {
         LongTermDebt: [at(1730)],
       },
       1730,
-      "LongTermDebt",
-    ],
-    [
-      "a DebtCurrent covering maturities and paper",
-      {
-        DebtCurrent: [at(30)],
-        LongTermDebtCurrent: [at(20)],
-        CommercialPaper: [at(10)],
-        LongTermDebtNoncurrent: [at(70)],
-        LongTermDebt: [at(100)],
-      },
-      100,
       "LongTermDebt",
     ],
     [
@@ -2066,6 +2130,119 @@ describe("ambiguous LongTermDebt", () => {
         LongTermDebtNoncurrent: [at(70)],
       },
       `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a DebtCurrent covering maturities and paper beside a LongTermDebt that omits it",
+      {
+        DebtCurrent: [at(30)],
+        LongTermDebtCurrent: [at(20)],
+        CommercialPaper: [at(10)],
+        LongTermDebtNoncurrent: [at(70)],
+        LongTermDebt: [at(100)],
+      },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a selected lease-inclusive pair beside a DebtCurrent covering paper",
+      {
+        DebtCurrent: [annual(40)],
+        LongTermDebtCurrent: [annual(30)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [annual(30)],
+        LongTermDebtAndCapitalLeaseObligations: [annual(70)],
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [annual(105)],
+        DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [annual(5)],
+        CommercialPaper: [annual(10)],
+      },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "annual paper beside a narrow later filing",
+      { ...repeated, CommercialPaper: [annual(10)] },
+      PAPER_UNSHOWN,
+    ],
+    [
+      "a narrow later filing whose zero paper follows annual paper",
+      { ...repeated, CommercialPaper: [annual(10), later(0)] },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a later zero paper after a nonzero one",
+      { ...paperBeside, CommercialPaper: [annual(10), later(0)] },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "an earlier zero paper before a nonzero one",
+      {
+        ...paperBeside,
+        CommercialPaper: [filed(0, "2026-06-30", "2026-08-05", "zeros-10-Q"), annual(10)],
+      },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a later annual comparative of zero paper",
+      { ...paperBeside, CommercialPaper: [annual(10), laterAnnual(0)] },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a later annual comparative that alone tags paper",
+      { ...paperBeside, CommercialPaper: [annual(0), laterAnnual(10)] },
+      `CommercialPaper (10) ${PAPER_UNSHOWN}`,
+    ],
+    [
+      "a zero DebtCurrent restating one with no LongTermDebt proof in the earlier filing",
+      restated,
+      "a later filing restated DebtCurrent (originally 5, filed 2026-08-20) without restating a debt total",
+    ],
+    [
+      "a restated zero DebtCurrent beside earlier paper",
+      { ...restated, CommercialPaper: [annual(25), later(0)], ShortTermBorrowings: [annual(0)] },
+      "a later filing restated DebtCurrent (originally 5",
+    ],
+    [
+      "a restated zero DebtCurrent beside an earlier annual's paper and a later annual",
+      {
+        DebtCurrent: [annual(5), laterAnnual(0)],
+        LongTermDebtCurrent: [annual(30), laterAnnual(30)],
+        LongTermDebtNoncurrent: [annual(70), laterAnnual(70)],
+        LongTermDebt: [annual(70), laterAnnual(100)],
+        CommercialPaper: [annual(25), laterAnnual(0)],
+        ShortTermBorrowings: [annual(0)],
+      },
+      "a later filing restated DebtCurrent (originally 5",
+    ],
+    [
+      "a zero DebtCurrent restating one beside earlier other borrowings",
+      {
+        DebtCurrent: [annual(30), later(0)],
+        LongTermDebtCurrent: [later(30)],
+        LongTermDebtNoncurrent: [later(70)],
+        LongTermDebt: [later(100)],
+        OtherShortTermBorrowings: [annual(30)],
+      },
+      "a later filing restated DebtCurrent (originally 30",
+    ],
+    [
+      "a zero DebtCurrent restating one beside an earlier combined total and other borrowings",
+      {
+        DebtCurrent: [annual(30), later(0)],
+        LongTermDebtCurrent: [annual(30), later(30)],
+        LongTermDebtNoncurrent: [later(70)],
+        LongTermDebt: [annual(75), later(100)],
+        ShortTermBorrowings: [annual(0)],
+        DebtLongtermAndShorttermCombinedAmount: [annual(100)],
+        OtherShortTermBorrowings: [annual(30)],
+      },
+      "a later filing restated DebtCurrent (originally 30",
+    ],
+    [
+      "maturities only in an earlier annual filing",
+      {
+        DebtCurrent: [annual(0)],
+        LongTermDebtCurrent: [filed(30, "2026-06-30", "2026-08-05", "early-10-K", "10-K")],
+        LongTermDebtNoncurrent: [annual(70)],
+        LongTermDebt: [annual(100)],
+      },
+      "LongTermDebt (100) reconciles to none of the tagged lines (DebtCurrent, LongTermDebtNoncurrent)",
     ],
     [
       "paper only in an earlier filing",

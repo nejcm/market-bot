@@ -432,7 +432,9 @@ export function resolveDebtAtInstant<T>(
   const [, dueInYear, noncurrent, longTermTotal] = yieldLines.map((fact) =>
     fact === undefined ? undefined : valueOf(fact),
   );
-  // One filing's LongTermDebt summing nonzero maturities and the noncurrent line, nothing else nonzero, shows its zero DebtCurrent is narrower (DLTR FY2024).
+  const yieldLegs = new Set([ambiguous?.current, "LongTermDebtNoncurrent", ambiguous?.concept]);
+  const atEnd = history.filter((fact) => fact.periodEnd === instant.periodEnd);
+  // One filing's LongTermDebt sums nonzero maturities and the noncurrent line, and every filing at the instant agrees with nothing else nonzero (DLTR FY2024).
   const narrowZeroCurrentTotal =
     dueInYear !== 0 &&
     longTermTotal === (dueInYear ?? 0) + (noncurrent ?? 0) &&
@@ -442,10 +444,19 @@ export function resolveDebtAtInstant<T>(
         accessionOf(fact) !== null &&
         accessionOf(fact) === accessionOf(yieldLines[0] as T),
     ) &&
-    [...taggedAtInstant].every(
-      ([concept, fact]) =>
-        valueOf(fact) === 0 ||
-        [ambiguous?.current, "LongTermDebtNoncurrent", ambiguous?.concept].includes(concept),
+    atEnd.every(
+      (fact) =>
+        fact.value ===
+        (yieldLegs.has(fact.concept) ? valueOf(taggedAtInstant.get(fact.concept) as T) : 0),
+    ) &&
+    // Each filing's zero DebtCurrent carries its LongTermDebt, so no earlier filing dates the value before its proof.
+    atEnd.every(
+      (fact) =>
+        fact.concept !== ambiguous?.currentTotal ||
+        atEnd.some(
+          ({ concept, accessionNumber }) =>
+            concept === ambiguous.concept && accessionNumber === fact.accessionNumber,
+        ),
     );
   const tagged = narrowZeroCurrentTotal
     ? new Map([...taggedAtInstant].filter(([concept]) => concept !== ambiguous?.currentTotal))
@@ -725,9 +736,9 @@ export function resolveDebtAtInstant<T>(
       : [];
   const paper = ambiguous?.commercialPaper ?? "";
   const paperAt =
-    valueAt(paper) ??
-    history.find((fact) => fact.concept === paper && fact.periodEnd === instant.periodEnd)?.value ??
-    0;
+    history.find(
+      (fact) => fact.concept === paper && fact.periodEnd === instant.periodEnd && fact.value !== 0,
+    )?.value ?? 0;
   // DebtCurrent is defined to hold short-term debt and maturities, so one at least their sum holds the paper (QCOM FY2019); PH FY2023's is smaller.
   const unsummedPaper =
     ambiguous !== undefined &&
@@ -735,12 +746,12 @@ export function resolveDebtAtInstant<T>(
     !used.includes(paper) &&
     !ambiguous.shortTerm.some((concept) => concept !== paper && (valueAt(concept) ?? 0) !== 0) &&
     !(
-      (sides[0]?.concepts ?? []).includes(ambiguous.currentTotal) &&
+      used.includes(ambiguous.currentTotal) &&
       (valueAt(ambiguous.currentTotal) ?? 0) >= (valueAt(ambiguous.current) ?? 0) + paperAt
     ) &&
     (total === undefined ||
       (total === ambiguous.concept &&
-        (valueAt(paper) === undefined ||
+        (valueAt(paper) !== paperAt ||
           valueAt(total) !==
             sum([...new Set([...sides.flatMap((side) => side.concepts), paper])]))));
   const currentGeneric = sides[0]?.generic;

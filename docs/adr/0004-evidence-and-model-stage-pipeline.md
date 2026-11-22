@@ -219,9 +219,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   foot; otherwise the instant is a gap. Alias members are alternatives where the first tagged one holds the rest (NOW: short-term borrowings at carrying value hold paper at principal), but commercial paper holds no other line, so any nonzero bank loan beside it, equal or not, is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
   a selected total must still sum it. Nonzero paper tagged at the instant by any filing is a gap unless it is a
   selected line, any nonzero alias is tagged (the alias rule; NOW-shape short-term borrowings at 191M carrying value
-  hold 192M paper and publish), a `DebtCurrent` in the current side is at least maturities plus paper (it is defined
+  hold 192M paper and publish), a selected `DebtCurrent` is at least maturities plus paper (it is defined
   to hold short-term debt; QCOM FY2019 2,496M = 1,997M + 499M), a total other than `LongTermDebt` is selected, or the
-  selected `LongTermDebt` is tagged beside the paper and equals the lines plus it (NDSN). PH FY2024 10-K (8,412M
+  selected `LongTermDebt` is tagged beside the paper and equals the lines plus it (NDSN); a zero paper in one filing
+  never hides a nonzero one in another. PH FY2024 10-K (8,412M
   beside 2,100M paper), PH FY2023 (`DebtCurrent` 1,974M below 3,763M + 1,800M), NTAP FY2017 (zero short-term loan
   beside 500M paper) and PH 10-Q composites on `LongTermDebtAndCapitalLeaseObligationsCurrent` gap; LMT FY2018 and
   AMGN 2017 hold paper in the current line only per their face labels, so they gap too. `DebtCurrent` is the
@@ -229,8 +230,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   `LongTermDebtCurrent` maturities (INTC FY2018: 1,261M vs 761M), unless a nonzero `CapitalLeaseObligationsCurrent`
   shows a `DebtCurrent` above the maturities may hold leases no finance-lease leg deducts (LRCX FY2018). A tagged
   zero `DebtCurrent` is treated as untagged, and every other rule then runs unchanged, only when one accession tags
-  it, nonzero `LongTermDebtCurrent`, `LongTermDebtNoncurrent` and a `LongTermDebt` equal to their sum, and no other
-  debt concept at the instant is nonzero (DLTR FY2024 10-K: 1,000M + 2,431.2M = 3,431.2M). A combined total that differs
+  it, nonzero `LongTermDebtCurrent`, `LongTermDebtNoncurrent` and a `LongTermDebt` equal to their sum, and every filing
+  at the instant agrees: each `DebtCurrent` is zero and filed with a `LongTermDebt`, the three lines are never
+  restated, and every other debt concept, paper included, is zero or untagged (DLTR FY2024 10-K: 1,000M + 2,431.2M =
+  3,431.2M, dated from that 10-K). `CapitalLeaseObligationsCurrent` is not a debt concept here and leaves the rule on,
+  as with `DebtCurrent` untagged. A combined total that differs
   from both same-filing classified lines and their component sum is refused for them (AVGO FY2024 principal, QCOM
   FY2019 omits paper).
 - `LineOfCredit` covers both legs: use tagged legs instead only if their sum equals the tagged umbrella,

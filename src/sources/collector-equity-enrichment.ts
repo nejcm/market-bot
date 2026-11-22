@@ -48,6 +48,7 @@ import {
   financialStatementsHistoryGaps,
 } from "./extended-evidence/financial-statements";
 import type { FinancialStatementsArtifact } from "./extended-evidence/financial-statements-contract";
+import type { FinancialStatementsDeriveInput } from "./extended-evidence/financial-statement-facts";
 import { addBusinessFrameworkEvidence } from "./extended-evidence/business-framework";
 import { capitalReturnSection } from "./extended-evidence/capital-return";
 import { operatingRatiosSection } from "./extended-evidence/operating-ratios";
@@ -194,8 +195,15 @@ export async function collectEquityEnrichment(
   let periodicFilings: EvidenceRequestToolOutput | undefined = undefined;
   if (collectStructuredSec && secFacts !== undefined) {
     const packetSymbol = input.command.symbol;
-    const derive = (faces: readonly ExtendedEvidenceItem[]) =>
-      deriveFinancialStatements(secFacts.payload, {
+    const withFaces = await withDebtFaces(
+      input.identityContext,
+      {
+        symbol: packetSymbol,
+        ...(input.secTargetPacket?.cik === undefined ? {} : { cik: input.secTargetPacket.cik }),
+        submissionsPayload: input.secTargetPacket?.submissions?.payload,
+      },
+      secFacts.payload,
+      {
         symbol: packetSymbol,
         generatedAt: input.fetchedAt,
         analysisAsOf: input.fetchedAt,
@@ -207,17 +215,8 @@ export async function collectEquityEnrichment(
               submissionsSourceId: input.secTargetPacket.submissions.sourceId,
             }
           : {}),
-        secFilings: [...(input.secTargetPacket?.filingEvidence?.items ?? []), ...faces],
-      });
-    const withFaces = await withDebtFaces(
-      input.identityContext,
-      {
-        symbol: packetSymbol,
-        ...(input.secTargetPacket?.cik === undefined ? {} : { cik: input.secTargetPacket.cik }),
-        submissionsPayload: input.secTargetPacket?.submissions?.payload,
+        secFilings: input.secTargetPacket?.filingEvidence?.items ?? [],
       },
-      derive,
-      input.secTargetPacket?.filingEvidence?.items ?? [],
     );
     financialStatements = withFaces.statements;
     periodicFilings = withFaces.faces;
@@ -673,27 +672,20 @@ export async function collectFinancialStatements(
       ? undefined
       : await collectSecPeriodicFilingItems(context, facts);
   const { factsPayload, sourceId } = facts;
-  const derive = (faces: readonly ExtendedEvidenceItem[]) =>
-    deriveFinancialStatements(factsPayload, {
-      symbol,
-      generatedAt: context.fetchedAt,
-      analysisAsOf: context.fetchedAt,
-      sourceId,
-      ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
-      ...(facts.submissionsPayload !== undefined
-        ? { submissionsPayload: facts.submissionsPayload }
-        : {}),
-      ...(facts.submissionsSourceId !== undefined
-        ? { submissionsSourceId: facts.submissionsSourceId }
-        : {}),
-      secFilings: [...(periodicFilings?.items ?? []), ...faces],
-    });
-  const { statements, faces } = await withDebtFaces(
-    context,
-    facts,
-    derive,
-    periodicFilings?.items ?? [],
-  );
+  const { statements, faces } = await withDebtFaces(context, facts, factsPayload, {
+    symbol,
+    generatedAt: context.fetchedAt,
+    analysisAsOf: context.fetchedAt,
+    sourceId,
+    ...(facts.sourceUrl !== undefined ? { sourceUrl: facts.sourceUrl } : {}),
+    ...(facts.submissionsPayload !== undefined
+      ? { submissionsPayload: facts.submissionsPayload }
+      : {}),
+    ...(facts.submissionsSourceId !== undefined
+      ? { submissionsSourceId: facts.submissionsSourceId }
+      : {}),
+    secFilings: periodicFilings?.items ?? [],
+  });
   const filings =
     periodicFilings === undefined || faces === undefined
       ? periodicFilings
@@ -712,17 +704,25 @@ export async function collectFinancialStatements(
 async function withDebtFaces(
   context: CollectContext,
   facts: Pick<SecCompanyFactsResult, "cik" | "symbol" | "submissionsPayload">,
-  derive: (faces: readonly ExtendedEvidenceItem[]) => FinancialStatementsArtifact,
-  secFilings: readonly ExtendedEvidenceItem[],
+  companyFacts: unknown,
+  input: FinancialStatementsDeriveInput,
 ): Promise<{
   readonly statements: FinancialStatementsArtifact;
   readonly faces?: EvidenceRequestToolOutput;
 }> {
+  const secFilings = input.secFilings ?? [];
+  // Requests are planned with disputes ignored, so a dispute never changes which faces are fetched.
+  const derive = (faces: readonly ExtendedEvidenceItem[], ignoreDebtDisputes = false) =>
+    deriveFinancialStatements(companyFacts, {
+      ...input,
+      ignoreDebtDisputes,
+      secFilings: [...secFilings, ...faces],
+    });
   const statements = derive([]);
   const instants =
     context.secUserAgent === undefined
       ? []
-      : debtInstantsNeedingFace(statements, facts.submissionsPayload, secFilings);
+      : debtInstantsNeedingFace(derive([], true), facts.submissionsPayload, secFilings);
   if (instants.length === 0) {
     return { statements };
   }

@@ -4,6 +4,7 @@ import {
   auditOfflineCorpusCase,
   loadOfflineCorpusCase,
   mutateOfflineCorpusCase,
+  runOfflineFinancialStatementCorpus,
 } from "../src/corpus/offline-financial-statements-corpus";
 
 describe("offline financial-statement corpus", () => {
@@ -198,4 +199,51 @@ describe("offline financial-statement corpus", () => {
       );
     },
   );
+});
+
+const fact = (val: number, end: string, accn: string, filed: string) => ({
+  val,
+  end,
+  accn,
+  filed,
+  form: "10-K",
+  fy: Number(end.slice(0, 4)),
+  fp: "FY",
+});
+const prior = (val: number) => fact(val, "2024-12-31", "0001000000-25-000010", "2025-02-15");
+const latest = (val: number) => fact(val, "2025-12-31", "0001000000-26-000010", "2026-02-15");
+
+test("a withheld latest debt instant selects no older debt fact", () => {
+  const tags = {
+    Revenues: [
+      { ...prior(900), start: "2024-01-01" },
+      { ...latest(1000), start: "2025-01-01" },
+    ],
+    CashAndCashEquivalentsAtCarryingValue: [prior(150), latest(200)],
+    // FY2025's lease-inclusive 950 disputes its own 100 + 800 legs; FY2024's agree.
+    LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [prior(900), latest(950)],
+    LongTermDebtAndCapitalLeaseObligationsCurrent: [prior(100), latest(100)],
+    LongTermDebtAndCapitalLeaseObligations: [prior(800), latest(800)],
+  };
+  const { projection } = runOfflineFinancialStatementCorpus({
+    fixture: "withheld-debt",
+    symbol: "ACME",
+    analysisAsOf: "2026-06-01T00:00:00.000Z",
+    sourceId: "acme-sec",
+    provenance: { companyFacts: "synthetic", submissions: "synthetic" },
+    submissions: undefined,
+    companyFacts: {
+      facts: {
+        "us-gaap": Object.fromEntries(
+          Object.entries(tags).map(([concept, usd]) => [concept, { units: { USD: usd } }]),
+        ),
+      },
+    },
+  });
+  const { debt } = projection.statements;
+  expect(debt?.annual.map(({ periodEnd, value }) => [periodEnd, value])).toEqual([
+    ["2024-12-31", 900],
+  ]);
+  expect(debt?.selectedFact).toBeNull();
+  expect(debt?.selectedConcept).toBeNull();
 });

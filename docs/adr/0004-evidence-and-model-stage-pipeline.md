@@ -295,7 +295,14 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   A `LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities` total that differs from its own tagged
   current and noncurrent legs by exactly `DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet` is
   principal (VSAT 6,570.503M − 128.104M = 6,442.399M lines, 2026-06-30), so the legs are used and the lease total is
-  deducted from both; any other difference keeps the total. Elsewhere a `FinanceLeaseLiability` total across two
+  deducted from both. If any eligible filing's lease-inclusive total differs from that filing's own legs at the
+  instant (legs matched by accession, not by value), and the gap is not an instrument or unamortized cost that the
+  filing tags, the total's basis is unproven. The whole instant then withholds in every series and reader:
+  annual and interim, comparatives, repeated-complete substitution and legacy (LUMN FY2024 18,518M vs 17,906M
+  carrying legs, FY2025 17,815M vs 17,441M; CABO, principal plus leases). A later filing that corrects the legs
+  does not clear it, and no face can prove it. The legs never publish in its place. Face requests are planned
+  with the dispute ignored, so it changes what publishes, never which faces are fetched.
+  Elsewhere a `FinanceLeaseLiability` total across two
   lease-inclusive legs is a gap (split unknown), and a later filing's restated lease deduction is a gap like any
   restated component. A nonzero instrument tag larger than the total or side line that would have to hold it cannot be
   inside it and is a gap (AAOI 134.497M convertibles vs 26.682M `LongTermDebt`, 2024-12-31). Continuity history on the

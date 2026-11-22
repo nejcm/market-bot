@@ -1944,3 +1944,79 @@ describe("a face recovering an omission still checks commercial paper", () => {
     expect(legacy).toBeUndefined();
   });
 });
+
+const sumRows = (rows: readonly Row[]) => rows.reduce((acc, [, , value]) => acc + value, 0);
+
+describe("a lease-inclusive total its same-filing legs disagree with, checked against the face", () => {
+  const accn = "0001000000-26-000010";
+  const fy = (value: number) => [fact(value * 1000, "2025-12-31", "2026-02-15", accn, "10-K")];
+  const legs = {
+    LongTermDebtAndCapitalLeaseObligationsCurrent: fy(100),
+    LongTermDebtAndCapitalLeaseObligations: fy(800),
+  };
+  const face = (noncurrent: readonly Row[] = []) => {
+    const currentRows: Row[] = [
+      ["Current debt", "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent", 100],
+    ];
+    const noncurrentRows: Row[] = [
+      ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 800],
+      ...noncurrent,
+    ];
+    return [
+      faceFiling(accn, "2025-12-31", [
+        ["Total assets", "us-gaap:Assets", 2000],
+        ...currentRows,
+        ["Total current liabilities", "us-gaap:LiabilitiesCurrent", sumRows(currentRows)],
+        ...noncurrentRows,
+        [
+          "Total liabilities",
+          "us-gaap:Liabilities",
+          sumRows(currentRows) + sumRows(noncurrentRows),
+        ],
+      ]),
+    ];
+  };
+  const total = (value: number) => ({
+    ...legs,
+    LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: fy(value),
+  });
+  const extension: Row = ["Borrowings", "acme:LongTermBorrowings", 50];
+
+  test("face debt rows that foot to the total still leave it withheld", () => {
+    expect(derive(total(950), []).debt).toBeUndefined();
+    expect(derive(total(950), face([extension])).debt).toBeUndefined();
+  });
+
+  test("a later 10-Q face footing to its legs leaves the disputed total withheld", () => {
+    const q = "0001000000-26-000030";
+    const later = (value: number) => fact(value * 1000, "2025-12-31", "2026-05-10", q);
+    const gaap = {
+      ...total(1000),
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [...fy(100), later(100)],
+      LongTermDebtAndCapitalLeaseObligations: [...fy(800), later(800)],
+    };
+    const qFace = faceFiling(q, "2025-12-31", [
+      ["Total assets", "us-gaap:Assets", 2000],
+      ["Current debt", "us-gaap:LongTermDebtCurrent", 100],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 100],
+      ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 800],
+      ["Total liabilities", "us-gaap:Liabilities", 900],
+    ]);
+    expect(
+      financialStatementFacts(
+        derive(gaap, [qFace], "2026-08-01T00:00:00.000Z").artifact.statements.balanceSheet.debt,
+      ).filter((row) => row.periodEnd === "2025-12-31"),
+    ).toEqual([]);
+  });
+
+  test("a same-filing instrument equal to the gap keeps master's 950 with or without a face", () => {
+    const gaap = {
+      ...total(950),
+      DebtAndCapitalLeaseObligations: fy(900),
+      LongTermNotesPayable: fy(50),
+    };
+    const rows = face([["Notes payable", "us-gaap:LongTermNotesPayable", 50]]);
+    expect(derive(gaap, []).debt?.value).toBe(950_000);
+    expect(derive(gaap, rows).debt?.value).toBe(950_000);
+  });
+});

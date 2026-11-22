@@ -1780,6 +1780,95 @@ describe("ambiguous LongTermDebt", () => {
     ).toMatchObject({ value: 29_001, concept: "DebtCurrent+LongTermDebtNoncurrent" });
   });
 
+  // DLTR FY2024 10-K (0000935703-25-000015): short-term borrowings 0, maturities 1,000.0M, long-term debt 2,431.2M.
+  test.each(["legacy", "canonical"] as const)(
+    "DLTR: %s debt at 2025-02-01 is 3,431.2M, not the zero DebtCurrent beside 1,000M maturities",
+    (path) => {
+      const fy = (value: number) =>
+        filed(value, "2025-02-01", "2025-03-26", "0000935703-25-000015", "10-K");
+      const { canonical, legacy } = resolve({
+        DebtCurrent: [fy(0)],
+        LongTermDebtCurrent: [fy(1_000_000_000)],
+        LongTermDebtNoncurrent: [fy(2_431_200_000)],
+        LongTermDebt: [fy(3_431_200_000)],
+      });
+      if (path === "legacy") {
+        expect(legacy?.metrics.debt).toBe(3_431_200_000);
+      } else {
+        expect(canonical).toMatchObject({ value: 3_431_200_000, concept: "LongTermDebt" });
+      }
+    },
+  );
+
+  test("a zero DebtCurrent beside zero maturities stays the current line", () => {
+    // DLTR FY2025 10-K (0000935703-26-000025): no current debt, long-term debt 2,431.7M.
+    const fy = (value: number) =>
+      filed(value, "2026-01-31", "2026-03-16", "0000935703-26-000025", "10-K");
+    expect(
+      resolveAt(
+        {
+          DebtCurrent: [fy(0)],
+          LongTermDebtCurrent: [fy(0)],
+          LongTermDebtNoncurrent: [fy(2_431_700_000)],
+          LongTermDebt: [fy(2_431_700_000)],
+        },
+        "2026-01-31",
+      ),
+    ).toMatchObject({ value: 2_431_700_000, concept: "DebtCurrent+LongTermDebtNoncurrent" });
+  });
+
+  test("PH: a LongTermDebt total reconciled to DebtCurrent without 2,100M commercial paper withholds", () => {
+    // PH FY2024 10-K (0000076334-24-000044): LongTermDebt 8,412.014M = 1,254.98M + 7,157.034M, paper 2,100M.
+    const fy = (value: number) =>
+      filed(value, "2024-06-30", "2024-08-22", "0000076334-24-000044", "10-K");
+    expectGap(
+      {
+        DebtCurrent: [fy(1_254_980_000)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [fy(3_403_065_000)],
+        LongTermDebtAndCapitalLeaseObligations: [fy(7_157_034_000)],
+        LongTermDebt: [fy(8_412_014_000)],
+        CommercialPaper: [fy(2_100_000_000)],
+        OtherLongTermDebt: [fy(104_794_000)],
+        FinanceLeaseLiabilityCurrent: [fy(5_042_000)],
+        FinanceLeaseLiabilityNoncurrent: [fy(98_343_000)],
+      },
+      "LongTermDebt excludes CommercialPaper",
+      "2024-06-30",
+    );
+  });
+
+  test("a LongTermDebt total that sums its commercial paper or holds none stays published", () => {
+    // NDSN Q3 FY2026 10-Q (0000072331-26-000054): 10M + 192M paper + 1,529.005M = 1,731.005M.
+    const ndsn = (value: number) =>
+      filed(value, "2026-07-31", "2026-08-20", "0000072331-26-000054");
+    expect(
+      resolveAt(
+        {
+          LongTermDebtCurrent: [ndsn(10_000_000)],
+          CommercialPaper: [ndsn(192_000_000)],
+          LongTermDebtNoncurrent: [ndsn(1_529_005_000)],
+          LongTermDebt: [ndsn(1_731_005_000)],
+        },
+        "2026-07-31",
+      ),
+    ).toMatchObject({ value: 1_731_005_000 });
+    // PH FY2021 10-K (0000076334-21-000187): paper 0, LongTermDebt 6,584.872M = 2.819M + 6,582.053M.
+    const ph = (value: number) =>
+      filed(value, "2021-06-30", "2021-08-25", "0000076334-21-000187", "10-K");
+    expect(
+      resolveAt(
+        {
+          DebtCurrent: [ph(2_819_000)],
+          LongTermDebtCurrent: [ph(2_824_000)],
+          LongTermDebtNoncurrent: [ph(6_582_053_000)],
+          LongTermDebt: [ph(6_584_872_000)],
+          CommercialPaper: [ph(0)],
+        },
+        "2021-06-30",
+      ),
+    ).toMatchObject({ value: 6_584_872_000 });
+  });
+
   test("DebtCurrent holding pre-ASC 842 capital leases keeps the borrowing-only maturities", () => {
     const on = (value: number) =>
       filed(value, "2018-06-24", "2018-08-16", "0000707549-18-000115", "10-K");

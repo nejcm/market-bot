@@ -470,12 +470,19 @@ export function resolveDebtAtInstant<T>(
         vouches(fact) &&
         (taggedValue(ambiguous?.currentTotal) ?? 0) > maturitiesValue,
     );
+  // A zero DebtCurrent holds none of a nonzero current line (DLTR FY2024: short-term borrowings 0, maturities 1,000M).
+  const emptyCurrentTotal =
+    taggedValue(ambiguous?.currentTotal) === 0 &&
+    concepts.current.generic.some((concept) => (taggedValue(concept) ?? 0) !== 0);
   const sidesOf = (has: (concept: string) => boolean) => {
     const firstOf = (aliases: readonly string[]) => aliases.find(has);
     const shortTermOf = ambiguous === undefined ? undefined : firstOf(ambiguous.shortTerm);
     return [concepts.current, concepts.noncurrent].map((side) => {
       const generic = firstOf(
-        side.generic.filter((concept) => concept !== ambiguous?.currentTotal || !leaseInCurrent),
+        side.generic.filter(
+          (concept) =>
+            concept !== ambiguous?.currentTotal || !(leaseInCurrent || emptyCurrentTotal),
+        ),
       );
       return {
         generic,
@@ -686,16 +693,23 @@ export function resolveDebtAtInstant<T>(
       )
     );
   })();
+  // No tag shows nonzero paper inside the current line a LongTermDebt total reconciles to, so it must sum it (PH FY2024).
   const omittedShortTerm =
-    ambiguous !== undefined &&
-    total === ambiguous.concept &&
-    (sides[0]?.concepts ?? []).every((concept) => valueAt(concept) === 0)
-      ? omittedDebtConcepts(
-          instant,
-          (concept) => ![...ambiguous.shortTerm, ambiguous.currentTotal].includes(concept),
-          history,
-        )
-      : [];
+    ambiguous === undefined || total !== ambiguous.concept
+      ? []
+      : (sides[0]?.concepts ?? []).every((concept) => valueAt(concept) === 0)
+        ? omittedDebtConcepts(
+            instant,
+            (concept) => ![...ambiguous.shortTerm, ambiguous.currentTotal].includes(concept),
+            history,
+          )
+        : (valueAt(ambiguous.commercialPaper) ?? 0) !== 0 &&
+            valueAt(total) !==
+              sum([
+                ...new Set([...sides.flatMap((side) => side.concepts), ambiguous.commercialPaper]),
+              ])
+          ? [ambiguous.commercialPaper]
+          : [];
   const currentGeneric = sides[0]?.generic;
   const currentInstruments = concepts.current.instruments
     .flatMap((aliases) => first(aliases) ?? [])

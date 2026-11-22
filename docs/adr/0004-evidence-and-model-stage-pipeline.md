@@ -217,9 +217,12 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   allowlist cannot show which tags are disjoint rows. One left out needs the selected total to equal the lines plus
   it, a combined total equal to the classified lines, or a maturities line equal to it whose current liabilities
   foot; otherwise the instant is a gap. Alias members are alternatives where the first tagged one holds the rest (NOW: short-term borrowings at carrying value hold paper at principal), but commercial paper holds no other line, so any nonzero bank loan beside it, equal or not, is a gap. Commercial paper is never a long-term maturity and adds beside it (Apple), but
-  a selected total must still sum it. `DebtCurrent` is the balance-sheet current line and outranks narrower
+  a selected total must still sum it, including a `LongTermDebt` total reconciled to the current line: no tag shows
+  paper inside that line, so the instant is a gap (PH FY2024 10-K: 8,412M beside 2,100M paper; LMT FY2018 and AMGN
+  2017 hold it only per their face labels and gap too). `DebtCurrent` is the balance-sheet current line and outranks narrower
   `LongTermDebtCurrent` maturities (INTC FY2018: 1,261M vs 761M), unless a nonzero `CapitalLeaseObligationsCurrent`
-  shows a `DebtCurrent` above the maturities may hold leases no finance-lease leg deducts (LRCX FY2018). A combined total that differs
+  shows a `DebtCurrent` above the maturities may hold leases no finance-lease leg deducts (LRCX FY2018), or it is zero
+  beside a nonzero current line it cannot hold (DLTR FY2024 10-K: short-term borrowings 0, maturities 1,000M). A combined total that differs
   from both same-filing classified lines and their component sum is refused for them (AVGO FY2024 principal, QCOM
   FY2019 omits paper).
 - `LineOfCredit` covers both legs: use tagged legs instead only if their sum equals the tagged umbrella,

@@ -244,7 +244,11 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   mixed composite (an equal sum through other lines is not enough) or with every other same-form filing at
   the instant repeating its values (absent lines only if zero or a named non-borrowing row). That filing's own
   resolution then publishes attributed to it; otherwise the instant withholds with a note naming the filings
-  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups. A mixed composite
+  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups, but one instant
+  publishes one debt amount: a complete resolution that repeats an earlier-public complete one's lines and
+  exceeds it by exactly the finance-lease legs that resolution tags proves nothing new and is dropped, unless a
+  liability line was recast in between (TDG 2025-09-30: 10-Q comparative 30,015M vs 10-K
+  0001260221-25-000081 29,731M; LHX 2026-01-02 keeps both after its 10-Q recast `OtherLiabilitiesCurrent`). A mixed composite
   that resolves complete but is withheld still contests partial-comparative recovery with its value.
   Other filings' facts stay in that resolution as obligations (prior nonzero lines still need coverage,
   principal due within a year still needs a current line); they only stop vouching for its lines. An older filing's nonzero line is not proven to hold

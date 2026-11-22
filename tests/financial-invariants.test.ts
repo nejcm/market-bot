@@ -18,6 +18,7 @@ import {
   assertFinancialStatementInvariants,
   assertRetainedDurationFactsIdentical,
   balanceSheetIdentityCoverage,
+  collectFinancialStatementInvariants,
   financialStatementDurationProjection,
 } from "../src/corpus/financial-statement-invariants";
 
@@ -249,6 +250,40 @@ describe("live financial invariant negative controls", () => {
     };
 
     expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
+  });
+
+  test("A11 fires when an interim comparative publishes another debt amount for an annual instant", () => {
+    const artifact = results
+      .map(financialStatements)
+      .find((candidate) => candidate.statements.balanceSheet.debt.annual.length > 0);
+    const debt = artifact?.statements.balanceSheet.debt;
+    const last = debt?.annual.at(-1);
+    if (artifact === undefined || debt === undefined || last === undefined) {
+      throw new Error("Fixture has no annual debt");
+    }
+    const withComparative = (value: number) => ({
+      ...artifact,
+      statements: {
+        ...artifact.statements,
+        balanceSheet: {
+          ...artifact.statements.balanceSheet,
+          debt: {
+            ...debt,
+            interim: [...debt.interim, { ...last, periodType: "interim" as const, value }],
+          },
+        },
+      },
+    });
+
+    const a11 = (value: number) =>
+      collectFinancialStatementInvariants(withComparative(value)).find(
+        ({ code }) => code === "A11",
+      );
+    expect(a11(last.value)?.failingCount).toBe(0);
+    expect(a11(last.value + 1)).toMatchObject({
+      failingCount: 1,
+      latestFailingPeriodEnd: last.periodEnd,
+    });
   });
 
   test("A2 fires when a flow fact carries no start", () => {

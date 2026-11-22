@@ -396,10 +396,14 @@ const tdgCell = (concept: string, millions: number | undefined, context: string)
   millions === undefined
     ? "<td>—</td>"
     : `<td><ix:nonFraction name="${concept}" contextRef="${context}" unitRef="usd" scale="6">${millions.toLocaleString("en-US")}</ix:nonFraction></td>`;
-const tdgFace = (rows: readonly TdgRow[] = TDG_ROWS, currentEnd = "2025-09-30") =>
+const tdgFace = (
+  rows: readonly TdgRow[] = TDG_ROWS,
+  currentEnd = "2025-09-30",
+  priorEnd = "2024-09-30",
+) =>
   `${[
     ["c", currentEnd],
-    ["p", "2024-09-30"],
+    ["p", priorEnd],
   ]
     .map(
       ([id, end]) =>
@@ -2304,5 +2308,186 @@ describe("AMRC 2026-06-30 current finance lease placed only by its face", () => 
     expect(debtAt(deriveItems(gaap, [face]), "2026-06-30")).toEqual([
       ["interim", 1_946_937e3, "2026-08-04"],
     ]);
+  });
+});
+
+const instantDebt = (artifact: ReturnType<typeof deriveItems>, end: string) => {
+  const { annual, interim } = artifact.statements.balanceSheet.debt;
+  return [annual, interim].map((facts) => facts.find((debt) => debt.periodEnd === end)?.value);
+};
+// One 10-K and one later 10-Q comparative at `end`; each line is [10-K value, 10-Q value].
+const comparativeDebt = (
+  end: string,
+  annual: readonly [accn: string, filed: string],
+  interim: readonly [accn: string, filed: string],
+  lines: Readonly<Record<string, readonly [number | undefined, number | undefined]>>,
+) =>
+  instantDebt(
+    deriveItems(
+      {
+        ...Object.fromEntries(
+          Object.entries(lines).map(([concept, [k, q]]) => [
+            concept,
+            [
+              ...(k === undefined ? [] : [fact(k, end, annual[1], annual[0], "10-K")]),
+              ...(q === undefined ? [] : [fact(q, end, interim[1], interim[0])]),
+            ],
+          ]),
+        ),
+        Revenues: [
+          {
+            ...fact(40e9, end, annual[1], annual[0], "10-K"),
+            start: `${Number(end.slice(0, 4)) - 1}${end.slice(4)}`,
+          },
+          { ...fact(10e9, interim[1], interim[1], interim[0]), start: end },
+        ],
+      },
+      [],
+    ),
+    end,
+  );
+
+describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs", () => {
+  const TDG_Q1_26 = "0001260221-26-000017";
+  const RECAST = { AccountsPayableCurrent: 400, AccruedLiabilitiesCurrent: 934 };
+  const tdgWithComparative = (filed: string, recast: Readonly<Record<string, number>> = {}) => ({
+    ...TDG_GAAP,
+    Revenues: [
+      ...TDG_GAAP.Revenues,
+      { ...fact(2290e6, "2025-12-27", filed, TDG_Q1_26), start: "2025-10-01" },
+    ],
+    ...Object.fromEntries(
+      Object.entries({
+        LongTermDebtCurrent: 124,
+        ShortTermBankLoansAndNotesPayable: 724,
+        LongTermDebtAndCapitalLeaseObligations: 29_167,
+        LiabilitiesCurrent: 2182,
+        ...recast,
+      }).map(([concept, millions]) => [
+        concept,
+        [
+          ...(TDG_GAAP[concept as keyof typeof TDG_GAAP] ?? []),
+          fact(millions * 1e6, "2025-09-30", filed, TDG_Q1_26),
+        ],
+      ]),
+    ),
+  });
+
+  const tdgQ1Face = (filed: string, recast: Readonly<Record<string, number>> = {}) =>
+    ({
+      sourceIds: [`sec-filing-${TDG_Q1_26}`],
+      metrics: {
+        accessionNumber: TDG_Q1_26,
+        reportDate: "2025-12-27",
+        filingDate: filed,
+        ...secBalanceSheetFaceMetrics(
+          tdgFace(
+            TDG_ROWS.map(([label, concept, fy2025]): TdgRow => {
+              const value = recast[concept.replace("us-gaap:", "")] ?? fy2025;
+              return [label, concept, value, value ?? 0];
+            }),
+            "2025-12-27",
+            "2025-09-30",
+          ),
+          "2025-12-27",
+        ),
+      },
+    }) as unknown as ExtendedEvidenceItem;
+
+  test("TDG 2025-09-30 keeps 10-K 0001260221-25-000081's 29,731M, not 10-Q 0001260221-26-000017's 30,015M, before 2026-11-10", async () => {
+    const { out } = await tdgFaces();
+    const artifact = deriveItems(tdgWithComparative("2026-02-03"), [
+      ...out.items,
+      tdgQ1Face("2026-02-03"),
+    ]);
+    expect(instantDebt(artifact, "2025-09-30")).toEqual([29_731e6, undefined]);
+    expect(balanceSheetHistory(artifact, "2026-11-09")?.rows.map((row) => row.debt?.value)).toEqual(
+      [24_618e6, 29_731e6],
+    );
+  });
+
+  test("a comparative filed before the 10-K is not dated by it, so both stay", async () => {
+    const { out } = await tdgFaces();
+    expect(
+      instantDebt(
+        deriveItems(tdgWithComparative("2025-11-01"), [...out.items, tdgQ1Face("2025-11-01")]),
+        "2025-09-30",
+      ),
+    ).toEqual([29_731e6, 30_015e6]);
+  });
+
+  test("a liability line recast between the filings keeps the comparative", async () => {
+    const { out } = await tdgFaces();
+    expect(
+      instantDebt(
+        deriveItems(tdgWithComparative("2026-02-03", RECAST), [
+          ...out.items,
+          tdgQ1Face("2026-02-03", RECAST),
+        ]),
+        "2025-09-30",
+      ),
+    ).toEqual([29_731e6, 30_015e6]);
+  });
+
+  test("an incomplete 10-K resolution leaves the comparative published", () => {
+    expect(
+      instantDebt(
+        deriveItems(tdgWithComparative("2026-02-03"), [tdgQ1Face("2026-02-03")]),
+        "2025-09-30",
+      ),
+    ).toEqual([undefined, 30_015e6]);
+  });
+
+  test("DG 2026-01-30 keeps 10-K 0001104659-26-032325's 4,431,616k with only the noncurrent leg tagged", () => {
+    expect(
+      comparativeDebt(
+        "2026-01-30",
+        ["0001104659-26-032325", "2026-03-20"],
+        ["0001104659-26-069205", "2026-06-02"],
+        {
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [14_401_000, 14_401_000],
+          LongTermDebtAndCapitalLeaseObligations: [4_565_881_000, 4_565_881_000],
+          FinanceLeaseLiabilityNoncurrent: [148_666_000, undefined],
+        },
+      ),
+    ).toEqual([4_431_616_000, undefined]);
+  });
+
+  test("GLW 2025-12-31 differs by 1,241M against 1,232M of legs, so both stay", () => {
+    expect(
+      comparativeDebt(
+        "2025-12-31",
+        ["0000024741-26-000124", "2026-02-12"],
+        ["0000024741-26-000205", "2026-05-01"],
+        {
+          DebtCurrent: [804e6, 804e6],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [795e6, undefined],
+          LongTermDebtAndCapitalLeaseObligations: [7630e6, 7630e6],
+          LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [8425e6, undefined],
+          FinanceLeaseLiability: [1232e6, undefined],
+          FinanceLeaseLiabilityCurrent: [84e6, undefined],
+          FinanceLeaseLiabilityNoncurrent: [1148e6, undefined],
+        },
+      ),
+    ).toEqual([7193e6, 8434e6]);
+  });
+
+  test("LUMN 2024-12-31 sits below the 10-K's 18,303M, so both stay", () => {
+    expect(
+      comparativeDebt(
+        "2024-12-31",
+        ["0000018926-25-000010", "2025-02-20"],
+        ["0000018926-25-000049", "2025-05-01"],
+        {
+          DebtAndCapitalLeaseObligations: [17_906e6, 17_906e6],
+          LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [18_518e6, undefined],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [412e6, 412e6],
+          LongTermDebtAndCapitalLeaseObligations: [17_494e6, 17_494e6],
+          FinanceLeaseLiability: [215e6, undefined],
+          FinanceLeaseLiabilityCurrent: [17e6, undefined],
+          FinanceLeaseLiabilityNoncurrent: [198e6, undefined],
+        },
+      ),
+    ).toEqual([18_303e6, 17_906e6]);
   });
 });

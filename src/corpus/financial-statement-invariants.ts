@@ -498,6 +498,18 @@ export function assertFinancialStatementInvariants(
   assertBalanceSheetIdentity(artifact, check);
   assertCompositeFactIntegrity(artifact, check);
   assertEnterpriseValueBridge(artifact, check);
+  const debt = series.find((item) => item.key === "debt");
+  for (const fact of debt?.interim ?? []) {
+    const annual = debt?.annual.find((other) => other.periodEnd === fact.periodEnd);
+    if (annual !== undefined) {
+      check(
+        annual.value === fact.value,
+        "A11",
+        `debt ${fact.periodEnd} publishes ${annual.value} annually but ${fact.value} in an interim`,
+        fact.periodEnd,
+      );
+    }
+  }
   const { revenue } = artifact.statements.incomeStatement;
   const splice = artifact.omissionNotes.find(
     (note) => note.code === "revenue-concept-splice",
@@ -544,7 +556,7 @@ export function collectFinancialStatementInvariants(
     results.push({ passed, periodEnd });
     checks.set(code, results);
   });
-  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"].map((code) => {
+  return ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11"].map((code) => {
     const results = checks.get(code) ?? [];
     const failures = results.filter((result) => !result.passed);
     const periods = new Set(

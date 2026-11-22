@@ -829,6 +829,17 @@ export function resolveDebtAtInstant<T>(
 const dayKey = (entry: { readonly periodEnd: string; readonly filedAt: string }) =>
   `${entry.periodEnd}|${entry.filedAt}`;
 
+const provenPublicAt = (entry: {
+  readonly fact: { readonly value: number } | undefined;
+  readonly proven: readonly { readonly value: number; readonly at: string }[];
+  readonly filedAt: string;
+}) =>
+  entry.proven
+    .filter(({ value }) => value === entry.fact?.value)
+    .map(({ at }) => at)
+    .toSorted()
+    .at(0) ?? entry.filedAt;
+
 // Same-day evidence from another filing counts as later than `latest`.
 const filedAfter = (
   fact: { readonly filedAt: string; readonly accessionNumber?: string | null },
@@ -849,6 +860,8 @@ const consistentResolutions = (left: ResolutionValues, right: ResolutionValues) 
 // A later filing's incomplete resolution of an instant supersedes earlier complete ones (partial amendments).
 export function unsupersededDebtResolutions<
   R extends ResolutionValues & {
+    readonly fact: { readonly value: number; readonly concept: string } | undefined;
+    readonly proven: readonly { readonly value: number; readonly at: string }[];
     readonly periodEnd: string;
     readonly filedAt: string;
     readonly incomplete: boolean;
@@ -865,6 +878,7 @@ export function unsupersededDebtResolutions<
     readonly accessionNumber?: string | null;
   }[],
   liabilities: readonly DebtHistoryFact[],
+  taxonomy: FinancialStatementTaxonomy,
 ): readonly R[] {
   // A partial re-tag of the latest uncontested complete instant at identical values proves nothing new.
   // A recast column (disposal, restatement, or reclassification of a liability line) supersedes it.
@@ -924,7 +938,37 @@ export function unsupersededDebtResolutions<
         .map(({ concept }) => concept),
     ),
   ];
+  const leases = DEBT_CONCEPTS[taxonomy].financeLeases;
+  // A later complete comparative that repeats an earlier one's lines but not its finance-lease legs proves nothing new.
+  const leaseFreeEarlier = (entry: R) => {
+    const value = entry.fact?.value;
+    const repeated = (entry.fact?.concept.match(/[+-]?[^+-]+/gu) ?? [])
+      .filter((term) => !term.startsWith("-"))
+      .map((term) => term.replace(/^\+/u, ""));
+    return leases === undefined || entry.incomplete || value === undefined
+      ? undefined
+      : all.find((earlier) => {
+          const legs =
+            earlier.lines.get(leases.total) ??
+            leases.split.reduce((sum, leg) => sum + (earlier.lines.get(leg) ?? 0), 0);
+          return (
+            !earlier.incomplete &&
+            earlier.periodEnd === entry.periodEnd &&
+            earlier.fact !== undefined &&
+            provenPublicAt(earlier) <= provenPublicAt(entry) &&
+            legs > 0 &&
+            value - earlier.fact.value === legs &&
+            repeated.every(
+              (concept) => (earlier.lines.get(concept) ?? 0) === entry.lines.get(concept),
+            )
+          );
+        });
+  };
   const resolved = all.flatMap((entry) => {
+    const earlier = leaseFreeEarlier(entry);
+    if (earlier !== undefined) {
+      return recastLiabilities(entry, earlier).length === 0 ? [] : [entry];
+    }
     const latest = entry.incompleteReason?.startsWith("omits ")
       ? repeatedComplete(entry)
       : undefined;

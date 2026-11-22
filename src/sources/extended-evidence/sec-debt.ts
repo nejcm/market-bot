@@ -406,6 +406,7 @@ export function factsForDebt(
         history,
         (fact) => fact.value,
         (fact) => fact.filedAt,
+        (fact) => fact.accessionNumber,
         Object.fromEntries(
           Object.entries(principalFacts).map(([key, values]) => [
             key,

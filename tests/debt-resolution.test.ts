@@ -15,6 +15,10 @@ import { marketSnapshot } from "./support/fixtures";
 import type { ValuationFundamentalInput } from "../src/sources/extended-evidence/valuation-workbench-contract";
 import { valuationMetricSection } from "../src/sources/extended-evidence/valuation-workbench-metrics";
 import { financialStatementsDebtBasisGaps } from "../src/sources/extended-evidence/sec-debt";
+import {
+  resolveDebtAtInstant,
+  unadjustedLeaseInclusiveDebt,
+} from "../src/sources/extended-evidence/sec-debt-resolution";
 
 const ANALYSIS_AS_OF = "2026-10-08T00:00:00.000Z";
 
@@ -1560,7 +1564,7 @@ describe("ambiguous LongTermDebt", () => {
   });
 
   test("a principal combined total yields to same-filing classified lines", () => {
-    // AVGO FY2024 10-K: 1,245M maturities + 66,295M noncurrent incl. 13M finance leases; combined 69,847M is principal.
+    // AVGO FY2024 10-K: 1,245M maturities (1,271M with 26M finance leases) + 66,295M noncurrent incl. 13M leases; combined 69,847M is principal.
     const on = (value: number) =>
       filed(value, "2024-11-03", "2024-12-20", "0001730168-24-000139", "10-K");
     expect(
@@ -1568,6 +1572,7 @@ describe("ambiguous LongTermDebt", () => {
         {
           DebtLongtermAndShorttermCombinedAmount: [on(69_847)],
           LongTermDebtCurrent: [on(1245)],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [on(1271)],
           LongTermDebtAndCapitalLeaseObligations: [on(66_295)],
           FinanceLeaseLiabilityCurrent: [on(26)],
           FinanceLeaseLiabilityNoncurrent: [on(13)],
@@ -1575,6 +1580,152 @@ describe("ambiguous LongTermDebt", () => {
         "2024-11-03",
       ),
     ).toMatchObject({ value: 67_527, accessionNumber: "0001730168-24-000139" });
+  });
+
+  describe("current finance lease placement without a face", () => {
+    // AMRC 10-Q 0001628280-26-052190 at 2026-06-30: the 686k lease sits inside LongTermDebtCurrent, shown only by the face tag.
+    const amrc = (value: number) =>
+      filed(value, "2026-06-30", "2026-08-04", "0001628280-26-052190");
+    const amrcLines = {
+      LongTermDebtCurrent: [amrc(164_343_000)],
+      LongTermDebtAndCapitalLeaseObligations: [amrc(1_794_492_000)],
+      FinanceLeaseLiabilityCurrent: [amrc(686_000)],
+      FinanceLeaseLiabilityNoncurrent: [amrc(11_212_000)],
+    };
+    test("AMRC 2026-06-30 withholds rather than publish 1,947,623k with the lease inside", () => {
+      expectGap(amrcLines, "FinanceLeaseLiabilityCurrent (686000)");
+    });
+
+    // AVGO FY2023 10-K 0001730168-23-000096: 1,608M = 1,563M maturities + 45M lease, so the lease sits beside them.
+    const avgo = (value: number) =>
+      filed(value, "2023-10-29", "2023-12-14", "0001730168-23-000096", "10-K");
+    const avgoLines = {
+      LongTermDebtCurrent: [avgo(1563)],
+      LongTermDebtAndCapitalLeaseObligations: [avgo(37_621)],
+      FinanceLeaseLiabilityCurrent: [avgo(45)],
+      FinanceLeaseLiabilityNoncurrent: [avgo(4)],
+    };
+    test("AVGO 2023-10-29 publishes 39,180M when the inclusive current line shows the lease beside", () => {
+      expect(
+        resolveAt(
+          { ...avgoLines, LongTermDebtAndCapitalLeaseObligationsCurrent: [avgo(1608)] },
+          "2023-10-29",
+        ),
+      ).toMatchObject({ value: 39_180, accessionNumber: "0001730168-23-000096" });
+    });
+    test.each([
+      ["without the inclusive current line", {}],
+      [
+        "when the inclusive current line ties to neither relation",
+        { LongTermDebtAndCapitalLeaseObligationsCurrent: [avgo(1600)] },
+      ],
+    ])("AVGO 2023-10-29 withholds %s", (_name, extra) => {
+      expectGap({ ...avgoLines, ...extra }, "same-filing arithmetic shows where", "2023-10-29");
+    });
+    test("AVGO 2023-10-29 lines from two filings prove no placement", () => {
+      const lines = new Map(
+        Object.entries({
+          LongTermDebtCurrent: 1563,
+          LongTermDebtAndCapitalLeaseObligationsCurrent: 1608,
+          LongTermDebtAndCapitalLeaseObligations: 37_621,
+          FinanceLeaseLiabilityCurrent: 45,
+          FinanceLeaseLiabilityNoncurrent: 4,
+        }).map(([concept, value]) => [
+          concept,
+          {
+            value,
+            accession:
+              concept === "LongTermDebtCurrent" ? "0001730168-24-000023" : "0001730168-23-000096",
+          },
+        ]),
+      );
+      const resolution = resolveDebtAtInstant(
+        "us-gaap",
+        { periodEnd: "2023-10-29", filedAt: "2024-03-14" },
+        lines,
+        [],
+        (fact) => fact.value,
+        () => "2024-03-14",
+        (fact) => fact.accession,
+      );
+      expect(resolution.incompleteReason).toContain("same-filing arithmetic shows where");
+    });
+
+    test("a same-day zero from another accession proves no placement", () => {
+      const a = (value: number) => filed(value, "2026-06-30", "2026-08-04", "accession-a");
+      expectGap(
+        {
+          LongTermDebtCurrent: [filed(0, "2026-06-30", "2026-08-04", "accession-b")],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [a(686_000)],
+          LongTermDebtAndCapitalLeaseObligations: [a(1_794_492_000)],
+          FinanceLeaseLiabilityCurrent: [a(686_000)],
+          FinanceLeaseLiabilityNoncurrent: [a(11_212_000)],
+        },
+        "no lease-placement tag or same-filing arithmetic shows where",
+      );
+    });
+
+    test("TGT FY2018 10-K 0000027419-19-000006 deducts the 53M lease inside 1,052M maturities: 10,254M", () => {
+      const tgt = (value: number) =>
+        filed(value, "2019-02-02", "2019-03-13", "0000027419-19-000006", "10-K");
+      expect(
+        resolveAt(
+          {
+            LongTermDebtCurrent: [tgt(1052)],
+            LongTermDebtAndCapitalLeaseObligationsCurrent: [tgt(1052)],
+            LongTermDebtAndCapitalLeaseObligations: [tgt(10_223)],
+            FinanceLeaseLiabilityCurrent: [tgt(53)],
+            FinanceLeaseLiabilityNoncurrent: [tgt(968)],
+          },
+          "2019-02-02",
+        ),
+      ).toMatchObject({ value: 10_254 });
+    });
+
+    // An untagged current leg on a definitionally lease-inclusive current line stays published under the possible-lease gap.
+    test.each([
+      [
+        "GLW 10-Q 0000024741-26-000205",
+        "2026-03-31",
+        "2026-05-01",
+        {
+          DebtCurrent: 1255,
+          LongTermDebtAndCapitalLeaseObligations: 7718,
+          FinanceLeaseLiabilityNoncurrent: 149,
+        },
+        8824,
+      ],
+      [
+        "DG 10-K 0001104659-26-032325",
+        "2026-01-30",
+        "2026-03-20",
+        {
+          LongTermDebtAndCapitalLeaseObligationsCurrent: 14_401,
+          LongTermDebtAndCapitalLeaseObligations: 4_565_881,
+          FinanceLeaseLiabilityNoncurrent: 148_666,
+        },
+        4_431_616,
+      ],
+    ])(
+      "%s at %s publishes with its current line lease-inclusive",
+      (name, end, filedAt, lines, value) => {
+        const accn = name.split(" ").at(-1) ?? "";
+        const form = name.includes("10-K") ? "10-K" : "10-Q";
+        const fact = resolveAt(
+          Object.fromEntries(
+            Object.entries(lines).map(([concept, v]) => [
+              concept,
+              [filed(v, end, filedAt, accn, form)],
+            ]),
+          ),
+          end,
+        );
+        expect(fact?.value).toBe(value);
+        expect(unadjustedLeaseInclusiveDebt("us-gaap", fact?.concept ?? "")).toEqual(
+          Object.keys(lines).slice(0, 1),
+        );
+      },
+    );
   });
 
   test("DebtCurrent outranks narrower current maturities", () => {

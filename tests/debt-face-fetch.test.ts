@@ -2244,3 +2244,65 @@ describe("tagged-zero proof boundaries", () => {
     ]);
   });
 });
+
+// AMRC 10-Q 0001628280-26-052190 at 2026-06-30: the face tag places the 686k current lease inside LongTermDebtCurrent; non-debt rows are synthetic.
+describe("AMRC 2026-06-30 current finance lease placed only by its face", () => {
+  const AMRC_Q2 = "0001628280-26-052190";
+  const lines = {
+    LongTermDebtCurrent: 164_343,
+    LongTermDebtAndCapitalLeaseObligations: 1_794_492,
+    FinanceLeaseLiabilityCurrent: 686,
+    FinanceLeaseLiabilityNoncurrent: 11_212,
+  };
+  const filing = {
+    accn: AMRC_Q2,
+    filed: "2026-08-04",
+    form: "10-Q",
+    fp: "Q2",
+    end: "2026-06-30",
+  } as const;
+  const gaap = companyFacts([{ ...filing, thousands: lines }]);
+  const revenue = companyFacts([{ ...filing, thousands: { Revenues: 400_000 } }]).Revenues ?? [];
+  gaap.Revenues = revenue.map((row) => ({ ...row, start: "2026-04-01" }));
+  const face = filedFace(
+    AMRC_Q2,
+    "2026-06-30",
+    "2026-08-04",
+    columnsFace(
+      ["2026-06-30"],
+      [
+        ["Total assets", "us-gaap:Assets", 3_000_000],
+        [
+          "Current portions of long-term debt and financing lease liabilities, net",
+          "us-gaap:LongTermDebtCurrent",
+          164_343,
+        ],
+        ["Accounts payable", "us-gaap:AccountsPayableCurrent", 100_000],
+        ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 264_343],
+        [
+          "Long-term debt and financing lease liabilities, net",
+          "us-gaap:LongTermDebtAndCapitalLeaseObligations",
+          1_794_492,
+        ],
+        ["Other liabilities", "us-gaap:OtherLiabilitiesNoncurrent", 50_000],
+        ["Total liabilities", "us-gaap:Liabilities", 2_108_835],
+      ],
+      [["FinanceLeaseLiabilityCurrent", "LongTermDebtCurrent"]],
+    ),
+  );
+
+  test("without the face it withholds and asks for the 10-Q", () => {
+    const artifact = deriveItems(gaap, []);
+    expect(debtAt(artifact, "2026-06-30")).toEqual([]);
+    expect(debtInstantsNeedingFace(artifact)).toContainEqual({
+      periodEnd: "2026-06-30",
+      accessionNumber: AMRC_Q2,
+    });
+  });
+
+  test("the face's placement tag publishes 164,343k − 686k + 1,794,492k − 11,212k = 1,946,937k", () => {
+    expect(debtAt(deriveItems(gaap, [face]), "2026-06-30")).toEqual([
+      ["interim", 1_946_937e3, "2026-08-04"],
+    ]);
+  });
+});

@@ -229,6 +229,13 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   lease-inclusive by its definition or when its own filing's lease-placement tag
   (`FinanceLeaseLiability{Current,Noncurrent}StatementOfFinancialPositionExtensibleList`) names it alone, complete
   (no continuation), in a consolidated context of the debt line's own instant and accession (TDG `LongTermDebtCurrent` FY2026: 12M current lease deducted).
+  Same-filing arithmetic also places a nonzero current finance lease: `LongTermDebtAndCapitalLeaseObligationsCurrent`
+  equal to `LongTermDebtCurrent` puts it inside, so it is deducted (TGT FY2018 10-K 0000027419-19-000006: 1,052M,
+  10,254M debt); equal to `LongTermDebtCurrent` plus the lease puts it beside (AVGO FY2023 10-K
+  0001730168-23-000096: 1,608M = 1,563M + 45M). At any instant, with or without a face, an unplaced nonzero or
+  untagged current finance lease beside a subtracted noncurrent one withholds (AMRC 10-Q 0001628280-26-052190,
+  whose lease sits inside `LongTermDebtCurrent` only per its face tag). A definitionally lease-inclusive current
+  line with an untagged current leg is retained with the possible-lease gap instead (GLW 2026-03-31, DG 2026-01-30).
 - Composite debt needs a borrowing line, no unrecognized standard borrowing tag, and coverage of every prior
   nonzero borrowing concept within 400 days or an earlier same-instant filing; generic sides cover prior
   constituent details. The lines that decide a published composite come from one filing: when the instant's
@@ -290,7 +297,7 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   (KR 10-Q 2026-08-15 tags no finance lease).
 - A later non-amended inline-XBRL 10-K/10-Q comparative column may prove an instant; a face-proved amount is dated by
   its earliest complete proof, never before the proving filing (TDG 2024-09-30 24,618M public 2024-11-07, 10-K
-  0001260221-24-000083). On such a face, an unplaced nonzero current finance lease beside a subtracted noncurrent one withholds.
+  0001260221-24-000083).
 - Never publish an incomplete debt instant, and never let an older amount stand in for one. Every incomplete instant
   emits a dated `incomplete-composite-series` note. When the newest debt instant is incomplete, both paths drop the
   latest-debt metrics: SEC prose, the lens debt row, the financial-position projection, peers, alpha debt features,

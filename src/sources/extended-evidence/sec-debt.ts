@@ -533,6 +533,7 @@ export function factsForDebt(
     ),
     liabilities,
     taxonomy,
+    history,
   );
 
   const [latest] = current

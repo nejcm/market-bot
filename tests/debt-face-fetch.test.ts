@@ -2315,23 +2315,24 @@ const instantDebt = (artifact: ReturnType<typeof deriveItems>, end: string) => {
   const { annual, interim } = artifact.statements.balanceSheet.debt;
   return [annual, interim].map((facts) => facts.find((debt) => debt.periodEnd === end)?.value);
 };
-// One 10-K and one later 10-Q comparative at `end`; each line is [10-K value, 10-Q value].
-const comparativeArtifact = (
+type Filing = readonly [accn: string, filed: string, form: string];
+// Each line lists its value in each filing, in order; Revenues come from the first 10-K and first 10-Q.
+const filingsArtifact = (
   end: string,
-  annual: readonly [accn: string, filed: string],
-  interim: readonly [accn: string, filed: string],
-  lines: Readonly<Record<string, readonly [number | undefined, number | undefined]>>,
-) =>
-  deriveItems(
+  filings: readonly Filing[],
+  lines: Readonly<Record<string, readonly (number | undefined)[]>>,
+) => {
+  const tagged = (values: readonly (number | undefined)[]) =>
+    filings.flatMap(([accn, filed, form], index) => {
+      const value = values[index];
+      return value === undefined ? [] : [fact(value, end, filed, accn, form)];
+    });
+  const annual = filings.find((filing) => filing[2] === "10-K")!;
+  const interim = filings.find((filing) => filing[2] === "10-Q")!;
+  return deriveItems(
     {
       ...Object.fromEntries(
-        Object.entries(lines).map(([concept, [k, q]]) => [
-          concept,
-          [
-            ...(k === undefined ? [] : [fact(k, end, annual[1], annual[0], "10-K")]),
-            ...(q === undefined ? [] : [fact(q, end, interim[1], interim[0])]),
-          ],
-        ]),
+        Object.entries(lines).map(([concept, values]) => [concept, tagged(values)]),
       ),
       Revenues: [
         {
@@ -2342,6 +2343,22 @@ const comparativeArtifact = (
       ],
     },
     [],
+  );
+};
+// One 10-K and one later 10-Q comparative at `end`; each line is [10-K value, 10-Q value].
+const comparativeArtifact = (
+  end: string,
+  annual: readonly [accn: string, filed: string],
+  interim: readonly [accn: string, filed: string],
+  lines: Readonly<Record<string, readonly [number | undefined, number | undefined]>>,
+) =>
+  filingsArtifact(
+    end,
+    [
+      [...annual, "10-K"],
+      [...interim, "10-Q"],
+    ],
+    lines,
   );
 const comparativeDebt = (...args: Parameters<typeof comparativeArtifact>) =>
   instantDebt(comparativeArtifact(...args), args[0]);
@@ -2570,6 +2587,75 @@ describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs
         message: expect.stringContaining("present it differently"),
       }),
     );
+  });
+
+  test("a 10-K/A filed the same day as the 10-Q still withholds both with a note", () => {
+    const artifact = filingsArtifact(
+      "2026-01-30",
+      [
+        ["0000000001-26-000001", "2026-03-20", "10-K"],
+        ["0000000001-26-000002", "2026-06-02", "10-K/A"],
+        ["0000000001-26-000003", "2026-06-02", "10-Q"],
+      ],
+      {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [100e6, 100e6, 100e6],
+        FinanceLeaseLiability: [10e6, 10e6, undefined],
+      },
+    );
+    expect(instantDebt(artifact, "2026-01-30")).toEqual([undefined, undefined]);
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        periodKey: "instant|2026-01-30",
+        message: expect.stringContaining(
+          "0000000001-26-000002, 0000000001-26-000003, all filed 2026-06-02",
+        ),
+      }),
+    );
+  });
+
+  test("a comparative matching only a later 10-K's lines, not the proving 10-K's, stays", () => {
+    expect(
+      instantDebt(
+        filingsArtifact(
+          "2025-01-30",
+          [
+            ["0000000001-25-000001", "2025-03-20", "10-K"],
+            ["0000000001-25-000002", "2025-06-02", "10-Q"],
+            ["0000000001-26-000001", "2026-03-20", "10-K"],
+          ],
+          {
+            LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [100e6, 110e6, 110e6],
+            FinanceLeaseLiability: [10e6, undefined, 20e6],
+          },
+        ),
+        "2025-01-30",
+      ),
+    ).toEqual([90e6, 110e6]);
+  });
+
+  test("a liability recast by another filing on the proof day keeps the comparative", () => {
+    expect(
+      instantDebt(
+        filingsArtifact(
+          "2025-09-30",
+          [
+            ["0000000001-25-000001", "2025-11-12", "10-K"],
+            ["0000000001-25-000002", "2025-11-12", "10-K/A"],
+            ["0000000001-26-000001", "2026-02-03", "10-Q"],
+          ],
+          {
+            LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [
+              100e6,
+              undefined,
+              100e6,
+            ],
+            FinanceLeaseLiability: [10e6, undefined, undefined],
+            OtherLiabilitiesCurrent: [200e6, 180e6, 180e6],
+          },
+        ),
+        "2025-09-30",
+      ),
+    ).toEqual([90e6, 100e6]);
   });
 
   test("GLW 2025-12-31 differs by 1,241M against 1,232M of legs, so both stay", () => {

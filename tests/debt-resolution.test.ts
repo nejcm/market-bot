@@ -1817,25 +1817,120 @@ describe("ambiguous LongTermDebt", () => {
     ).toMatchObject({ value: 2_431_700_000, concept: "DebtCurrent+LongTermDebtNoncurrent" });
   });
 
+  const PAPER_UNSHOWN =
+    "is tagged at this instant, but no tagged line or total shows it inside the selected debt";
+
   test("PH: a LongTermDebt total reconciled to DebtCurrent without 2,100M commercial paper withholds", () => {
     // PH FY2024 10-K (0000076334-24-000044): LongTermDebt 8,412.014M = 1,254.98M + 7,157.034M, paper 2,100M.
     const fy = (value: number) =>
       filed(value, "2024-06-30", "2024-08-22", "0000076334-24-000044", "10-K");
+    const gaap = {
+      DebtCurrent: [fy(1_254_980_000)],
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [fy(3_403_065_000)],
+      LongTermDebtAndCapitalLeaseObligations: [fy(7_157_034_000)],
+      LongTermDebt: [fy(8_412_014_000)],
+      CommercialPaper: [fy(2_100_000_000)],
+      OtherLongTermDebt: [fy(104_794_000)],
+      FinanceLeaseLiabilityCurrent: [fy(5_042_000)],
+      FinanceLeaseLiabilityNoncurrent: [fy(98_343_000)],
+    };
+    expectGap(gaap, `CommercialPaper (2100000000) ${PAPER_UNSHOWN}`, "2024-06-30");
+    expect(resolve(gaap).legacy?.metrics.debtIncompleteReason).toContain(PAPER_UNSHOWN);
+  });
+
+  test("LMT: paper inside a current line that only the face label shows withholds", () => {
+    // LMT FY2018 10-K (0000936468-19-000009): "current maturities of long-term debt and commercial paper" 1,500M holds 600M paper.
+    const fy = (value: number) =>
+      filed(value, "2018-12-31", "2019-02-08", "0000936468-19-000009", "10-K");
     expectGap(
       {
-        DebtCurrent: [fy(1_254_980_000)],
-        LongTermDebtAndCapitalLeaseObligationsCurrent: [fy(3_403_065_000)],
-        LongTermDebtAndCapitalLeaseObligations: [fy(7_157_034_000)],
-        LongTermDebt: [fy(8_412_014_000)],
-        CommercialPaper: [fy(2_100_000_000)],
-        OtherLongTermDebt: [fy(104_794_000)],
-        FinanceLeaseLiabilityCurrent: [fy(5_042_000)],
-        FinanceLeaseLiabilityNoncurrent: [fy(98_343_000)],
+        DebtCurrent: [fy(1_500_000_000)],
+        LongTermDebtCurrent: [fy(1_500_000_000)],
+        LongTermDebtNoncurrent: [fy(12_604_000_000)],
+        LongTermDebt: [fy(14_104_000_000)],
+        CommercialPaper: [fy(600_000_000)],
       },
-      "LongTermDebt excludes CommercialPaper",
-      "2024-06-30",
+      PAPER_UNSHOWN,
+      "2018-12-31",
     );
   });
+
+  test("NTAP: a zero ShortTermBorrowings in a comparative composite cannot hold 500M paper", () => {
+    // NTAP FY2017 10-K (0001564590-17-012758) face: commercial paper notes 500M, short-term loan 0, 749M + 744M.
+    const fy17 = (value: number) =>
+      filed(value, "2017-04-28", "2017-06-20", "0001564590-17-012758", "10-K");
+    const fy18 = (value: number) =>
+      filed(value, "2017-04-28", "2018-06-19", "0001564590-18-015820", "10-K");
+    expectGap(
+      {
+        ShortTermBorrowings: [fy17(0)],
+        CommercialPaper: [fy17(500_000_000), fy18(500_000_000)],
+        LongTermDebtCurrent: [fy17(749_000_000), fy18(749_000_000)],
+        LongTermDebtNoncurrent: [fy17(744_000_000), fy18(744_000_000)],
+        LongTermDebt: [fy17(1_493_000_000), fy18(1_493_000_000)],
+      },
+      `CommercialPaper (500000000) ${PAPER_UNSHOWN}`,
+      "2017-04-28",
+    );
+  });
+
+  test.each([
+    [
+      "zero current lines beside paper",
+      { DebtCurrent: [at(0)], CommercialPaper: [at(25)], LongTermDebt: [at(100)] },
+      PAPER_UNSHOWN,
+    ],
+    [
+      "zero DebtCurrent beside maturities and paper",
+      {
+        DebtCurrent: [at(0)],
+        LongTermDebtCurrent: [at(30)],
+        CommercialPaper: [at(10)],
+        LongTermDebtNoncurrent: [at(70)],
+        LongTermDebt: [at(100)],
+      },
+      "CommercialPaper (10) exceeds DebtCurrent (0)",
+    ],
+    [
+      "zero DebtCurrent and maturities beside a lease-inclusive current line",
+      {
+        DebtCurrent: [at(0)],
+        LongTermDebtCurrent: [at(0)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [at(30)],
+        FinanceLeaseLiabilityCurrent: [at(5)],
+        LongTermDebtNoncurrent: [at(70)],
+      },
+      "finance-lease deduction FinanceLeaseLiabilityCurrent exceeds DebtCurrent",
+    ],
+    [
+      "zero DebtCurrent beside two current lines, one lease-inclusive",
+      {
+        DebtCurrent: [at(0)],
+        LongTermDebtCurrent: [at(30)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [at(30)],
+        FinanceLeaseLiabilityCurrent: [at(5)],
+        LongTermDebtNoncurrent: [at(70)],
+        LongTermDebt: [at(100)],
+      },
+      "finance-lease deduction FinanceLeaseLiabilityCurrent exceeds DebtCurrent",
+    ],
+    [
+      "zero DebtCurrent beside lease-inclusive lines and lease legs",
+      {
+        DebtCurrent: [at(0)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [at(500)],
+        LongTermDebtAndCapitalLeaseObligations: [at(2000)],
+        FinanceLeaseLiabilityCurrent: [at(5)],
+        FinanceLeaseLiabilityNoncurrent: [at(95)],
+      },
+      "finance-lease deduction FinanceLeaseLiabilityCurrent exceeds DebtCurrent",
+    ],
+  ] as const)(
+    "a zero DebtCurrent outside the DLTR shape keeps its gap: %s",
+    (_label, gaap, reason) => {
+      expectGap(gaap, reason);
+    },
+  );
 
   test("a LongTermDebt total that sums its commercial paper or holds none stays published", () => {
     // NDSN Q3 FY2026 10-Q (0000072331-26-000054): 10M + 192M paper + 1,529.005M = 1,731.005M.
@@ -1851,7 +1946,33 @@ describe("ambiguous LongTermDebt", () => {
         },
         "2026-07-31",
       ),
-    ).toMatchObject({ value: 1_731_005_000 });
+    ).toMatchObject({ value: 1_731_005_000, concept: "LongTermDebt" });
+    // ADR 0004 alias rule: a nonzero ShortTermBorrowings holds the paper, so the total sums it once.
+    expect(
+      resolveAt(
+        {
+          LongTermDebtCurrent: [at(10)],
+          ShortTermBorrowings: [at(191)],
+          CommercialPaper: [at(192)],
+          LongTermDebtNoncurrent: [at(1529)],
+          LongTermDebt: [at(1730)],
+        },
+        "2026-06-30",
+      ),
+    ).toMatchObject({ value: 1730, concept: "LongTermDebt" });
+    // DebtCurrent equal to maturities plus paper shows the paper inside the current line.
+    expect(
+      resolveAt(
+        {
+          DebtCurrent: [at(30)],
+          LongTermDebtCurrent: [at(20)],
+          CommercialPaper: [at(10)],
+          LongTermDebtNoncurrent: [at(70)],
+          LongTermDebt: [at(100)],
+        },
+        "2026-06-30",
+      ),
+    ).toMatchObject({ value: 100, concept: "LongTermDebt" });
     // PH FY2021 10-K (0000076334-21-000187): paper 0, LongTermDebt 6,584.872M = 2.819M + 6,582.053M.
     const ph = (value: number) =>
       filed(value, "2021-06-30", "2021-08-25", "0000076334-21-000187", "10-K");

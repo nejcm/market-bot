@@ -470,10 +470,39 @@ export function resolveDebtAtInstant<T>(
         vouches(fact) &&
         (taggedValue(ambiguous?.currentTotal) ?? 0) > maturitiesValue,
     );
-  // A zero DebtCurrent holds none of a nonzero current line (DLTR FY2024: short-term borrowings 0, maturities 1,000M).
+  const nonzeroAt = (concept: string) =>
+    (taggedValue(concept) ?? 0) !== 0 ||
+    liabilities.some(
+      (fact) =>
+        fact.concept === concept && fact.periodEnd === instant.periodEnd && fact.value !== 0,
+    );
+  const noncurrentLine = concepts.noncurrent.generic.find(
+    (concept) => concept !== ambiguous?.concept && tagged.has(concept),
+  );
+  const dltrFacts = [
+    ambiguous?.currentTotal,
+    ambiguous?.current,
+    noncurrentLine,
+    ambiguous?.concept,
+  ].map((concept) => tagged.get(concept ?? ""));
+  // A zero DebtCurrent beside lone maturities that a same-filing LongTermDebt sums holds none of them (DLTR FY2024).
   const emptyCurrentTotal =
-    taggedValue(ambiguous?.currentTotal) === 0 &&
-    concepts.current.generic.some((concept) => (taggedValue(concept) ?? 0) !== 0);
+    ambiguous !== undefined &&
+    taggedValue(ambiguous.currentTotal) === 0 &&
+    concepts.current.generic.filter(nonzeroAt).join(",") === ambiguous.current &&
+    ![
+      ...concepts.current.instruments.flat(),
+      ambiguous.capitalLeaseCurrent,
+      ...Object.values(concepts.financeLeases ?? {}).flat(),
+    ].some(nonzeroAt) &&
+    dltrFacts.every(
+      (fact) =>
+        fact !== undefined &&
+        accessionOf(fact) !== null &&
+        accessionOf(fact) === accessionOf(dltrFacts[0] as T),
+    ) &&
+    taggedValue(ambiguous.concept) ===
+      (taggedValue(ambiguous.current) ?? 0) + (taggedValue(noncurrentLine) ?? 0);
   const sidesOf = (has: (concept: string) => boolean) => {
     const firstOf = (aliases: readonly string[]) => aliases.find(has);
     const shortTermOf = ambiguous === undefined ? undefined : firstOf(ambiguous.shortTerm);
@@ -693,23 +722,35 @@ export function resolveDebtAtInstant<T>(
       )
     );
   })();
-  // No tag shows nonzero paper inside the current line a LongTermDebt total reconciles to, so it must sum it (PH FY2024).
   const omittedShortTerm =
-    ambiguous === undefined || total !== ambiguous.concept
-      ? []
-      : (sides[0]?.concepts ?? []).every((concept) => valueAt(concept) === 0)
-        ? omittedDebtConcepts(
-            instant,
-            (concept) => ![...ambiguous.shortTerm, ambiguous.currentTotal].includes(concept),
-            history,
-          )
-        : (valueAt(ambiguous.commercialPaper) ?? 0) !== 0 &&
-            valueAt(total) !==
-              sum([
-                ...new Set([...sides.flatMap((side) => side.concepts), ambiguous.commercialPaper]),
-              ])
-          ? [ambiguous.commercialPaper]
-          : [];
+    ambiguous !== undefined &&
+    total === ambiguous.concept &&
+    (sides[0]?.concepts ?? []).every((concept) => valueAt(concept) === 0)
+      ? omittedDebtConcepts(
+          instant,
+          (concept) => ![...ambiguous.shortTerm, ambiguous.currentTotal].includes(concept),
+          history,
+        )
+      : [];
+  const paper = ambiguous?.commercialPaper ?? "";
+  const shortTerm = ambiguous?.shortTerm ?? [];
+  // A nonzero alias holds paper (NOW), as does a DebtCurrent equal to maturities plus paper; a zero alias holds none.
+  const unsummedPaper =
+    ambiguous !== undefined &&
+    (valueAt(paper) ?? 0) !== 0 &&
+    !(sides[0]?.concepts ?? []).some(
+      (concept) => concept !== paper && shortTerm.includes(concept) && valueAt(concept) !== 0,
+    ) &&
+    !(
+      tagged.has(ambiguous.currentTotal) &&
+      tagged.has(ambiguous.current) &&
+      valueAt(ambiguous.currentTotal) === sum([ambiguous.current, paper])
+    ) &&
+    (total === ambiguous.concept
+      ? valueAt(total) !== sum([...new Set([...sides.flatMap((side) => side.concepts), paper])])
+      : total === undefined &&
+        !used.includes(paper) &&
+        used.some((concept) => shortTerm.includes(concept) && valueAt(concept) === 0));
   const currentGeneric = sides[0]?.generic;
   const currentInstruments = concepts.current.instruments
     .flatMap((aliases) => first(aliases) ?? [])
@@ -744,7 +785,6 @@ export function resolveDebtAtInstant<T>(
         !(valueAt(generic) === sum(subsumed) && faceStatementLines("current", subsumed)) &&
         (total === undefined || valueAt(total) !== sum([...classifiedLines, ...subsumed]))));
   // The first tagged alternative holds the rest (paper at carrying value), but commercial paper holds no other line.
-  const paper = ambiguous?.commercialPaper ?? "";
   const besidePaper = concepts.current.instruments
     .filter((aliases) => first(aliases) === paper)
     .flat()
@@ -803,17 +843,19 @@ export function resolveDebtAtInstant<T>(
                   ? `${unprovenInstruments.join(", ")} tagged beside ${generic} with no ${ambiguous?.currentTotal ?? ""} or total showing whether they are one line or two`
                   : untaggedCurrent
                     ? `${US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT} (${String(principal.dueWithinYear)}) shows principal due within a year, but no current debt line is tagged`
-                    : omittedShortTerm.length > 0
-                      ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
-                      : excess === undefined
-                        ? // A face can recover an omission but not the lease scope, so the lease veto outranks it.
-                          componentReason !== undefined &&
-                          !(unplacedCurrentLease && componentReason.startsWith("omits "))
-                          ? componentReason
-                          : unplacedCurrentLease
-                            ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag or same-filing arithmetic shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
-                            : undefined
-                        : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
+                    : unsummedPaper
+                      ? `${paper} (${String(valueAt(paper))}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`
+                      : omittedShortTerm.length > 0
+                        ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
+                        : excess === undefined
+                          ? // A face can recover an omission but not the lease scope, so the lease veto outranks it.
+                            componentReason !== undefined &&
+                            !(unplacedCurrentLease && componentReason.startsWith("omits "))
+                            ? componentReason
+                            : unplacedCurrentLease
+                              ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag or same-filing arithmetic shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
+                              : undefined
+                          : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&
     longTermDebt === "total" &&

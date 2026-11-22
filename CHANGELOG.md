@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.20.1](https://github.com/nejcm/market-bot/compare/v1.20.0...v1.20.1) (2026-11-22)
+
+### Bug Fixes
+
+- **sec-debt:** withhold debt totals that leave out commercial paper (#294) ([020c194](https://github.com/nejcm/market-bot/commit/020c194e1c74ebf153e787f0cb931a2f3af02345))
+
 ## [1.20.0](https://github.com/nejcm/market-bot/compare/v1.19.67...v1.20.0) (2026-11-22)
 
 ### Features

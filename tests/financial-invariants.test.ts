@@ -252,7 +252,7 @@ describe("live financial invariant negative controls", () => {
     expect(() => assertFinancialStatementInvariants(injected)).toThrow(/\[A9\]/u);
   });
 
-  test("A11 fires when an interim comparative publishes another debt amount for an annual instant", () => {
+  test("A11 fires when an interim comparative publishes another debt amount, beyond filed rounding", () => {
     const artifact = results
       .map(financialStatements)
       .find((candidate) => candidate.statements.balanceSheet.debt.annual.length > 0);
@@ -261,6 +261,8 @@ describe("live financial invariant negative controls", () => {
     if (artifact === undefined || debt === undefined || last === undefined) {
       throw new Error("Fixture has no annual debt");
     }
+    // CRWV 2024-12-31: 7,926.00M annual vs 7,926.34M interim is rounding, not a second amount.
+    const annual = { ...last, value: 7_926_000_000 };
     const withComparative = (value: number) => ({
       ...artifact,
       statements: {
@@ -269,7 +271,8 @@ describe("live financial invariant negative controls", () => {
           ...artifact.statements.balanceSheet,
           debt: {
             ...debt,
-            interim: [...debt.interim, { ...last, periodType: "interim" as const, value }],
+            annual: [...debt.annual.slice(0, -1), annual],
+            interim: [...debt.interim, { ...annual, periodType: "interim" as const, value }],
           },
         },
       },
@@ -279,8 +282,9 @@ describe("live financial invariant negative controls", () => {
       collectFinancialStatementInvariants(withComparative(value)).find(
         ({ code }) => code === "A11",
       );
-    expect(a11(last.value)?.failingCount).toBe(0);
-    expect(a11(last.value + 1)).toMatchObject({
+    expect(a11(7_926_000_000)?.failingCount).toBe(0);
+    expect(a11(7_926_340_000)?.failingCount).toBe(0);
+    expect(a11(7_933_000_000)).toMatchObject({
       failingCount: 1,
       latestFailingPeriodEnd: last.periodEnd,
     });

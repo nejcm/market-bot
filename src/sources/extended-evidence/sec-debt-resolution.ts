@@ -832,13 +832,12 @@ const dayKey = (entry: { readonly periodEnd: string; readonly filedAt: string })
 const provenPublicAt = (entry: {
   readonly fact: { readonly value: number } | undefined;
   readonly proven: readonly { readonly value: number; readonly at: string }[];
-  readonly filedAt: string;
 }) =>
   entry.proven
     .filter(({ value }) => value === entry.fact?.value)
     .map(({ at }) => at)
     .toSorted()
-    .at(0) ?? entry.filedAt;
+    .at(0)!;
 
 // Same-day evidence from another filing counts as later than `latest`.
 const filedAfter = (
@@ -939,35 +938,47 @@ export function unsupersededDebtResolutions<
     ),
   ];
   const leases = DEBT_CONCEPTS[taxonomy].financeLeases;
-  // A later complete comparative that repeats an earlier one's lines but not its finance-lease legs proves nothing new.
+  const leaseConcepts = leases === undefined ? [] : [leases.total, ...leases.split];
+  // A later comparative that repeats an earlier one's lines and tags none of its finance-lease legs proves nothing new.
   const leaseFreeEarlier = (entry: R) => {
     const value = entry.fact?.value;
     const repeated = (entry.fact?.concept.match(/[+-]?[^+-]+/gu) ?? [])
       .filter((term) => !term.startsWith("-"))
       .map((term) => term.replace(/^\+/u, ""));
-    return leases === undefined || entry.incomplete || value === undefined
+    return leases === undefined ||
+      value === undefined ||
+      leaseConcepts.some((concept) => entry.lines.has(concept))
       ? undefined
       : all.find((earlier) => {
           const legs =
             earlier.lines.get(leases.total) ??
             leases.split.reduce((sum, leg) => sum + (earlier.lines.get(leg) ?? 0), 0);
           return (
-            !earlier.incomplete &&
             earlier.periodEnd === entry.periodEnd &&
             earlier.fact !== undefined &&
-            provenPublicAt(earlier) <= provenPublicAt(entry) &&
+            // Same-day proofs are left to the same-day conflict rule below.
+            provenPublicAt(earlier) < provenPublicAt(entry) &&
             legs > 0 &&
             value - earlier.fact.value === legs &&
-            repeated.every(
-              (concept) => (earlier.lines.get(concept) ?? 0) === entry.lines.get(concept),
-            )
+            repeated.every((concept) => earlier.lines.get(concept) === entry.lines.get(concept))
           );
         });
   };
   const resolved = all.flatMap((entry) => {
     const earlier = leaseFreeEarlier(entry);
     if (earlier !== undefined) {
-      return recastLiabilities(entry, earlier).length === 0 ? [] : [entry];
+      const proofDay = provenPublicAt(earlier);
+      // Window the recast check from the earlier proof, not the earlier group's latest re-file.
+      const sinceProof = {
+        ...earlier,
+        filedAt: proofDay,
+        accessions: liabilities.flatMap((fact) =>
+          fact.periodEnd === entry.periodEnd && fact.filedAt === proofDay
+            ? [fact.accessionNumber ?? ""]
+            : [],
+        ),
+      };
+      return recastLiabilities(entry, sinceProof).length === 0 ? [] : [entry];
     }
     const latest = entry.incompleteReason?.startsWith("omits ")
       ? repeatedComplete(entry)

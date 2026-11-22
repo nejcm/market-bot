@@ -480,6 +480,20 @@ function assertEnterpriseValueBridge(
   }
 }
 
+// Filers round to millions at most, so a value's trailing zeros up to 1e6 are its filed precision.
+const filedPrecision = (value: number) => {
+  let unit = 1;
+  while (unit < 1e6 && value % (unit * 10) === 0) {
+    unit *= 10;
+  }
+  return unit;
+};
+
+const sameAtFiledPrecision = (left: number, right: number) => {
+  const unit = Math.max(filedPrecision(left), filedPrecision(right));
+  return Math.round(left / unit) === Math.round(right / unit);
+};
+
 export function assertFinancialStatementInvariants(
   artifact: FinancialStatementsArtifact,
   check: FinancialInvariantCheck = invariant,
@@ -503,7 +517,7 @@ export function assertFinancialStatementInvariants(
     const annual = debt?.annual.find((other) => other.periodEnd === fact.periodEnd);
     if (annual !== undefined) {
       check(
-        annual.value === fact.value,
+        sameAtFiledPrecision(annual.value, fact.value),
         "A11",
         `debt ${fact.periodEnd} publishes ${annual.value} annually but ${fact.value} in an interim`,
         fact.periodEnd,

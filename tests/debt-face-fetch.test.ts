@@ -2316,36 +2316,35 @@ const instantDebt = (artifact: ReturnType<typeof deriveItems>, end: string) => {
   return [annual, interim].map((facts) => facts.find((debt) => debt.periodEnd === end)?.value);
 };
 // One 10-K and one later 10-Q comparative at `end`; each line is [10-K value, 10-Q value].
-const comparativeDebt = (
+const comparativeArtifact = (
   end: string,
   annual: readonly [accn: string, filed: string],
   interim: readonly [accn: string, filed: string],
   lines: Readonly<Record<string, readonly [number | undefined, number | undefined]>>,
 ) =>
-  instantDebt(
-    deriveItems(
-      {
-        ...Object.fromEntries(
-          Object.entries(lines).map(([concept, [k, q]]) => [
-            concept,
-            [
-              ...(k === undefined ? [] : [fact(k, end, annual[1], annual[0], "10-K")]),
-              ...(q === undefined ? [] : [fact(q, end, interim[1], interim[0])]),
-            ],
-          ]),
-        ),
-        Revenues: [
-          {
-            ...fact(40e9, end, annual[1], annual[0], "10-K"),
-            start: `${Number(end.slice(0, 4)) - 1}${end.slice(4)}`,
-          },
-          { ...fact(10e9, interim[1], interim[1], interim[0]), start: end },
-        ],
-      },
-      [],
-    ),
-    end,
+  deriveItems(
+    {
+      ...Object.fromEntries(
+        Object.entries(lines).map(([concept, [k, q]]) => [
+          concept,
+          [
+            ...(k === undefined ? [] : [fact(k, end, annual[1], annual[0], "10-K")]),
+            ...(q === undefined ? [] : [fact(q, end, interim[1], interim[0])]),
+          ],
+        ]),
+      ),
+      Revenues: [
+        {
+          ...fact(40e9, end, annual[1], annual[0], "10-K"),
+          start: `${Number(end.slice(0, 4)) - 1}${end.slice(4)}`,
+        },
+        { ...fact(10e9, interim[1], interim[1], interim[0]), start: end },
+      ],
+    },
+    [],
   );
+const comparativeDebt = (...args: Parameters<typeof comparativeArtifact>) =>
+  instantDebt(comparativeArtifact(...args), args[0]);
 
 describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs", () => {
   const TDG_Q1_26 = "0001260221-26-000017";
@@ -2429,6 +2428,52 @@ describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs
     ).toEqual([29_731e6, 30_015e6]);
   });
 
+  // A synthetic later 10-K re-files the 2025-09-30 column on 2026-06-10, before the fixture as-of.
+  const refiledLater = (gaap: ReturnType<typeof tdgWithComparative>) => ({
+    ...gaap,
+    ...Object.fromEntries(
+      Object.entries(TDG_GAAP_ROWS).flatMap(([concept, [fy2025]]) =>
+        fy2025 === undefined
+          ? []
+          : [
+              [
+                concept,
+                [
+                  ...(gaap[concept as keyof typeof gaap] ?? []),
+                  tdgFact(fy2025, "2025-09-30", "0001260221-26-999999", "2026-06-10"),
+                ],
+              ],
+            ],
+      ),
+    ),
+  });
+
+  test("the 10-K's first proof dates it, so a later 10-K re-file still drops the comparative", async () => {
+    const { out } = await tdgFaces();
+    expect(
+      instantDebt(
+        deriveItems(refiledLater(tdgWithComparative("2026-02-03")), [
+          ...out.items,
+          tdgQ1Face("2026-02-03"),
+        ]),
+        "2025-09-30",
+      ),
+    ).toEqual([29_731e6, undefined]);
+  });
+
+  test("a later 10-K re-file does not hide a recast between the 10-K and the comparative", async () => {
+    const { out } = await tdgFaces();
+    expect(
+      instantDebt(
+        deriveItems(refiledLater(tdgWithComparative("2026-02-03", RECAST)), [
+          ...out.items,
+          tdgQ1Face("2026-02-03", RECAST),
+        ]),
+        "2025-09-30",
+      ),
+    ).toEqual([29_731e6, 30_015e6]);
+  });
+
   test("an incomplete 10-K resolution leaves the comparative published", () => {
     expect(
       instantDebt(
@@ -2451,6 +2496,80 @@ describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs
         },
       ),
     ).toEqual([4_431_616_000, undefined]);
+  });
+
+  test("LRCX 2024-06-30 keeps 10-K 0000707549-24-000106's lease-free LongTermDebt total 4,967,361k", () => {
+    expect(
+      comparativeDebt(
+        "2024-06-30",
+        ["0000707549-24-000106", "2024-08-29"],
+        ["0000707549-24-000128", "2024-10-28"],
+        {
+          FinanceLeaseLiability: [15_973_000, undefined],
+          FinanceLeaseLiabilityCurrent: [3_498_000, undefined],
+          FinanceLeaseLiabilityNoncurrent: [12_475_000, undefined],
+          LongTermDebt: [4_967_361_000, undefined],
+          LongTermDebtAndCapitalLeaseObligations: [4_478_520_000, 4_478_520_000],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [504_814_000, 504_814_000],
+          LongTermDebtCurrent: [501_316_000, undefined],
+          LongTermDebtNoncurrent: [4_466_045_000, undefined],
+          OtherLongTermDebt: [944_000, undefined],
+        },
+      ),
+    ).toEqual([4_967_361_000, undefined]);
+  });
+
+  test("a comparative whose lines differ from the 10-K's stays even when the excess equals the legs", () => {
+    expect(
+      comparativeDebt(
+        "2026-01-30",
+        ["0001104659-26-032325", "2026-03-20"],
+        ["0001104659-26-069205", "2026-06-02"],
+        {
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [14_401_000, 15_401_000],
+          LongTermDebtAndCapitalLeaseObligations: [4_565_881_000, 4_564_881_000],
+          FinanceLeaseLiabilityNoncurrent: [148_666_000, undefined],
+        },
+      ),
+    ).toEqual([4_431_616_000, 4_580_282_000]);
+  });
+
+  test("a comparative that tags its own lease total, even as zero, stays", () => {
+    const k = ["0000000001-26-000001", "2026-03-20"] as const;
+    const q = ["0000000001-26-000002", "2026-06-02"] as const;
+    expect(
+      comparativeDebt("2026-01-30", k, q, {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [100e6, 100e6],
+        FinanceLeaseLiability: [10e6, 0],
+      }),
+    ).toEqual([90e6, 100e6]);
+    expect(
+      comparativeDebt("2026-01-30", k, q, {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [100e6, undefined],
+        DebtAndCapitalLeaseObligations: [110e6, 110e6],
+        FinanceLeaseLiability: [10e6, 10e6],
+      }),
+    ).toEqual([90e6, 100e6]);
+  });
+
+  test("a same-day 10-K and 10-Q that disagree stay withheld with a note", () => {
+    const artifact = comparativeArtifact(
+      "2025-09-30",
+      ["0000000001-25-000001", "2025-11-12"],
+      ["0000000001-25-000002", "2025-11-12"],
+      {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [100e6, 100e6],
+        FinanceLeaseLiability: [10e6, undefined],
+      },
+    );
+    expect(instantDebt(artifact, "2025-09-30")).toEqual([undefined, undefined]);
+    expect(artifact.omissionNotes).toContainEqual(
+      expect.objectContaining({
+        code: "incomplete-composite-series",
+        periodKey: "instant|2025-09-30",
+        message: expect.stringContaining("present it differently"),
+      }),
+    );
   });
 
   test("GLW 2025-12-31 differs by 1,241M against 1,232M of legs, so both stay", () => {

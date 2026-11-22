@@ -2315,7 +2315,7 @@ const instantDebt = (artifact: ReturnType<typeof deriveItems>, end: string) => {
   const { annual, interim } = artifact.statements.balanceSheet.debt;
   return [annual, interim].map((facts) => facts.find((debt) => debt.periodEnd === end)?.value);
 };
-type Filing = readonly [accn: string, filed: string, form: string];
+type Filing = readonly [accn: string, filed: string, form: string, fp?: string];
 // Each line lists its value in each filing, in order; Revenues come from the first 10-K and first 10-Q.
 const filingsArtifact = (
   end: string,
@@ -2323,9 +2323,11 @@ const filingsArtifact = (
   lines: Readonly<Record<string, readonly (number | undefined)[]>>,
 ) => {
   const tagged = (values: readonly (number | undefined)[]) =>
-    filings.flatMap(([accn, filed, form], index) => {
+    filings.flatMap(([accn, filed, form, fp], index) => {
       const value = values[index];
-      return value === undefined ? [] : [fact(value, end, filed, accn, form)];
+      return value === undefined
+        ? []
+        : [{ ...fact(value, end, filed, accn, form), ...(fp === undefined ? {} : { fp }) }];
     });
   const annual = filings.find((filing) => filing[2] === "10-K")!;
   const interim = filings.find((filing) => filing[2] === "10-Q")!;
@@ -2651,6 +2653,74 @@ describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs
             ],
             FinanceLeaseLiability: [10e6, undefined, undefined],
             OtherLiabilitiesCurrent: [200e6, 180e6, 180e6],
+          },
+        ),
+        "2025-09-30",
+      ),
+    ).toEqual([90e6, 100e6]);
+  });
+
+  const K25 = ["0000000001-26-000001", "2026-02-20", "10-K"] as const;
+  const Q1 = ["0000000001-26-000002", "2026-05-08", "10-Q", "Q1"] as const;
+  const Q2 = ["0000000001-26-000003", "2026-08-07", "10-Q", "Q2"] as const;
+  const INCLUSIVE = "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities";
+
+  test("dropping Q2's comparative never promotes Q1's older 80M", () => {
+    for (const q1 of [{ [INCLUSIVE]: 80e6 }, { [INCLUSIVE]: 100e6, FinanceLeaseLiability: 20e6 }]) {
+      const artifact = filingsArtifact("2025-12-31", [K25, Q1, Q2], {
+        [INCLUSIVE]: [100e6, q1[INCLUSIVE], 100e6],
+        FinanceLeaseLiability: [10e6, q1.FinanceLeaseLiability, undefined],
+      });
+      expect(instantDebt(artifact, "2025-12-31")).toEqual([90e6, undefined]);
+      expect(
+        balanceSheetHistory(artifact, "2026-08-10")?.rows.map((row) => row.debt?.value),
+      ).toEqual([90e6]);
+    }
+  });
+
+  test("a partial Q1 that supersedes the 10-K leaves Q2's 100M as on master", () => {
+    expect(
+      instantDebt(
+        filingsArtifact("2025-12-31", [K25, Q1, Q2], {
+          [INCLUSIVE]: [100e6, undefined, 100e6],
+          FinanceLeaseLiability: [10e6, undefined, undefined],
+          LongTermDebtCurrent: [undefined, 20e6, undefined],
+        }),
+        "2025-12-31",
+      ),
+    ).toEqual([undefined, 100e6]);
+  });
+
+  test("an interim-only lease proof never drops a later quarter's 100M", () => {
+    expect(
+      instantDebt(
+        filingsArtifact("2025-12-31", [K25, Q1, Q2], {
+          [INCLUSIVE]: [undefined, 100e6, 100e6],
+          FinanceLeaseLiability: [undefined, 10e6, undefined],
+        }),
+        "2025-12-31",
+      ),
+    ).toEqual([undefined, 100e6]);
+  });
+
+  test("a disposal-group tag from another filing on the 10-Q's day keeps the comparative", () => {
+    expect(
+      instantDebt(
+        filingsArtifact(
+          "2025-09-30",
+          [
+            ["0000000001-25-000001", "2025-11-12", "10-K"],
+            ["0000000001-26-000001", "2026-02-03", "10-Q"],
+            ["0000000001-26-000002", "2026-02-03", "10-Q"],
+          ],
+          {
+            [INCLUSIVE]: [100e6, 100e6, undefined],
+            FinanceLeaseLiability: [10e6, undefined, undefined],
+            LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent: [
+              undefined,
+              undefined,
+              25e6,
+            ],
           },
         ),
         "2025-09-30",

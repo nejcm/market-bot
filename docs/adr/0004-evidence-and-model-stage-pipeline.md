@@ -244,15 +244,16 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   mixed composite (an equal sum through other lines is not enough) or with every other same-form filing at
   the instant repeating its values (absent lines only if zero or a named non-borrowing row). That filing's own
   resolution then publishes attributed to it; otherwise the instant withholds with a note naming the filings
-  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups. A complete
-  resolution that tags no finance-lease leg of its own, has the same value for every line it uses as a
-  complete resolution's proving filing (the one accession that tagged the instant's debt on the day its value was
-  first proven), and exceeds it by exactly the finance-lease legs that filing tags proves nothing new and is
-  dropped (TDG 2025-09-30: 10-Q comparative 30,015M vs 10-K 0001260221-25-000081 29,731M). A liability line
-  recast after that proving accession, including by another filing the same day, keeps both (LHX 2026-01-02,
-  10-Q `OtherLiabilitiesCurrent` 1,908M to 1,235M), and so does any other filing at the instant on the
-  comparative's own filing day, which leaves the same-day rule below to settle it. Other annual/interim
-  differences at one instant stay published, and invariant A11 reports every one of them, since the artifact
+  (GOOGL 2023-12-31, IBM, AVGO FY2020). Other forms' filings resolve in their own groups. After
+  settlement, supersession and the latest-revision election, an instant's elected interim value is removed (never
+  replaced by an older quarter) when it repeats the published annual value's proving filing (the one annual
+  accession that tagged the instant's debt on the day that value was first proven, before the interim filing),
+  tags no finance-lease concept, and exceeds the annual value by exactly that filing's finance-lease legs (TDG
+  2025-09-30: 10-Q comparative 30,015M vs 10-K 0001260221-25-000081 29,731M). A liability line recast after
+  that proving accession, including by another filing the same day, keeps both (LHX 2026-01-02, 10-Q
+  `OtherLiabilitiesCurrent` 1,908M to 1,235M), and so does any other accession tagging the instant (debt,
+  liability or disposal-group lines) on the interim's filing day. Other annual/interim differences at one
+  instant stay published, and invariant A11 reports every one of them, since the artifact
   carries no filed precision to excuse rounding. A mixed composite
   that resolves complete but is withheld still contests partial-comparative recovery with its value.
   Other filings' facts stay in that resolution as obligations (prior nonzero lines still need coverage,

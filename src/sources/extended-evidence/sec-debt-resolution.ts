@@ -5,9 +5,11 @@ import {
   US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
 } from "./financial-statement-definitions";
 import { restatedFromOriginalFiling } from "./financial-statement-selection";
-import type {
-  FinancialStatementNote,
-  FinancialStatementTaxonomy,
+import {
+  type CanonicalSecForm,
+  type FinancialStatementNote,
+  type FinancialStatementTaxonomy,
+  isAnnualReportForm,
 } from "./financial-statements-contract";
 
 export interface DebtResolution<T> {
@@ -829,16 +831,6 @@ export function resolveDebtAtInstant<T>(
 const dayKey = (entry: { readonly periodEnd: string; readonly filedAt: string }) =>
   `${entry.periodEnd}|${entry.filedAt}`;
 
-const provenPublicAt = (entry: {
-  readonly fact: { readonly value: number } | undefined;
-  readonly proven: readonly { readonly value: number; readonly at: string }[];
-}) =>
-  entry.proven
-    .filter(({ value }) => value === entry.fact?.value)
-    .map(({ at }) => at)
-    .toSorted()
-    .at(0)!;
-
 // Same-day evidence from another filing counts as later than `latest`.
 const filedAfter = (
   fact: { readonly filedAt: string; readonly accessionNumber?: string | null },
@@ -846,6 +838,112 @@ const filedAfter = (
 ) =>
   fact.filedAt > latest.filedAt ||
   (fact.filedAt === latest.filedAt && !latest.accessions.includes(fact.accessionNumber ?? ""));
+
+const recastLiabilities = (
+  liabilities: readonly DebtHistoryFact[],
+  entry: { readonly periodEnd: string; readonly filedAt: string },
+  latest: { readonly filedAt: string; readonly accessions: readonly string[] },
+) => [
+  ...new Set(
+    liabilities
+      .filter(
+        (fact) =>
+          fact.periodEnd === entry.periodEnd &&
+          filedAfter(fact, latest) &&
+          fact.filedAt <= entry.filedAt &&
+          fact.value !==
+            (liabilities
+              .filter(
+                (prior) =>
+                  prior.concept === fact.concept &&
+                  prior.periodEnd === fact.periodEnd &&
+                  !filedAfter(prior, latest),
+              )
+              .toSorted(
+                (left, right) =>
+                  left.filedAt.localeCompare(right.filedAt) ||
+                  Number(latest.accessions.includes(left.accessionNumber ?? "")) -
+                    Number(latest.accessions.includes(right.accessionNumber ?? "")),
+              )
+              .at(-1)?.value ?? 0),
+      )
+      .map(({ concept }) => concept),
+  ),
+];
+// A later interim comparative that repeats the published annual's proving filing but drops its finance-lease legs proves nothing new.
+export function repeatsAnnualWithoutLeases(
+  taxonomy: FinancialStatementTaxonomy,
+  debtFacts: readonly (DebtHistoryFact & {
+    readonly periodStart?: string;
+    readonly canonicalForm: CanonicalSecForm;
+  })[],
+  liabilities: readonly DebtHistoryFact[],
+  heldForSale: readonly DebtHistoryFact[],
+  proofDay: string | undefined,
+  annual: { readonly value: number },
+  interim: {
+    readonly value: number;
+    readonly periodEnd: string;
+    readonly filedAt: string;
+    readonly accessionNumber: string | null;
+    readonly concept: string;
+  },
+): boolean {
+  const leases = DEBT_CONCEPTS[taxonomy].financeLeases;
+  const atInstant = debtFacts.filter(
+    (fact) => fact.periodStart === undefined && fact.periodEnd === interim.periodEnd,
+  );
+  const proving = [
+    ...new Set(
+      atInstant.filter((fact) => fact.filedAt === proofDay).map((fact) => fact.accessionNumber),
+    ),
+  ];
+  const [proof] = proving;
+  if (
+    leases === undefined ||
+    proofDay === undefined ||
+    proofDay >= interim.filedAt ||
+    proving.length !== 1 ||
+    typeof proof !== "string"
+  ) {
+    return false;
+  }
+  const linesOf = (accession: string | null) =>
+    new Map(
+      atInstant.flatMap((fact) =>
+        fact.accessionNumber === accession ? [[fact.concept, fact.value] as const] : [],
+      ),
+    );
+  const proofLines = linesOf(proof);
+  const interimLines = linesOf(interim.accessionNumber);
+  const legs =
+    proofLines.get(leases.total) ??
+    leases.split.reduce((sum, leg) => sum + (proofLines.get(leg) ?? 0), 0);
+  const repeated = (interim.concept.match(/[+-]?[^+-]+/gu) ?? [])
+    .filter((term) => !term.startsWith("-"))
+    .map((term) => term.replace(/^\+/u, ""));
+  const interimDay = { filedAt: interim.filedAt, accessions: [interim.accessionNumber ?? ""] };
+  return (
+    atInstant.some(
+      (fact) => fact.accessionNumber === proof && isAnnualReportForm(fact.canonicalForm),
+    ) &&
+    ![leases.total, ...leases.split].some((concept) => interimLines.has(concept)) &&
+    legs > 0 &&
+    interim.value - annual.value === legs &&
+    repeated.every(
+      (concept) =>
+        interimLines.has(concept) && proofLines.get(concept) === interimLines.get(concept),
+    ) &&
+    recastLiabilities(liabilities, interim, { filedAt: proofDay, accessions: [proof] }).length ===
+      0 &&
+    ![...atInstant, ...liabilities, ...heldForSale].some(
+      (fact) =>
+        fact.periodEnd === interim.periodEnd &&
+        fact.filedAt === interim.filedAt &&
+        filedAfter(fact, interimDay),
+    )
+  );
+}
 
 interface ResolutionValues {
   readonly fact: { readonly value: number } | undefined;
@@ -859,8 +957,6 @@ const consistentResolutions = (left: ResolutionValues, right: ResolutionValues) 
 // A later filing's incomplete resolution of an instant supersedes earlier complete ones (partial amendments).
 export function unsupersededDebtResolutions<
   R extends ResolutionValues & {
-    readonly fact: { readonly value: number; readonly concept: string } | undefined;
-    readonly proven: readonly { readonly value: number; readonly at: string }[];
     readonly periodEnd: string;
     readonly filedAt: string;
     readonly incomplete: boolean;
@@ -877,8 +973,6 @@ export function unsupersededDebtResolutions<
     readonly accessionNumber?: string | null;
   }[],
   liabilities: readonly DebtHistoryFact[],
-  taxonomy: FinancialStatementTaxonomy,
-  debtFacts: readonly DebtHistoryFact[],
 ): readonly R[] {
   // A partial re-tag of the latest uncontested complete instant at identical values proves nothing new.
   // A recast column (disposal, restatement, or reclassification of a liability line) supersedes it.
@@ -911,100 +1005,14 @@ export function unsupersededDebtResolutions<
       ? latest
       : undefined;
   };
-  const recastLiabilities = (entry: R, latest: R) => [
-    ...new Set(
-      liabilities
-        .filter(
-          (fact) =>
-            fact.periodEnd === entry.periodEnd &&
-            filedAfter(fact, latest) &&
-            fact.filedAt <= entry.filedAt &&
-            fact.value !==
-              (liabilities
-                .filter(
-                  (prior) =>
-                    prior.concept === fact.concept &&
-                    prior.periodEnd === fact.periodEnd &&
-                    !filedAfter(prior, latest),
-                )
-                .toSorted(
-                  (left, right) =>
-                    left.filedAt.localeCompare(right.filedAt) ||
-                    Number(latest.accessions.includes(left.accessionNumber ?? "")) -
-                      Number(latest.accessions.includes(right.accessionNumber ?? "")),
-                )
-                .at(-1)?.value ?? 0),
-        )
-        .map(({ concept }) => concept),
-    ),
-  ];
-  const leases = DEBT_CONCEPTS[taxonomy].financeLeases;
-  const leaseConcepts = leases === undefined ? [] : [leases.total, ...leases.split];
-  // A later comparative that repeats its proving filing's lines and tags none of its finance-lease legs proves nothing new.
-  const leaseFreeProof = (entry: R) => {
-    const value = entry.fact?.value;
-    const atInstant = (fact: DebtHistoryFact) => fact.periodEnd === entry.periodEnd;
-    const sameDayOther = [...debtFacts, ...liabilities].some(
-      (fact) => atInstant(fact) && filedAfter(fact, entry) && fact.filedAt === entry.filedAt,
-    );
-    if (
-      leases === undefined ||
-      value === undefined ||
-      sameDayOther ||
-      leaseConcepts.some((concept) => entry.lines.has(concept))
-    ) {
-      return undefined;
-    }
-    const repeated = (entry.fact?.concept.match(/[+-]?[^+-]+/gu) ?? [])
-      .filter((term) => !term.startsWith("-"))
-      .map((term) => term.replace(/^\+/u, ""));
-    return all.flatMap((earlier) => {
-      if (
-        earlier.periodEnd !== entry.periodEnd ||
-        earlier.fact === undefined ||
-        // Same-day proofs are left to the same-day conflict rule below.
-        provenPublicAt(earlier) >= provenPublicAt(entry)
-      ) {
-        return [];
-      }
-      const proofDay = provenPublicAt(earlier);
-      const proofAccessions = [
-        ...new Set(
-          debtFacts.flatMap((fact) =>
-            atInstant(fact) && fact.filedAt === proofDay ? [fact.accessionNumber ?? ""] : [],
-          ),
-        ),
-      ];
-      const proofLines = new Map(
-        debtFacts.flatMap((fact) =>
-          atInstant(fact) && fact.accessionNumber === proofAccessions[0]
-            ? [[fact.concept, fact.value] as const]
-            : [],
-        ),
-      );
-      const legs =
-        proofLines.get(leases.total) ??
-        leases.split.reduce((sum, leg) => sum + (proofLines.get(leg) ?? 0), 0);
-      return proofAccessions.length === 1 &&
-        legs > 0 &&
-        value - earlier.fact.value === legs &&
-        repeated.every((concept) => proofLines.get(concept) === entry.lines.get(concept))
-        ? [{ ...earlier, filedAt: proofDay, accessions: proofAccessions }]
-        : [];
-    })[0];
-  };
   const resolved = all.flatMap((entry) => {
-    const proof = leaseFreeProof(entry);
-    if (proof !== undefined) {
-      return recastLiabilities(entry, proof).length === 0 ? [] : [entry];
-    }
     const latest = entry.incompleteReason?.startsWith("omits ")
       ? repeatedComplete(entry)
       : undefined;
     if (latest === undefined) {
       return [entry];
     }
-    const recast = recastLiabilities(entry, latest);
+    const recast = recastLiabilities(liabilities, entry, latest);
     return recast.length === 0
       ? []
       : [

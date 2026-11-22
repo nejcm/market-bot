@@ -45,6 +45,7 @@ import {
   debtIdentityConcepts,
   incompleteDebtNote,
   recognizedDebtConcepts,
+  repeatsAnnualWithoutLeases,
   resolveDebtAtInstant,
   UNRECOGNIZED_BORROWING_REASON,
   unadjustedLeaseInclusiveDebt,
@@ -295,10 +296,17 @@ export function factsForDebt(
   taxonomy: FinancialStatementTaxonomy,
   eligible: (fact: ParsedFact) => boolean,
   filings: readonly ExtendedEvidenceItem[],
-): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
+): {
+  readonly facts: readonly ParsedFact[];
+  readonly notes: readonly FinancialStatementNote[];
+  readonly repeatsAnnualWithoutLeases: (
+    annual: FinancialStatementFact,
+    interim: FinancialStatementFact,
+  ) => boolean;
+} {
   const root = taxonomyRoot(taxonomy);
   if (root === undefined) {
-    return { facts: [], notes: [] };
+    return { facts: [], notes: [], repeatsAnnualWithoutLeases: () => false };
   }
   const recognized = recognizedDebtConcepts(taxonomy);
   const candidates = debtCandidateConcepts(taxonomy, root)
@@ -524,17 +532,12 @@ export function factsForDebt(
         : {}),
     };
   });
-  const current = unsupersededDebtResolutions(
-    resolved,
-    DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
-      unitFacts(taxonomy, root, concept).filter(
-        (fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact),
-      ),
+  const heldForSale = DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
+    unitFacts(taxonomy, root, concept).filter(
+      (fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact),
     ),
-    liabilities,
-    taxonomy,
-    history,
   );
+  const current = unsupersededDebtResolutions(resolved, heldForSale, liabilities);
 
   const [latest] = current
     .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
@@ -616,6 +619,16 @@ export function factsForDebt(
       ...zero.notes,
       ...heldForSaleDebtNotes(unitFacts, taxonomy, root, eligible, candidates),
     ],
+    repeatsAnnualWithoutLeases: (annual, interim) =>
+      repeatsAnnualWithoutLeases(
+        taxonomy,
+        candidates,
+        liabilities,
+        heldForSale,
+        provenAt.get(`${annual.periodEnd}|${annual.value}`)?.at,
+        annual,
+        interim,
+      ),
   };
 }
 

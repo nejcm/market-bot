@@ -322,8 +322,19 @@ function selectSeries(
       ],
     };
   }
-  const withGross =
+  const elected =
     taxonomy === "us-gaap" ? withheldGrossPrincipalDebt(debtReader, selected, eligible) : selected;
+  const annualAt = new Map(elected.series.annual.map((fact) => [fact.periodEnd, fact]));
+  const withGross = {
+    ...elected,
+    series: {
+      ...elected.series,
+      interim: elected.series.interim.filter((fact) => {
+        const annual = annualAt.get(fact.periodEnd);
+        return annual === undefined || !debt.repeatsAnnualWithoutLeases(annual, fact);
+      }),
+    },
+  };
   const withNotes = { ...withGross, omissionNotes: [...withGross.omissionNotes, ...debt.notes] };
   return {
     ...withNotes,

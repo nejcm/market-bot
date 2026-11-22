@@ -1906,4 +1906,41 @@ describe("a face recovering an omission still checks commercial paper", () => {
     );
     expect(legacy).toBeUndefined();
   });
+
+  test("a paper gap never changes which face candidate is selected", () => {
+    const june = (value: number) => fact(value * 1000, "2026-06-30", "2026-08-14", "A");
+    const rows: readonly Row[] = [
+      ["Total assets", "us-gaap:Assets", 1000],
+      ["Accounts payable", "us-gaap:AccountsPayableCurrent", 50],
+      ["Current debt", "us-gaap:DebtCurrent", 50],
+      ["Current liabilities", "us-gaap:LiabilitiesCurrent", 100],
+      ["Long-term borrowings", "us-gaap:LongTermDebt", 120],
+      ["Noncurrent debt", "us-gaap:LongTermDebtNoncurrent", 70],
+      ["Total liabilities", "us-gaap:Liabilities", 290],
+    ];
+    const { artifact, legacy, notes } = derive(
+      {
+        DebtCurrent: [june(50)],
+        LongTermDebtCurrent: [june(30)],
+        LongTermDebtNoncurrent: [june(70)],
+        LongTermDebt: [june(120)],
+        CommercialPaper: [june(20)],
+      },
+      [faceFiling("A", "2026-06-30", rows)],
+    );
+    expect(
+      financialStatementFacts(artifact.statements.balanceSheet.debt).filter(
+        (row) => row.periodEnd === "2026-06-30",
+      ),
+    ).toEqual([]);
+    expect(notes).toContainEqual(
+      expect.objectContaining({
+        periodKey: "instant|2026-06-30",
+        reason: expect.stringContaining(
+          "face statement presents DebtCurrent, LongTermDebtNoncurrent outside the resolved debt lines",
+        ),
+      }),
+    );
+    expect(legacy).toBeUndefined();
+  });
 });

@@ -1914,6 +1914,15 @@ describe("ambiguous LongTermDebt", () => {
       100,
       "LongTermDebtCurrent+CommercialPaper+LongTermDebtNoncurrent",
     ],
+    [
+      "zero paper in an earlier filing",
+      {
+        ...paperBeside,
+        CommercialPaper: [filed(0, "2026-06-30", "2026-08-05", "early-10-K", "10-K")],
+      },
+      75,
+      "LongTermDebt",
+    ],
   ] as const)("debt keeps master's outcome: %s", (_label, gaap, value, concept) => {
     expect(resolveAt(gaap as Parameters<typeof resolve>[0], "2026-06-30")).toMatchObject({
       value,
@@ -2133,19 +2142,17 @@ describe("ambiguous LongTermDebt", () => {
     expect(values).toContain(value);
   });
 
-  test("a later comparative withheld for paper leaves the earlier same-form value that passes", () => {
-    const facts = financialStatementFacts(
-      resolve({
+  test("paper vetoes the later candidate master selects, not an earlier same-form value", () => {
+    expectGap(
+      {
         DebtCurrent: [annual(20)],
         LongTermDebtCurrent: [annual(10), laterAnnual(10)],
         LongTermDebtNoncurrent: [annual(0), laterAnnual(0)],
         LongTermDebt: [annual(10), laterAnnual(10)],
         CommercialPaper: [annual(5)],
-      }).artifact.statements.balanceSheet.debt,
-    ).filter((fact) => fact.periodEnd === "2026-06-30");
-    expect(facts).toMatchObject([
-      { value: 20, concept: "DebtCurrent+LongTermDebtNoncurrent", filedAt: "2026-08-20" },
-    ]);
+      },
+      `CommercialPaper (5) ${PAPER_UNSHOWN}`,
+    );
   });
 
   test("a selected zero paper row never shows another filing's paper inside the debt", () => {

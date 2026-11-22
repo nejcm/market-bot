@@ -18,6 +18,8 @@ export interface DebtResolution<T> {
     readonly subtract?: true;
   }[];
   readonly incompleteReason?: string;
+  // Applied after face and filing selection, so it never changes which candidate is chosen.
+  readonly paperReason?: string;
   readonly leaseInclusive?: readonly string[];
   // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
   readonly lineScope?: true;
@@ -800,7 +802,7 @@ export function resolveDebtAtInstant<T>(
         `${concept} (${String(valueAt(concept))}) exceeds ${holder} (${String(held)})`,
     );
   const incompleteReason =
-    (loneLegsOnly.length > 0
+    loneLegsOnly.length > 0
       ? `${loneLegsOnly.join(", ")} is tagged without its current or noncurrent legs`
       : unsplitLease !== undefined
         ? unsplitLease
@@ -819,20 +821,14 @@ export function resolveDebtAtInstant<T>(
                     : omittedShortTerm.length > 0
                       ? `${ambiguous?.concept ?? ""} excludes ${omittedShortTerm.join(", ")}, reported nonzero within the prior year`
                       : excess === undefined
-                        ? // A face can recover an omission but not the lease scope or paper, so those vetoes outrank it.
+                        ? // A face can recover an omission but not the lease scope, so the lease veto outranks it.
                           componentReason !== undefined &&
-                          !(
-                            (unplacedCurrentLease || unsummedPaper !== undefined) &&
-                            componentReason.startsWith("omits ")
-                          )
+                          !(unplacedCurrentLease && componentReason.startsWith("omits "))
                           ? componentReason
                           : unplacedCurrentLease
                             ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag or same-filing arithmetic shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
                             : undefined
-                        : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`) ??
-    (unsummedPaper !== undefined
-      ? `${paper} (${String(unsummedPaper)}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`
-      : undefined);
+                        : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =
     total === ambiguous?.concept &&
     longTermDebt === "total" &&
@@ -854,6 +850,11 @@ export function resolveDebtAtInstant<T>(
       ...subtracted.map((concept) => ({ ...contributor(concept), subtract: true as const })),
     ],
     ...(incompleteReason !== undefined ? { incompleteReason } : {}),
+    ...(unsummedPaper === undefined
+      ? {}
+      : {
+          paperReason: `${paper} (${String(unsummedPaper)}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`,
+        }),
     ...(unadjusted.length > 0 ? { leaseInclusive: unadjusted } : {}),
     ...(lineScope ? { lineScope: true as const } : {}),
   };

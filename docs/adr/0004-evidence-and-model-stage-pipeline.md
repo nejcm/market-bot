@@ -226,8 +226,10 @@ authority boundaries. Deep equity retains the measured stronger specialist/Cover
   short-term alias is not paper and is nonzero, the alias rule decides instead (NOW-shape short-term borrowings at
   191M carrying value hold 192M paper and publish); a zero first alias never does. Two different nonzero values can
   never both be one selected row or one alias, so they gap unless a `DebtCurrent` or non-`LongTermDebt` total covers
-  both. A face that recovers an omission does not clear this gap. When a later comparative gaps for paper, an earlier
-  same-form value that passes this check and is not restated stands.
+  both. The check applies to the candidate that face and filing selection pick, after selection, so it never changes
+  which candidate is chosen and a face that recovers an omission does not clear it. Known limit of every withhold, not
+  only this one: when a later filing group's candidate is withheld, supersession can republish an earlier group's
+  total that a later amendment restated.
   PH FY2024 10-K (8,412M beside 2,100M paper), PH FY2023 (`DebtCurrent` 1,974M below 3,763M + 1,800M), NTAP FY2017
   (zero short-term loan beside 500M paper) and PH 10-Q composites on `LongTermDebtAndCapitalLeaseObligationsCurrent`
   gap. LMT FY2018 and AMGN 2017 gap conservatively: their face labels put the paper inside the current line, but no

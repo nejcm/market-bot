@@ -78,6 +78,11 @@ export interface SelectedSeries {
   readonly validationNotes: readonly FinancialStatementNote[];
   readonly omissionNotes: readonly FinancialStatementNote[];
   readonly withheld?: readonly WithheldDerivation[];
+  // Debt only: whether an elected interim comparative only drops the annual's finance-lease legs.
+  readonly repeatsAnnualWithoutLeases?: (
+    annual: FinancialStatementFact,
+    interim: FinancialStatementFact,
+  ) => boolean;
 }
 
 export interface FinancialStatementsDeriveInput {

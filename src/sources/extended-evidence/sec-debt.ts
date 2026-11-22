@@ -532,12 +532,15 @@ export function factsForDebt(
         : {}),
     };
   });
-  const heldForSale = DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
-    unitFacts(taxonomy, root, concept).filter(
-      (fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact),
+  const current = unsupersededDebtResolutions(
+    resolved,
+    DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy].flatMap((concept) =>
+      unitFacts(taxonomy, root, concept).filter(
+        (fact) => fact.periodStart === undefined && fact.value !== 0 && eligible(fact),
+      ),
     ),
+    liabilities,
   );
-  const current = unsupersededDebtResolutions(resolved, heldForSale, liabilities);
 
   const [latest] = current
     .flatMap((entry) => (entry.fact === undefined ? [] : [{ ...entry, fact: entry.fact }]))
@@ -622,10 +625,20 @@ export function factsForDebt(
     repeatsAnnualWithoutLeases: (annual, interim) =>
       repeatsAnnualWithoutLeases(
         taxonomy,
-        candidates,
+        () =>
+          Object.keys(root).flatMap((concept) =>
+            unitFacts(taxonomy, root, concept).filter(
+              (fact) =>
+                fact.periodStart === undefined &&
+                fact.periodEnd === interim.periodEnd &&
+                eligible(fact),
+            ),
+          ),
         liabilities,
-        heldForSale,
-        provenAt.get(`${annual.periodEnd}|${annual.value}`)?.at,
+        new Set([
+          ...DISPOSAL_GROUP_LIABILITY_CONCEPTS[taxonomy],
+          ...Object.values(principalFacts).flatMap((facts) => facts.map(({ concept }) => concept)),
+        ]),
         annual,
         interim,
       ),

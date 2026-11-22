@@ -5,11 +5,10 @@ import {
   US_GAAP_PRINCIPAL_DUE_WITHIN_YEAR_CONCEPT,
 } from "./financial-statement-definitions";
 import { restatedFromOriginalFiling } from "./financial-statement-selection";
-import {
-  type CanonicalSecForm,
-  type FinancialStatementNote,
-  type FinancialStatementTaxonomy,
-  isAnnualReportForm,
+import type {
+  FinancialStatementFact,
+  FinancialStatementNote,
+  FinancialStatementTaxonomy,
 } from "./financial-statements-contract";
 
 export interface DebtResolution<T> {
@@ -870,78 +869,90 @@ const recastLiabilities = (
       .map(({ concept }) => concept),
   ),
 ];
-// A later interim comparative that repeats the published annual's proving filing but drops its finance-lease legs proves nothing new.
+const termsOf = (fact: FinancialStatementFact) => fact.composite?.components ?? [fact];
+// Conflicting duplicates leave the filed amount ambiguous.
+const single = (values: ReadonlyMap<string, ReadonlySet<number>>, concept: string) => {
+  const filed = values.get(concept);
+  return filed?.size === 1 ? [...filed][0] : undefined;
+};
+
+// A later interim comparative that repeats the published annual's own lines but drops its finance-lease legs proves nothing new.
 export function repeatsAnnualWithoutLeases(
   taxonomy: FinancialStatementTaxonomy,
-  debtFacts: readonly (DebtHistoryFact & {
-    readonly periodStart?: string;
-    readonly canonicalForm: CanonicalSecForm;
-  })[],
+  instantFacts: () => readonly DebtHistoryFact[],
   liabilities: readonly DebtHistoryFact[],
-  heldForSale: readonly DebtHistoryFact[],
-  proofDay: string | undefined,
-  annual: { readonly value: number },
-  interim: {
-    readonly value: number;
-    readonly periodEnd: string;
-    readonly filedAt: string;
-    readonly accessionNumber: string | null;
-    readonly concept: string;
-  },
+  scopeConcepts: ReadonlySet<string>,
+  annual: FinancialStatementFact,
+  interim: FinancialStatementFact,
 ): boolean {
   const leases = DEBT_CONCEPTS[taxonomy].financeLeases;
-  const atInstant = debtFacts.filter(
-    (fact) => fact.periodStart === undefined && fact.periodEnd === interim.periodEnd,
-  );
-  const proving = [
-    ...new Set(
-      atInstant.filter((fact) => fact.filedAt === proofDay).map((fact) => fact.accessionNumber),
-    ),
-  ];
-  const [proof] = proving;
+  const proof = annual.accessionNumber;
+  const accession = interim.accessionNumber;
+  const annualTerms = termsOf(annual);
+  const interimTerms = termsOf(interim);
   if (
     leases === undefined ||
-    proofDay === undefined ||
-    proofDay >= interim.filedAt ||
-    proving.length !== 1 ||
-    typeof proof !== "string"
+    proof === null ||
+    accession === null ||
+    annual.filedAt >= interim.filedAt ||
+    annualTerms.some((term) => term.accessionNumber !== proof) ||
+    interimTerms.some((term) => term.accessionNumber !== accession || term.value < 0)
   ) {
     return false;
   }
-  const linesOf = (accession: string | null) =>
-    new Map(
-      atInstant.flatMap((fact) =>
-        fact.accessionNumber === accession ? [[fact.concept, fact.value] as const] : [],
-      ),
+  const facts = instantFacts();
+  const valuesIn = (filing: string) => {
+    const values = new Map<string, Set<number>>();
+    for (const fact of facts.filter((candidate) => candidate.accessionNumber === filing)) {
+      values.set(fact.concept, (values.get(fact.concept) ?? new Set()).add(fact.value));
+    }
+    return values;
+  };
+  const proofValues = valuesIn(proof);
+  const interimValues = valuesIn(accession);
+  const leaseConcepts = [leases.total, ...leases.split];
+  const total = single(proofValues, leases.total);
+  const split = leases.split.flatMap((leg) => [...(proofValues.get(leg) ?? [])]);
+  const splitSum = split.reduce((sum, value) => sum + value, 0);
+  const legs = total ?? splitSum;
+  const repeated = annualTerms.filter((term) => term.value >= 0);
+  const deducted = annualTerms.filter((term) => term.value < 0);
+  const linesLessLeases =
+    annual.composite !== undefined &&
+    deducted.every((term) => leaseConcepts.includes(term.concept)) &&
+    -deducted.reduce((sum, term) => sum + term.value, 0) === legs &&
+    repeated.length === interimTerms.length &&
+    repeated.every((term) =>
+      interimTerms.some((other) => other.concept === term.concept && other.value === term.value),
     );
-  const proofLines = linesOf(proof);
-  const interimLines = linesOf(interim.accessionNumber);
-  const legs =
-    proofLines.get(leases.total) ??
-    leases.split.reduce((sum, leg) => sum + (proofLines.get(leg) ?? 0), 0);
-  const repeated = (interim.concept.match(/[+-]?[^+-]+/gu) ?? [])
-    .filter((term) => !term.startsWith("-"))
-    .map((term) => term.replace(/^\+/u, ""));
-  const interimDay = { filedAt: interim.filedAt, accessions: [interim.accessionNumber ?? ""] };
+  const window = { filedAt: annual.filedAt, accessions: [proof] };
   return (
-    atInstant.some(
-      (fact) => fact.accessionNumber === proof && isAnnualReportForm(fact.canonicalForm),
-    ) &&
-    ![leases.total, ...leases.split].some((concept) => interimLines.has(concept)) &&
     legs > 0 &&
-    interim.value - annual.value === legs &&
-    repeated.every(
-      (concept) =>
-        interimLines.has(concept) && proofLines.get(concept) === interimLines.get(concept),
+    leaseConcepts.every(
+      (concept) => (proofValues.get(concept)?.size ?? 0) <= 1 && !interimValues.has(concept),
     ) &&
-    recastLiabilities(liabilities, interim, { filedAt: proofDay, accessions: [proof] }).length ===
-      0 &&
-    ![...atInstant, ...liabilities, ...heldForSale].some(
+    (total === undefined || split.length === 0 || total === splitSum) &&
+    (linesLessLeases || annual.lineScope === true) &&
+    interimTerms.every(
+      (term) =>
+        single(proofValues, term.concept) === term.value &&
+        single(interimValues, term.concept) === term.value,
+    ) &&
+    interim.value - legs === annual.value &&
+    [...interimValues.keys()].every(
+      (concept) =>
+        !proofValues.has(concept) ||
+        (single(proofValues, concept) !== undefined &&
+          single(proofValues, concept) === single(interimValues, concept)),
+    ) &&
+    !facts.some(
       (fact) =>
-        fact.periodEnd === interim.periodEnd &&
-        fact.filedAt === interim.filedAt &&
-        filedAfter(fact, interimDay),
-    )
+        (fact.filedAt === interim.filedAt && fact.accessionNumber !== accession) ||
+        (scopeConcepts.has(fact.concept) &&
+          filedAfter(fact, window) &&
+          fact.filedAt <= interim.filedAt),
+    ) &&
+    recastLiabilities(liabilities, interim, window).length === 0
   );
 }
 

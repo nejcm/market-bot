@@ -12,7 +12,11 @@ import {
   withheldDebt,
 } from "../src/sources/extended-evidence/sec-debt";
 import { balanceSheetHistory, financialPosition } from "../src/report/equity-reader-statements";
-import { assertCompositeFactIntegrity } from "../src/corpus/financial-statement-invariants";
+import {
+  assertCompositeFactIntegrity,
+  assertFinancialStatementInvariants,
+  collectFinancialStatementInvariants,
+} from "../src/corpus/financial-statement-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
 import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
@@ -2726,6 +2730,170 @@ describe("a later 10-Q comparative that drops only the 10-K's finance-lease legs
         "2025-09-30",
       ),
     ).toEqual([90e6, 100e6]);
+  });
+
+  const ON_Q2 = ["0000000001-26-000004", "2026-08-07", "10-K/A"] as const;
+  const DISPOSAL = "LiabilitiesOfDisposalGroupIncludingDiscontinuedOperationCurrent";
+
+  test("ambiguous proof or scope doubt keeps both 90M and 100M", () => {
+    const cases: readonly [
+      string,
+      readonly Filing[],
+      Record<string, readonly (number | undefined)[]>,
+    ][] = [
+      [
+        "conflicting 10-K duplicates",
+        [K25, K25, Q2],
+        { [INCLUSIVE]: [110e6, 100e6, 100e6], FinanceLeaseLiability: [20e6, 10e6, undefined] },
+      ],
+      [
+        "lease total against its split legs",
+        [K25, Q2],
+        {
+          [INCLUSIVE]: [100e6, 100e6],
+          FinanceLeaseLiability: [10e6, undefined],
+          FinanceLeaseLiabilityCurrent: [4e6, undefined],
+          FinanceLeaseLiabilityNoncurrent: [20e6, undefined],
+        },
+      ],
+      [
+        "a direct combined total",
+        [K25, Q2],
+        {
+          [INCLUSIVE]: [100e6, 100e6],
+          FinanceLeaseLiability: [10e6, undefined],
+          DebtLongtermAndShorttermCombinedAmount: [90e6, undefined],
+        },
+      ],
+      [
+        "a disposal group in the 10-Q",
+        [K25, Q2],
+        {
+          [INCLUSIVE]: [100e6, 100e6],
+          FinanceLeaseLiability: [10e6, undefined],
+          [DISPOSAL]: [undefined, 25e6],
+        },
+      ],
+      [
+        "a disposal group in an intervening filing",
+        [K25, Q1, Q2],
+        {
+          [INCLUSIVE]: [100e6, undefined, 100e6],
+          FinanceLeaseLiability: [10e6, undefined, undefined],
+          [DISPOSAL]: [undefined, 25e6, undefined],
+        },
+      ],
+      [
+        "a zero disposal group from another filing that day",
+        [K25, Q2, ON_Q2],
+        {
+          [INCLUSIVE]: [100e6, 100e6, undefined],
+          FinanceLeaseLiability: [10e6, undefined, undefined],
+          [DISPOSAL]: [undefined, undefined, 0],
+        },
+      ],
+      [
+        "principal due within a year from another filing that day",
+        [K25, Q2, ON_Q2],
+        {
+          [INCLUSIVE]: [100e6, 100e6, undefined],
+          FinanceLeaseLiability: [10e6, undefined, undefined],
+          LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths: [
+            undefined,
+            undefined,
+            25e6,
+          ],
+        },
+      ],
+      [
+        "a liability outside the debt identity recast",
+        [K25, Q2],
+        {
+          [INCLUSIVE]: [100e6, 100e6],
+          FinanceLeaseLiability: [10e6, undefined],
+          EmployeeRelatedLiabilitiesCurrent: [200e6, 180e6],
+        },
+      ],
+    ];
+    for (const [name, filings, lines] of cases) {
+      expect(
+        instantDebt(filingsArtifact("2025-12-31", filings, lines), "2025-12-31"),
+        name,
+      ).toEqual([90e6, 100e6]);
+    }
+  });
+
+  test("the drop runs on the capped series, so it never surfaces a capped period", () => {
+    const assets = Array.from({ length: 10 }, (_, index) => {
+      const year = 2016 + index;
+      return fact(
+        1000e6,
+        `${String(year)}-12-31`,
+        `${String(year + 1)}-02-20`,
+        `0000000002-${String(year - 1999)}-000100`,
+        "10-K",
+      );
+    });
+    const revenues = [
+      { ...fact(40e9, "2025-12-31", K25[1], K25[0], "10-K"), start: "2025-01-01" },
+      { ...fact(10e9, "2026-03-31", Q1[1], Q1[0]), start: "2026-01-01" },
+    ];
+    const old = deriveItems(
+      {
+        Revenues: revenues,
+        Assets: assets,
+        [INCLUSIVE]: [
+          fact(100e6, "2015-12-31", "2016-02-20", K25[0], "10-K"),
+          fact(100e6, "2015-12-31", "2016-08-07", Q2[0]),
+        ],
+        FinanceLeaseLiability: [fact(10e6, "2015-12-31", "2016-02-20", K25[0], "10-K")],
+      },
+      [],
+    );
+    expect(instantDebt(old, "2015-12-31")).toEqual([undefined, 100e6]);
+
+    const ends = ["03-31", "06-30", "09-30", "12-31"];
+    const files = ["05-10", "08-10", "11-10", "02-20"];
+    const priorQuarters = Array.from({ length: 12 }, (_, index) => {
+      const year = 2022 + Math.floor(index / 4);
+      const quarter = index % 4;
+      return {
+        ...fact(
+          (140 + index) * 1e6,
+          `${String(year)}-${ends[quarter]}`,
+          `${String(quarter === 3 ? year + 1 : year)}-${files[quarter]}`,
+          `0000000001-${String(year - 2000)}-${String(100 + index).padStart(6, "0")}`,
+        ),
+        fp: `Q${String(quarter + 1)}`,
+      };
+    });
+    const latest = deriveItems(
+      {
+        Revenues: revenues,
+        [INCLUSIVE]: [
+          fact(100e6, "2025-12-31", K25[1], K25[0], "10-K"),
+          { ...fact(100e6, "2025-12-31", Q2[1], Q2[0]), fp: "Q2" },
+          ...priorQuarters,
+        ],
+        FinanceLeaseLiability: [fact(10e6, "2025-12-31", K25[1], K25[0], "10-K")],
+      },
+      [],
+    );
+    expect(instantDebt(latest, "2022-03-31")).toEqual([undefined, undefined]);
+    expect(instantDebt(latest, "2025-12-31")).toEqual([90e6, undefined]);
+  });
+
+  test("a kept 90M/101M pair is an A11 census entry, not a thrown invariant", () => {
+    const artifact = filingsArtifact("2025-12-31", [K25, Q2], {
+      [INCLUSIVE]: [100e6, 101e6],
+      FinanceLeaseLiability: [10e6, undefined],
+    });
+    expect(instantDebt(artifact, "2025-12-31")).toEqual([90e6, 101e6]);
+    expect(
+      collectFinancialStatementInvariants(artifact).find(({ code }) => code === "A11")
+        ?.failingCount,
+    ).toBe(1);
+    expect(() => assertFinancialStatementInvariants(artifact)).not.toThrow();
   });
 
   test("GLW 2025-12-31 differs by 1,241M against 1,232M of legs, so both stay", () => {

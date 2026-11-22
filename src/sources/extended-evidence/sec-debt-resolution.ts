@@ -409,6 +409,7 @@ export function resolveDebtAtInstant<T>(
   history: readonly DebtHistoryFact[],
   valueOf: (fact: T) => number,
   filedAtOf: (fact: T) => string,
+  accessionOf: (fact: T) => string | null,
   principal: {
     readonly dueWithinYear?: number;
     readonly total?: number;
@@ -427,7 +428,10 @@ export function resolveDebtAtInstant<T>(
     "FinanceLeaseLiabilityCurrent",
   ].map((concept) => tagged.get(concept));
   const [maturities = 0, inclusiveCurrent, leaseCurrent = 0] = placementFacts.every(
-    (fact) => fact !== undefined && filedAtOf(fact) === filedAtOf(placementFacts[0] as T),
+    (fact) =>
+      fact !== undefined &&
+      accessionOf(fact) !== null &&
+      accessionOf(fact) === accessionOf(placementFacts[0] as T),
   )
     ? placementFacts.map((fact) => valueOf(fact as T))
     : [];
@@ -793,7 +797,7 @@ export function resolveDebtAtInstant<T>(
                           !(unplacedCurrentLease && componentReason.startsWith("omits "))
                           ? componentReason
                           : unplacedCurrentLease
-                            ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
+                            ? `${noncurrentLease} is removed from the debt lines, but no lease-placement tag or same-filing arithmetic shows where ${currentLease} (${String(valueAt(currentLease) ?? "untagged")}) sits, so current debt may include finance leases`
                             : undefined
                         : `finance-lease deduction ${excess.leases.join(", ")} exceeds ${excess.aggregates.join(", ")}`;
   const reconciledTotal =

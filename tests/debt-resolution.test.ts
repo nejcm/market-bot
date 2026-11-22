@@ -1593,10 +1593,7 @@ describe("ambiguous LongTermDebt", () => {
       FinanceLeaseLiabilityNoncurrent: [amrc(11_212_000)],
     };
     test("AMRC 2026-06-30 withholds rather than publish 1,947,623k with the lease inside", () => {
-      expectGap(
-        amrcLines,
-        "no lease-placement tag shows where FinanceLeaseLiabilityCurrent (686000) sits",
-      );
+      expectGap(amrcLines, "FinanceLeaseLiabilityCurrent (686000)");
     });
 
     // AVGO FY2023 10-K 0001730168-23-000096: 1,608M = 1,563M maturities + 45M lease, so the lease sits beside them.
@@ -1623,7 +1620,7 @@ describe("ambiguous LongTermDebt", () => {
         { LongTermDebtAndCapitalLeaseObligationsCurrent: [avgo(1600)] },
       ],
     ])("AVGO 2023-10-29 withholds %s", (_name, extra) => {
-      expectGap({ ...avgoLines, ...extra }, "no lease-placement tag shows where", "2023-10-29");
+      expectGap({ ...avgoLines, ...extra }, "same-filing arithmetic shows where", "2023-10-29");
     });
     test("AVGO 2023-10-29 lines from two filings prove no placement", () => {
       const lines = new Map(
@@ -1635,7 +1632,11 @@ describe("ambiguous LongTermDebt", () => {
           FinanceLeaseLiabilityNoncurrent: 4,
         }).map(([concept, value]) => [
           concept,
-          { value, filedAt: concept === "LongTermDebtCurrent" ? "2024-03-14" : "2023-12-14" },
+          {
+            value,
+            accession:
+              concept === "LongTermDebtCurrent" ? "0001730168-24-000023" : "0001730168-23-000096",
+          },
         ]),
       );
       const resolution = resolveDebtAtInstant(
@@ -1644,9 +1645,24 @@ describe("ambiguous LongTermDebt", () => {
         lines,
         [],
         (fact) => fact.value,
-        (fact) => fact.filedAt,
+        () => "2024-03-14",
+        (fact) => fact.accession,
       );
-      expect(resolution.incompleteReason).toContain("no lease-placement tag shows where");
+      expect(resolution.incompleteReason).toContain("same-filing arithmetic shows where");
+    });
+
+    test("a same-day zero from another accession proves no placement", () => {
+      const a = (value: number) => filed(value, "2026-06-30", "2026-08-04", "accession-a");
+      expectGap(
+        {
+          LongTermDebtCurrent: [filed(0, "2026-06-30", "2026-08-04", "accession-b")],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [a(686_000)],
+          LongTermDebtAndCapitalLeaseObligations: [a(1_794_492_000)],
+          FinanceLeaseLiabilityCurrent: [a(686_000)],
+          FinanceLeaseLiabilityNoncurrent: [a(11_212_000)],
+        },
+        "no lease-placement tag or same-filing arithmetic shows where",
+      );
     });
 
     test("TGT FY2018 10-K 0000027419-19-000006 deducts the 53M lease inside 1,052M maturities: 10,254M", () => {

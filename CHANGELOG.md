@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.20.2](https://github.com/nejcm/market-bot/compare/v1.20.1...v1.20.2) (2026-11-23)
+
+### Bug Fixes
+
+- **sec-debt:** withhold a lease-inclusive total its own legs dispute (#295) ([190a0b1](https://github.com/nejcm/market-bot/commit/190a0b1bd858261546c6fb2be22ac1e2c02b3d15))
+
 ## [1.20.1](https://github.com/nejcm/market-bot/compare/v1.20.0...v1.20.1) (2026-11-22)
 
 ### Bug Fixes

@@ -18,7 +18,16 @@ import {
   collectFinancialStatementInvariants,
 } from "../src/corpus/financial-statement-invariants";
 import { secBalanceSheetFaceMetrics } from "../src/sources/sec-segment-facts";
-import { collectFinancialStatements } from "../src/sources/collector-equity-enrichment";
+import {
+  collectEquityEnrichment,
+  collectFinancialStatements,
+} from "../src/sources/collector-equity-enrichment";
+import {
+  collectSecTargetPacketBase,
+  finalizeSecTargetPacket,
+} from "../src/sources/sec-target-packet";
+import type { FinancialStatementsArtifact } from "../src/sources/extended-evidence/financial-statements-contract";
+import type { InstrumentCommand } from "../src/cli/job-registry";
 import { valuationPeriodInputs } from "../src/sources/extended-evidence/valuation-workbench-inputs";
 import type { CollectContext, SourceRequestExecutor } from "../src/sources/types";
 
@@ -2337,4 +2346,510 @@ test("a kept 90M/101M annual/interim debt pair is an A11 census entry, not a thr
     collectFinancialStatementInvariants(artifact).find(({ code }) => code === "A11")?.failingCount,
   ).toBe(1);
   expect(() => assertFinancialStatementInvariants(artifact)).not.toThrow();
+});
+
+const faceHtml = (ends: readonly string[], rows: readonly (readonly Row[])[]) =>
+  `${ends
+    .map(
+      (periodEnd, i) =>
+        `<xbrli:context id="c${i}"><xbrli:period><xbrli:instant>${periodEnd}</xbrli:instant></xbrli:period></xbrli:context>`,
+    )
+    .join("")}<table>${rows
+    .map(
+      (cells) =>
+        `<tr><td>${cells[0]?.[0] ?? ""}</td>${cells
+          .map(
+            ([, name, value], i) =>
+              `<td><ix:nonFraction name="${name}" contextRef="c${i}" unitRef="usd">${value}</ix:nonFraction></td>`,
+          )
+          .join("")}</tr>`,
+    )
+    .join("")}</table>`;
+
+const leaseRow = (value: number): Row => [
+  "Finance lease liabilities",
+  "us-gaap:FinanceLeaseLiabilityCurrent",
+  value,
+];
+
+describe("a disputed lease-inclusive total asks for no face of its own", () => {
+  const END = "2025-12-31";
+  const PRIOR_END = "2024-12-31";
+  const CUTOFF = "2027-04-08T00:00:00.000Z";
+  const accn = "0001000000-26-000010";
+  const latest = "0001000000-27-000010";
+  const annual = (val: number, end = END) => ({
+    val,
+    end,
+    filed: "2026-02-15",
+    accn,
+    form: "10-K",
+    fy: 2025,
+    fp: "FY",
+  });
+  const next = (val: number) => ({
+    ...annual(val, "2026-12-31"),
+    filed: "2027-02-15",
+    accn: latest,
+    fy: 2026,
+  });
+  const gaap = {
+    Revenues: [
+      { ...annual(1000), start: "2025-01-01" },
+      { ...next(1100), start: "2026-01-01" },
+    ],
+    CashAndCashEquivalentsAtCarryingValue: [annual(200)],
+    LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [annual(950)],
+    LongTermDebtAndCapitalLeaseObligationsCurrent: [annual(100)],
+    LongTermDebtAndCapitalLeaseObligations: [annual(800)],
+    LongTermDebtCurrent: [annual(90, PRIOR_END)],
+    LongTermNotesPayable: [
+      {
+        ...annual(700, "2024-09-30"),
+        filed: "2024-11-05",
+        accn: "0001000000-24-000080",
+        form: "10-Q",
+        fp: "Q3",
+      },
+    ],
+    DebtLongtermAndShorttermCombinedAmount: [next(1100)],
+  };
+  const columns: readonly (readonly [string, Row, Row])[] = [
+    ["a", ["Total assets", "us-gaap:Assets", 2000], ["Total assets", "us-gaap:Assets", 1800]],
+    [
+      "b",
+      ["Current debt", "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent", 100],
+      ["Current debt", "us-gaap:LongTermDebtCurrent", 90],
+    ],
+    [
+      "c",
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 100],
+      ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 90],
+    ],
+    [
+      "d",
+      ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 800],
+      ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 0],
+    ],
+    [
+      "e",
+      ["Borrowings", "acme:LongTermBorrowings", 50],
+      ["Borrowings", "acme:LongTermBorrowings", 700],
+    ],
+    [
+      "f",
+      ["Total liabilities", "us-gaap:Liabilities", 950],
+      ["Total liabilities", "us-gaap:Liabilities", 790],
+    ],
+  ];
+  const collectDebt = async (
+    tags: Record<string, readonly object[]>,
+    secSubmissions: unknown,
+    faces: Readonly<Record<string, string>>,
+  ) => {
+    const served: Record<string, unknown> = {
+      "sec-tickers": { 0: { cik_str: 1_000_000, ticker: "ACME", title: "Acme" } },
+      "sec-companyfacts": {
+        cik: 1_000_000,
+        facts: {
+          "us-gaap": Object.fromEntries(
+            Object.entries(tags).map(([concept, usd]) => [concept, { units: { USD: usd } }]),
+          ),
+        },
+      },
+      "sec-submissions": secSubmissions,
+    };
+    let requests: string[] = [];
+    const respond = (adapter: string, url: string, payload: unknown) =>
+      payload === undefined
+        ? { source: adapter, message: "not served" }
+        : { rawSnapshot: { id: `raw-${url}`, adapter, fetchedAt: CUTOFF, payload }, payload };
+    const context = {
+      command: { jobType: "equity", assetClass: "equity", symbol: "ACME", depth: "deep" },
+      fetchedAt: CUTOFF,
+      newsLimit: 0,
+      cryptoMoverLimit: 0,
+      secUserAgent: "offline-test",
+      request: {
+        fetch: () => Promise.reject(new Error("unexpected fetch")),
+        json: ({ adapter, url }: { adapter: string; url: string }) =>
+          Promise.resolve(respond(adapter, url, served[adapter])),
+        text: ({ adapter, url }: { adapter: string; url: string }) => {
+          requests.push(url);
+          return Promise.resolve(respond(adapter, url, faces[url.split("/").at(-1) ?? ""]));
+        },
+      } as unknown as SourceRequestExecutor,
+    } as unknown as CollectContext;
+    // A dispute only vetoes publication, so the faces asked for are the no-dispute pass's.
+    const pinRequests = (
+      statements: FinancialStatementsArtifact,
+      filings: readonly ExtendedEvidenceItem[],
+    ) => {
+      const routine = filings.filter(
+        ({ sourceIds }) => !sourceIds.some((id) => id.includes("-face-")),
+      );
+      const masterRequests = debtInstantsNeedingFace(
+        deriveFinancialStatements(served["sec-companyfacts"], {
+          symbol: "ACME",
+          generatedAt: CUTOFF,
+          analysisAsOf: CUTOFF,
+          sourceId: statements.sourceId,
+          submissionsPayload: secSubmissions,
+          secFilings: routine,
+          ignoreDebtDisputes: true,
+        }),
+        secSubmissions,
+        routine,
+      ).map(({ accessionNumber }) => accessionNumber.replaceAll("-", ""));
+      const routineAccessions = new Set(
+        routine.map(({ metrics }) => String(metrics?.accessionNumber).replaceAll("-", "")),
+      );
+      expect(
+        requests
+          .map((url) => url.split("/").at(-2))
+          .filter((accession) => !routineAccessions.has(accession ?? "")),
+      ).toEqual(masterRequests);
+      const { debt } = statements.statements.balanceSheet;
+      if (debt === undefined) {
+        throw new Error("no debt series");
+      }
+      return {
+        documents: requests.map((url) => url.split("/").at(-1)),
+        debt: financialStatementFacts(debt).map(({ periodEnd, value }) => [periodEnd, value]),
+      };
+    };
+    const standalone = await collectFinancialStatements(context, "ACME");
+    if (standalone.statements === undefined) {
+      throw new Error("no statements");
+    }
+    const result = pinRequests(standalone.statements, standalone.periodicFilings?.items ?? []);
+    requests = [];
+    const packet = await finalizeSecTargetPacket(
+      context,
+      await collectSecTargetPacketBase(context, context.command as InstrumentCommand),
+    );
+    const { financialStatements } = await collectEquityEnrichment({
+      command: context.command,
+      marketSnapshots: [],
+      extendedRawSnapshots: [],
+      priceHistory: [],
+      fetchedAt: CUTOFF,
+      context,
+      identityContext: context,
+      now: new Date(CUTOFF),
+      secTargetPacket: packet,
+      fetchImpl: context.request.fetch,
+    } as unknown as Parameters<typeof collectEquityEnrichment>[0]);
+    if (financialStatements === undefined) {
+      throw new Error("no packet statements");
+    }
+    // The deep-equity SEC Target Packet plans and publishes exactly as the standalone collector.
+    expect(pinRequests(financialStatements, packet.filingEvidence?.items ?? [])).toEqual(result);
+    return result;
+  };
+  const faceSubmissions = {
+    filings: {
+      recent: {
+        form: ["10-K", "10-K", "10-K", "10-Q"],
+        filingDate: ["2027-02-15", "2026-02-15", "2025-02-15", "2024-11-05"],
+        reportDate: ["2026-12-31", END, PRIOR_END, "2024-09-30"],
+        accessionNumber: [latest, accn, "0001000000-25-000010", "0001000000-24-000080"],
+        primaryDocument: ["latest.htm", "annual.htm", "prior.htm", "quarterly.htm"],
+        isInlineXBRL: [1, 1, 1, 1],
+      },
+    },
+  };
+
+  test("FY2025's face is not fetched, so its FY2024 column stays unpublished as on master", async () => {
+    // The FY2025 face carries a FY2024 column that master never asked for.
+    const html = faceHtml(
+      [END, PRIOR_END],
+      columns.map(([, ...rows]) => rows),
+    );
+    const { documents, debt } = await collectDebt(gaap, faceSubmissions, { "annual.htm": html });
+    expect(documents).not.toContain("annual.htm");
+    expect(debt).toEqual([
+      ["2026-12-31", 1100],
+      ["2024-09-30", 700],
+    ]);
+  });
+
+  test("a routine 10-K face footing to a disputed comparative never asks for older faces", async () => {
+    const q = "0001000000-26-000030";
+    const comparative = (val: number) => ({ ...next(val), end: END });
+    const quarter = (val: number) => ({
+      ...annual(val, "2026-03-31"),
+      filed: "2026-05-10",
+      accn: q,
+      form: "10-Q",
+      fy: 2026,
+      fp: "Q1",
+    });
+    const tags = {
+      Revenues: [
+        { ...annual(1000), start: "2025-01-01" },
+        { ...next(1100), start: "2026-01-01" },
+      ],
+      CashAndCashEquivalentsAtCarryingValue: [annual(200), quarter(210), next(230)],
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [comparative(950)],
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [comparative(100)],
+      LongTermDebtAndCapitalLeaseObligations: [comparative(800)],
+      LongTermDebtCurrent: [quarter(90)],
+      DebtLongtermAndShorttermCombinedAmount: [next(1100)],
+    };
+    const lateSubmissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q", "10-K"],
+          filingDate: ["2027-02-15", "2026-05-10", "2026-02-15"],
+          reportDate: ["2026-12-31", "2026-03-31", END],
+          accessionNumber: [latest, q, accn],
+          primaryDocument: ["latest.htm", "q1.htm", "annual.htm"],
+          isInlineXBRL: [1, 1, 1],
+        },
+      },
+    };
+    const assets: Row = ["Total assets", "us-gaap:Assets", 2000];
+    const payables: Row = ["Accounts payable", "us-gaap:AccountsPayableCurrent", 10];
+    // Its 2025-12-31 column foots to the disputed 950 with a 50 extension borrowing.
+    const latestHtml = `<p>ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS</p><p>${"Revenue grew on stronger demand across the company’s operations. ".repeat(45)}</p>${faceHtml(
+      ["2026-12-31", END],
+      [
+        [assets, assets],
+        [
+          ["Current debt", "us-gaap:LongTermDebtCurrent", 100],
+          ["Current debt", "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent", 100],
+        ],
+        [payables, payables],
+        [
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 110],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 110],
+        ],
+        [
+          ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 1000],
+          ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 800],
+        ],
+        [
+          ["Borrowings", "acme:LongTermBorrowings", 0],
+          ["Borrowings", "acme:LongTermBorrowings", 50],
+        ],
+        [
+          ["Total liabilities", "us-gaap:Liabilities", 1110],
+          ["Total liabilities", "us-gaap:Liabilities", 960],
+        ],
+      ],
+    )}`;
+    // Its March column foots to 890 from 90 tagged plus 800 extension borrowings.
+    const quarterHtml = faceHtml(
+      ["2026-03-31", END],
+      [
+        [assets, assets],
+        [
+          ["Current debt", "us-gaap:LongTermDebtCurrent", 90],
+          ["Current debt", "acme:CurrentDebt", 100],
+        ],
+        [payables, payables],
+        [
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 100],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 110],
+        ],
+        [
+          ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 0],
+          ["Long-term debt", "acme:NoncurrentDebt", 850],
+        ],
+        [
+          ["Borrowings", "acme:LongTermBorrowings", 800],
+          ["Borrowings", "acme:LongTermBorrowings", 0],
+        ],
+        [
+          ["Total liabilities", "us-gaap:Liabilities", 900],
+          ["Total liabilities", "us-gaap:Liabilities", 960],
+        ],
+      ],
+    );
+    const { documents, debt } = await collectDebt(tags, lateSubmissions, {
+      "latest.htm": latestHtml,
+      "q1.htm": quarterHtml,
+    });
+    expect(documents).toEqual(["latest.htm"]);
+    expect(debt).toEqual([["2026-12-31", 1100]]);
+  });
+
+  test("a face-cited comparative still asks for the older faces that keep March withheld", async () => {
+    const q = "0001000000-26-000030";
+    const comparative = (val: number) => ({ ...next(val), end: END });
+    const quarter = (val: number) => ({
+      ...annual(val, "2026-03-31"),
+      filed: "2026-05-10",
+      accn: q,
+      form: "10-Q",
+      fy: 2026,
+      fp: "Q1",
+    });
+    const both = (val: number) => [annual(val), comparative(val)];
+    const tags = {
+      Revenues: [
+        { ...annual(1000), start: "2025-01-01" },
+        { ...next(1100), start: "2026-01-01" },
+      ],
+      CashAndCashEquivalentsAtCarryingValue: [annual(200), quarter(210), next(230)],
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: both(950),
+      DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [comparative(50)],
+      FinanceLeaseLiabilityCurrent: both(20),
+      LongTermDebtAndCapitalLeaseObligationsCurrent: both(100),
+      LongTermDebtAndCapitalLeaseObligations: both(800),
+      DebtLongtermAndShorttermCombinedAmount: [next(1100)],
+      LongTermDebtCurrent: [quarter(90)],
+      LongTermDebtNoncurrent: [quarter(800)],
+    };
+    const lateSubmissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q", "10-K"],
+          filingDate: ["2027-02-15", "2026-05-10", "2026-02-15"],
+          reportDate: ["2026-12-31", "2026-03-31", END],
+          accessionNumber: [latest, q, accn],
+          primaryDocument: ["latest.htm", "q1.htm", "annual.htm"],
+          isInlineXBRL: [1, 1, 1],
+        },
+      },
+    };
+    const assets: Row = ["Total assets", "us-gaap:Assets", 2000];
+    const payables: Row = ["Accounts payable", "us-gaap:AccountsPayableCurrent", 10];
+    const comparativeCurrent: Row = [
+      "Current debt",
+      "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent",
+      100,
+    ];
+    const comparativeNoncurrent: Row = [
+      "Long-term debt",
+      "us-gaap:LongTermDebtAndCapitalLeaseObligations",
+      800,
+    ];
+    // On master its FY2025 column proves 900 and cites this face, which asks for the older faces.
+    const latestHtml = `<p>ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS</p><p>${"Revenue grew on stronger demand across the company’s operations. ".repeat(45)}</p>${faceHtml(
+      ["2026-12-31", END],
+      [
+        [assets, assets],
+        [["Current debt", "us-gaap:LongTermDebtCurrent", 100], comparativeCurrent],
+        [payables, payables],
+        [leaseRow(0), leaseRow(20)],
+        [
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 110],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 130],
+        ],
+        [["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 1000], comparativeNoncurrent],
+        [
+          ["Borrowings", "acme:LongTermBorrowings", 0],
+          ["Borrowings", "acme:LongTermBorrowings", 0],
+        ],
+        [
+          ["Total liabilities", "us-gaap:Liabilities", 1110],
+          ["Total liabilities", "us-gaap:Liabilities", 930],
+        ],
+      ],
+    )}`;
+    // Its March column shows a 50 borrowing beside the 90 and 800 companyfacts lines.
+    const quarterHtml = faceHtml(
+      ["2026-03-31", END],
+      [
+        [assets, assets],
+        [["Current debt", "us-gaap:LongTermDebtCurrent", 90], comparativeCurrent],
+        [payables, payables],
+        [leaseRow(0), leaseRow(20)],
+        [
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 100],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 130],
+        ],
+        [["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 800], comparativeNoncurrent],
+        [
+          ["Borrowings", "acme:LongTermBorrowings", 50],
+          ["Borrowings", "acme:LongTermBorrowings", 0],
+        ],
+        [
+          ["Total liabilities", "us-gaap:Liabilities", 950],
+          ["Total liabilities", "us-gaap:Liabilities", 930],
+        ],
+      ],
+    );
+    const { documents, debt } = await collectDebt(tags, lateSubmissions, {
+      "latest.htm": latestHtml,
+      "q1.htm": quarterHtml,
+    });
+    expect(documents).toEqual(["latest.htm", "q1.htm", "annual.htm"]);
+    expect(debt).toEqual([["2026-12-31", 1100]]);
+  });
+
+  test("a partial 10-Q comparative requests master's faces only, so its March column stays withheld", async () => {
+    const q = "0001000000-26-000030";
+    const quarter = (val: number, end = END) => ({
+      ...annual(val, end),
+      filed: "2026-05-10",
+      accn: q,
+      form: "10-Q",
+      fy: 2026,
+      fp: "Q1",
+    });
+    const tags = {
+      Revenues: [
+        { ...annual(1000), start: "2025-01-01" },
+        { ...next(1100), start: "2026-01-01" },
+      ],
+      CashAndCashEquivalentsAtCarryingValue: [annual(200), quarter(210, "2026-03-31"), next(230)],
+      LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [annual(950)],
+      LongTermDebtAndCapitalLeaseObligationsCurrent: [annual(100), quarter(100)],
+      LongTermDebtAndCapitalLeaseObligations: [annual(800)],
+      LongTermDebtCurrent: [quarter(90, "2026-03-31")],
+      DebtLongtermAndShorttermCombinedAmount: [next(1100)],
+    };
+    const quarterSubmissions = {
+      filings: {
+        recent: {
+          form: ["10-K", "10-Q", "10-K"],
+          filingDate: ["2027-02-15", "2026-05-10", "2026-02-15"],
+          reportDate: ["2026-12-31", "2026-03-31", END],
+          accessionNumber: [latest, q, accn],
+          primaryDocument: ["latest.htm", "q1.htm", "annual.htm"],
+          isInlineXBRL: [1, 1, 1],
+        },
+      },
+    };
+    // Its March column foots to 890 from 90 tagged plus 800 extension borrowings.
+    const html = faceHtml(
+      ["2026-03-31", END],
+      [
+        [
+          ["Total assets", "us-gaap:Assets", 2000],
+          ["Total assets", "us-gaap:Assets", 2000],
+        ],
+        [
+          ["Current debt", "us-gaap:LongTermDebtCurrent", 90],
+          ["Current debt", "us-gaap:LongTermDebtAndCapitalLeaseObligationsCurrent", 100],
+        ],
+        [
+          ["Accounts payable", "us-gaap:AccountsPayableCurrent", 10],
+          ["Accounts payable", "us-gaap:AccountsPayableCurrent", 10],
+        ],
+        [
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 100],
+          ["Total current liabilities", "us-gaap:LiabilitiesCurrent", 110],
+        ],
+        [
+          ["Long-term debt", "us-gaap:LongTermDebtNoncurrent", 0],
+          ["Long-term debt", "us-gaap:LongTermDebtAndCapitalLeaseObligations", 800],
+        ],
+        [
+          ["Borrowings", "acme:LongTermBorrowings", 800],
+          ["Borrowings", "acme:LongTermBorrowings", 0],
+        ],
+        [
+          ["Total liabilities", "us-gaap:Liabilities", 900],
+          ["Total liabilities", "us-gaap:Liabilities", 910],
+        ],
+      ],
+    );
+    const { documents, debt } = await collectDebt(tags, quarterSubmissions, { "q1.htm": html });
+    expect(documents).toEqual(["latest.htm"]);
+    expect(debt).toEqual([["2026-12-31", 1100]]);
+  });
 });

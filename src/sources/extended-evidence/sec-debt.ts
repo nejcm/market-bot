@@ -295,6 +295,7 @@ export function factsForDebt(
   taxonomy: FinancialStatementTaxonomy,
   eligible: (fact: ParsedFact) => boolean,
   filings: readonly ExtendedEvidenceItem[],
+  ignoreDisputes = false,
 ): { readonly facts: readonly ParsedFact[]; readonly notes: readonly FinancialStatementNote[] } {
   const root = taxonomyRoot(taxonomy);
   if (root === undefined) {
@@ -369,6 +370,13 @@ export function factsForDebt(
           .toSorted()
           .at(-1) ?? "",
     };
+    const unamortizedByFiling = new Map(
+      (principalFacts.unamortized ?? []).flatMap(({ periodEnd, accessionNumber, value }) =>
+        periodEnd === instant.periodEnd && typeof accessionNumber === "string"
+          ? [[accessionNumber, value] as const]
+          : [],
+      ),
+    );
     const resolveAt = (
       lines: ReadonlyMap<string, ParsedFact>,
       face?: FaceDebtLines,
@@ -407,21 +415,24 @@ export function factsForDebt(
         (fact) => fact.value,
         (fact) => fact.filedAt,
         (fact) => fact.accessionNumber,
-        Object.fromEntries(
-          Object.entries(principalFacts).map(([key, values]) => [
-            key,
-            values
-              .filter(
-                (fact) =>
-                  fact.periodEnd === instant.periodEnd &&
-                  fact.filedAt <= instant.filedAt &&
-                  // Principal due within a year obliges a current line; the other inputs prove one.
-                  (key === "dueWithinYear" || seen(fact)),
-              )
-              .toSorted(compareFinancialStatementFacts)
-              .at(0)?.value,
-          ]),
-        ),
+        {
+          ...Object.fromEntries(
+            Object.entries(principalFacts).map(([key, values]) => [
+              key,
+              values
+                .filter(
+                  (fact) =>
+                    fact.periodEnd === instant.periodEnd &&
+                    fact.filedAt <= instant.filedAt &&
+                    // Principal due within a year obliges a current line; the other inputs prove one.
+                    (key === "dueWithinYear" || seen(fact)),
+                )
+                .toSorted(compareFinancialStatementFacts)
+                .at(0)?.value,
+            ]),
+          ),
+          unamortizedByFiling,
+        },
         liabilities,
         (concept, side) =>
           face !== undefined &&
@@ -453,13 +464,19 @@ export function factsForDebt(
         (fact) => fact.periodStart === undefined && fact.periodEnd === instant.periodEnd,
       ),
     );
-    const resolveWith = (lines: ReadonlyMap<string, ParsedFact>, filing?: Filing) =>
-      withFaceStatementDebt(
+    const resolveWith = (lines: ReadonlyMap<string, ParsedFact>, filing?: Filing) => {
+      const checked = withFaceStatementDebt(
         resolveAt(lines, undefined, filing),
         lines,
         (own, face) => resolveAt(own, face, filing),
         faces,
       );
+      return ignoreDisputes ||
+        checked.unprovenReason === undefined ||
+        checked.incompleteReason !== undefined
+        ? checked
+        : { ...checked, incompleteReason: checked.unprovenReason };
+    };
     const support = [...liabilities, ...Object.values(principalFacts).flat()].filter(
       (fact) => fact.periodEnd === instant.periodEnd && fact.filedAt <= instant.filedAt,
     );
@@ -481,6 +498,7 @@ export function factsForDebt(
       faces.length === 0 &&
       otherAccessions.length === 0 &&
       typeof faceAccession === "string" &&
+      resolution.incompleteReason !== resolution.unprovenReason &&
       resolution.incompleteReason?.startsWith(UNRECOGNIZED_BORROWING_REASON) === false;
     const subtracted = new Set(
       resolution.contributors.flatMap((contributor) =>

@@ -20,6 +20,7 @@ import type {
 import { deriveFundamentalHistoryFromFinancialStatements } from "../sources/extended-evidence/fundamental-history-canonical";
 import type { FundamentalHistoryArtifact } from "../sources/extended-evidence/fundamental-history";
 import { summarizeSecFundamentals } from "../sources/extended-evidence/sec-edgar";
+import { withheldDebt } from "../sources/extended-evidence/sec-debt";
 import {
   allowanceKey,
   compareConsumers,
@@ -242,9 +243,13 @@ function projectFact(fact: FinancialStatementFact): ProjectedFact {
 function projectStatements(
   artifact: FinancialStatementsArtifact,
 ): Readonly<Record<string, ProjectedStatementSeries>> {
+  const debtWithheld = withheldDebt(artifact) !== undefined;
   return Object.fromEntries(
     financialStatementSeries(artifact).map((series) => {
-      const selected = latestFinancialStatementFact(financialStatementFacts(series));
+      const selected =
+        series.key === "debt" && debtWithheld
+          ? undefined
+          : latestFinancialStatementFact(financialStatementFacts(series));
       return [
         series.key,
         {

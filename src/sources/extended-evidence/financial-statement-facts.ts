@@ -89,6 +89,8 @@ export interface FinancialStatementsDeriveInput {
   readonly submissionsPayload?: unknown;
   readonly submissionsSourceId?: string;
   readonly secFilings?: readonly ExtendedEvidenceItem[];
+  // Face requests come from this pass, so a disputed debt instant never changes which faces are fetched.
+  readonly ignoreDebtDisputes?: boolean;
 }
 
 export const TAXONOMIES: readonly FinancialStatementTaxonomy[] = ["us-gaap", "ifrs-full"];

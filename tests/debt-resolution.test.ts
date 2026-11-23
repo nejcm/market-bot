@@ -40,7 +40,10 @@ function instant(
   };
 }
 
-function resolve(gaap: Readonly<Record<string, readonly Record<string, unknown>[]>>) {
+function resolve(
+  gaap: Readonly<Record<string, readonly Record<string, unknown>[]>>,
+  analysisAsOf = ANALYSIS_AS_OF,
+) {
   const revenue = {
     val: 100,
     form: "10-K",
@@ -68,8 +71,8 @@ function resolve(gaap: Readonly<Record<string, readonly Record<string, unknown>[
   };
   const artifact = deriveFinancialStatements(companyFacts, {
     symbol: "TEST",
-    generatedAt: ANALYSIS_AS_OF,
-    analysisAsOf: ANALYSIS_AS_OF,
+    generatedAt: analysisAsOf,
+    analysisAsOf,
     sourceId: "extended-sec-edgar-test-fundamentals",
   });
   return {
@@ -77,7 +80,7 @@ function resolve(gaap: Readonly<Record<string, readonly Record<string, unknown>[
     canonical: latestFinancialStatementFact(
       financialStatementFacts(artifact.statements.balanceSheet.debt),
     ),
-    legacy: summarizeSecFundamentals(companyFacts, ANALYSIS_AS_OF),
+    legacy: summarizeSecFundamentals(companyFacts, analysisAsOf),
   };
 }
 
@@ -2366,12 +2369,14 @@ describe("debt totals and instruments checked against their lines", () => {
       expect(noteFor(gaap, "2026-06-30")).toContain("CommercialPaperNoncurrent");
     });
 
-    test("without the unamortized-cost proof the total stays", () => {
-      const { canonical } = resolve({
+    test("without the unamortized-cost proof the instant is withheld", () => {
+      const gaap = {
         ...vsat,
         DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [june(128_000_000)],
-      });
-      expect(canonical).toMatchObject({ value: 6_427_825_000 });
+      };
+      expect(resolve(gaap).canonical?.periodEnd).not.toBe("2026-06-30");
+      expect(resolve(gaap).legacy?.metrics.debt).toBeUndefined();
+      expect(noteFor(gaap, "2026-06-30")).toContain("basis is unproven");
     });
 
     test("a total equal to its legs stays the total", () => {
@@ -2383,6 +2388,184 @@ describe("debt totals and instruments checked against their lines", () => {
       expect(canonical?.concept).toStartWith(
         "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities",
       );
+    });
+  });
+
+  describe("a lease-inclusive total its same-filing legs disagree with", () => {
+    test("LUMN 2024-12-31 10-K 0000018926-25-000010: 18,518M total vs 412M + 17,494M carrying legs is withheld", () => {
+      const fy = (value: number) =>
+        filed(value, "2024-12-31", "2025-02-20", "0000018926-25-000010", "10-K");
+      const gaap = {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [fy(18_518_000_000)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [fy(412_000_000)],
+        LongTermDebtAndCapitalLeaseObligations: [fy(17_494_000_000)],
+        DebtAndCapitalLeaseObligations: [fy(17_906_000_000)],
+        FinanceLeaseLiabilityCurrent: [fy(17_000_000)],
+        FinanceLeaseLiabilityNoncurrent: [fy(198_000_000)],
+        DebtInstrumentUnamortizedDiscountPremiumNet: [fy(395_000_000)],
+      };
+      const { canonical, legacy } = resolve(gaap);
+      expect(canonical).toBeUndefined();
+      expect(legacy?.metrics.debt).toBeUndefined();
+      expect(noteFor(gaap, "2024-12-31")).toContain("basis is unproven");
+    });
+
+    test("LUMN 2026-09-30 10-Q 0000018926-26-000073: 13,334M total vs 29M + 13,164M legs is withheld", () => {
+      const q3 = (value: number) =>
+        filed(value, "2026-09-30", "2026-11-04", "0000018926-26-000073");
+      const { canonical, legacy } = resolve(
+        {
+          LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [q3(13_334_000_000)],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: [q3(29_000_000)],
+          LongTermDebtAndCapitalLeaseObligations: [q3(13_164_000_000)],
+          DebtAndCapitalLeaseObligations: [q3(13_193_000_000)],
+          DebtInstrumentUnamortizedDiscountPremiumNet: [q3(-3_000_000)],
+        },
+        "2026-11-23T00:00:00.000Z",
+      );
+      expect(canonical).toBeUndefined();
+      expect(legacy?.metrics.debt).toBeUndefined();
+    });
+
+    test("CABO 2025-12-31 10-K 0001632127-26-000005: 3,211.779M total vs 593.535M + 2,600.392M legs is withheld", () => {
+      const fy = (value: number) =>
+        filed(value, "2025-12-31", "2026-02-26", "0001632127-26-000005", "10-K");
+      const gaap = {
+        LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [fy(3_211_779_000)],
+        LongTermDebtAndCapitalLeaseObligationsCurrent: [fy(593_535_000)],
+        LongTermDebtAndCapitalLeaseObligations: [fy(2_600_392_000)],
+        LongTermDebt: [fy(3_208_825_000)],
+        FinanceLeaseLiabilityCurrent: [fy(542_000)],
+        FinanceLeaseLiabilityNoncurrent: [fy(2_412_000)],
+      };
+      const { canonical, legacy } = resolve(gaap);
+      expect(canonical).toBeUndefined();
+      expect(legacy?.metrics.debt).toBeUndefined();
+    });
+
+    test("LUMN 2025-12-31 10-K 0000018926-26-000014 and 10-Q 0000018926-26-000046: no series publishes the 17,441M legs", () => {
+      const fy = (value: number) =>
+        filed(value, "2025-12-31", "2026-02-20", "0000018926-26-000014", "10-K");
+      const q1 = (value: number) =>
+        filed(value, "2025-12-31", "2026-05-05", "0000018926-26-000046");
+      const both = (value: number) => [fy(value), q1(value)];
+      const { artifact, legacy } = resolve(
+        {
+          LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities: [fy(17_815_000_000)],
+          LongTermDebtAndCapitalLeaseObligationsCurrent: both(88_000_000),
+          LongTermDebtAndCapitalLeaseObligations: both(17_353_000_000),
+          DebtAndCapitalLeaseObligations: both(17_441_000_000),
+          FinanceLeaseLiabilityCurrent: [fy(19_000_000)],
+          FinanceLeaseLiabilityNoncurrent: [fy(183_000_000)],
+          DebtInstrumentUnamortizedDiscountPremiumNet: both(223_000_000),
+        },
+        "2026-11-23T00:00:00.000Z",
+      );
+      expect(
+        financialStatementFacts(artifact.statements.balanceSheet.debt).filter(
+          (fact) => fact.periodEnd === "2025-12-31",
+        ),
+      ).toEqual([]);
+      expect(legacy?.metrics.debt).toBeUndefined();
+    });
+
+    const total = "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities";
+    const current = "LongTermDebtAndCapitalLeaseObligationsCurrent";
+    const noncurrent = "LongTermDebtAndCapitalLeaseObligations";
+    const original = (value: number) =>
+      filed(value, "2025-12-31", "2026-02-15", "0001000000-26-000010", "10-K");
+    const later = (value: number) =>
+      filed(value, "2025-12-31", "2026-05-10", "0001000000-26-000030");
+    const legs = { [current]: [original(100)], [noncurrent]: [original(800)] };
+    const debtAt = (gaap: Parameters<typeof resolve>[0]) => {
+      const { artifact, legacy } = resolve(gaap);
+      return {
+        values: financialStatementFacts(artifact.statements.balanceSheet.debt)
+          .filter((fact) => fact.periodEnd === "2025-12-31")
+          .map(({ value }) => value),
+        legacy: legacy?.metrics.debt,
+      };
+    };
+
+    test.each([
+      ["no witness", {}],
+      ["a gross identity", { DebtAndCapitalLeaseObligations: [original(900)] }],
+      ["a lease total", { FinanceLeaseLiability: [original(100)] }],
+      [
+        "split leases",
+        {
+          FinanceLeaseLiabilityCurrent: [original(20)],
+          FinanceLeaseLiabilityNoncurrent: [original(80)],
+        },
+      ],
+      ["a wider current line", { DebtCurrent: [original(150)] }],
+      ["an instrument smaller than the gap", { LongTermNotesPayable: [original(50)] }],
+      ["a later comparative repeating it", { [total]: [original(1000), later(1000)] }],
+      [
+        "a later filing disputing it with its own legs",
+        {
+          [total]: [later(1000)],
+          [current]: [original(100), later(100)],
+          [noncurrent]: [original(800), later(800)],
+        },
+      ],
+      ["a later total restated to the legs", { [total]: [original(1100), later(900)] }],
+      [
+        "a later 10-Q repeating the legs without it",
+        { [current]: [original(100), later(100)], [noncurrent]: [original(800), later(800)] },
+      ],
+    ] as const)("withholds 1,000 against 100 + 800 legs beside %s", (_name, extra) => {
+      const gaap = { [total]: [original(1000)], ...legs, ...extra };
+      expect(debtAt(gaap)).toEqual({ values: [], legacy: undefined });
+      expect(noteFor(gaap, "2025-12-31")).toContain("basis is unproven");
+    });
+
+    test("a partial comparative cannot revive a later 10-Q's lease-inclusive 900", () => {
+      const q2 = (value: number) =>
+        filed(value, "2025-12-31", "2026-08-10", "0001000000-26-000040");
+      const gaap = {
+        [total]: [original(1000)],
+        [current]: [original(100), later(100)],
+        [noncurrent]: [original(800), later(800), q2(800)],
+        DebtAndCapitalLeaseObligations: [later(900)],
+        FinanceLeaseLiability: [original(30)],
+      };
+      expect(debtAt(gaap)).toEqual({ values: [], legacy: undefined });
+    });
+
+    test.each([
+      ["legs equal to the total", { [total]: [original(900)], ...legs }, [900]],
+      [
+        "an unamortized-cost proof",
+        {
+          [total]: [original(1000)],
+          ...legs,
+          DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [original(100)],
+        },
+        [900],
+      ],
+      [
+        "a same-filing instrument equal to the gap",
+        { [total]: [original(950)], ...legs, LongTermNotesPayable: [original(50)] },
+        [950],
+      ],
+      [
+        "a later 10-Q repeating the legs beside a cost-proved total",
+        {
+          [total]: [original(1000)],
+          [current]: [original(100), later(100)],
+          [noncurrent]: [original(800), later(800)],
+          DebtInstrumentUnamortizedDiscountPremiumAndDebtIssuanceCostsNet: [original(100)],
+        },
+        [900, 900],
+      ],
+      [
+        "legs from another filing",
+        { [total]: [later(1000)], ...legs, DebtAndCapitalLeaseObligations: [original(900)] },
+        [900, 1000],
+      ],
+    ] as const)("keeps master's value for %s", (_name, gaap, values) => {
+      expect(debtAt(gaap)).toEqual({ values: [...values], legacy: values.at(-1) });
     });
   });
 

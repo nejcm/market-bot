@@ -246,7 +246,13 @@ function selectSeries(
   };
   const debt =
     definition.key === "debt"
-      ? factsForDebt(debtReader, taxonomy, eligible, input.secFilings ?? [])
+      ? factsForDebt(
+          debtReader,
+          taxonomy,
+          eligible,
+          input.secFilings ?? [],
+          input.ignoreDebtDisputes,
+        )
       : undefined;
   const depreciationAndAmortization =
     definition.key === "depreciationAndAmortization" && taxonomy === "us-gaap"

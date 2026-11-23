@@ -20,6 +20,8 @@ export interface DebtResolution<T> {
   readonly incompleteReason?: string;
   // Applied after face and filing selection, so it never changes which candidate is chosen.
   readonly paperReason?: string;
+  // Becomes incompleteReason after the face checks, so no face can prove a disputed instant.
+  readonly unprovenReason?: string;
   readonly leaseInclusive?: readonly string[];
   // Classified carrying lines, or a LongTermDebt total that reconciles to them, are one scope across bases (NVDA).
   readonly lineScope?: true;
@@ -416,6 +418,7 @@ export function resolveDebtAtInstant<T>(
     readonly dueWithinYear?: number;
     readonly total?: number;
     readonly unamortized?: number;
+    readonly unamortizedByFiling?: ReadonlyMap<string, number>;
   } = {},
   liabilities: readonly DebtHistoryFact[] = [],
   faceRow: (concept: string, side: DebtFaceSide) => boolean = () => false,
@@ -598,6 +601,39 @@ export function resolveDebtAtInstant<T>(
       ? legs
       : undefined;
   const total = legLines === undefined ? filedTotal : undefined;
+  const inFiling = (concept: string, accession: string) =>
+    history.find(
+      (fact) =>
+        fact.concept === concept &&
+        fact.periodEnd === instant.periodEnd &&
+        fact.accessionNumber === accession,
+    )?.value;
+  const instruments = [concepts.current, concepts.noncurrent].flatMap((side) =>
+    side.instruments.flat(),
+  );
+  const filedTotals = history
+    .filter(
+      (fact) =>
+        concepts.totalLegs?.[fact.concept] !== undefined &&
+        fact.periodEnd === instant.periodEnd &&
+        typeof fact.accessionNumber === "string",
+    )
+    .toSorted((left, right) => left.filedAt.localeCompare(right.filedAt));
+  // Any filing whose own legs disagree with its total may show carrying beside principal (LUMN FY2024), so
+  // The whole instant withholds, whichever lines this resolution picked.
+  const disputes = filedTotals.filter((fact) => {
+    const accession = fact.accessionNumber ?? "";
+    const gap = (concepts.totalLegs?.[fact.concept] ?? []).reduce(
+      (acc, leg) => acc - (inFiling(leg, accession) ?? Number.NaN),
+      fact.value,
+    );
+    return (
+      !Number.isNaN(gap) &&
+      gap !== 0 &&
+      gap !== principal.unamortizedByFiling?.get(accession) &&
+      !instruments.some((concept) => inFiling(concept, accession) === gap)
+    );
+  });
   const used =
     total === undefined
       ? (legLines ?? [...sides.flatMap((side) => side.concepts), ...usedUmbrellas])
@@ -854,6 +890,11 @@ export function resolveDebtAtInstant<T>(
       ? {}
       : {
           paperReason: `${paper} (${String(unsummedPaper)}) is tagged at this instant, but no tagged line or total shows it inside the selected debt`,
+        }),
+    ...(disputes.length === 0
+      ? {}
+      : {
+          unprovenReason: `${disputes.map(({ concept, value, accessionNumber }) => `${concept} (${String(value)}, ${accessionNumber ?? ""})`).join(", ")} differs from its filing's own legs, so its basis is unproven`,
         }),
     ...(unadjusted.length > 0 ? { leaseInclusive: unadjusted } : {}),
     ...(lineScope ? { lineScope: true as const } : {}),
